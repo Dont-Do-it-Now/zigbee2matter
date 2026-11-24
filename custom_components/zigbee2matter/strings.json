@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Zigbee2Matter",
+        "description": "Connect to the Zigbee2Matter common API (REST/WebSocket).",
+        "data": {"host": "Host", "port": "Port", "token": "API token", "ssl": "Use HTTPS/WSS", "verify_ssl": "Verify certificate", "mode": "Mode"}
+      },
+      "reauth_confirm": {"title": "Re-authenticate", "data": {"token": "API token"}}
+    },
+    "error": {"cannot_connect": "Failed to connect", "invalid_auth": "Invalid API token"},
+    "abort": {"already_configured": "Already configured", "reauth_successful": "Re-authentication successful"}
+  },
+  "options": {"step": {"init": {"title": "Zigbee2Matter", "data": {"mode": "Mode"}}}},
+  "selector": {"mode": {"options": {"direct": "Direct (all entities)", "hybrid": "Hybrid (skip entities exposed by HA Matter)"}}}
+}

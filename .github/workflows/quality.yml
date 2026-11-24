@@ -67,6 +67,8 @@ jobs:
         run: pnpm exec tsc --noEmit
       - name: Tests
         run: pnpm test
+      - name: Fork tests
+        run: pnpm run test:fork
       - name: Generate SBOM
         run: pnpm dlx --yes @cyclonedx/cyclonedx-npm --output-file bom.json --output-format json
       - name: Upload SBOM

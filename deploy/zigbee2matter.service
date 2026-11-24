@@ -1,0 +1,35 @@
+[Unit]
+Description=Zigbee2Matter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 설치 경로/사용자는 환경에 맞게 수정. Node ^22.13.0 || ^24 필요.
+User=zigbee2matter
+Group=zigbee2matter
+SupplementaryGroups=dialout
+WorkingDirectory=/opt/zigbee2matter
+Environment=NODE_ENV=production
+Environment=ZIGBEE2MATTER_DATA=/var/lib/zigbee2matter
+# Matter mDNS 인터페이스 제한이 필요하면 지정(T039)
+#Environment=MATTER_MDNS_NETWORKINTERFACE=eth0
+#Environment=MATTER_MDNS_IPV4=false
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=zigbee2matter
+
+# 호스트 네트워크를 그대로 사용(PrivateNetwork 금지: mDNS/UDP 5353,5540 필요)
+StateDirectory=zigbee2matter
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zigbee2matter
+# 시리얼 장치 접근은 dialout 그룹으로 허용. DevicePolicy 를 제한하지 않는다(USB 경로가 가변).
+
+[Install]
+WantedBy=multi-user.target

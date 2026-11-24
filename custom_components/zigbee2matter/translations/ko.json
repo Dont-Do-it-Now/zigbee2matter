@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Zigbee2Matter",
+        "description": "Zigbee2Matter 공통 API(REST/WebSocket)에 연결합니다.",
+        "data": {"host": "호스트", "port": "포트", "token": "API 토큰", "ssl": "HTTPS/WSS 사용", "verify_ssl": "인증서 검증", "mode": "모드"}
+      },
+      "reauth_confirm": {"title": "재인증", "data": {"token": "API 토큰"}}
+    },
+    "error": {"cannot_connect": "연결하지 못했습니다", "invalid_auth": "API 토큰이 올바르지 않습니다"},
+    "abort": {"already_configured": "이미 설정되어 있습니다", "reauth_successful": "재인증되었습니다"}
+  },
+  "options": {"step": {"init": {"title": "Zigbee2Matter", "data": {"mode": "모드"}}}},
+  "selector": {"mode": {"options": {"direct": "Direct (모든 엔티티)", "hybrid": "Hybrid (HA Matter가 노출하는 엔티티 제외)"}}}
+}

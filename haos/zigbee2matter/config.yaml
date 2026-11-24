@@ -1,0 +1,58 @@
+name: Zigbee2Matter
+slug: zigbee2matter
+version: "2.14.3"
+description: Zigbee to Matter bridge without MQTT broker
+url: https://github.com/reizeo/zigbee2matter
+arch:
+  - amd64
+  - aarch64
+# 기본은 로컬 빌드(haos/prepare-local.* 로 app/ 준비). 사전 빌드 이미지를 쓰려면 아래 주석을 해제하고 OWNER 를 교체한다.
+#image: ghcr.io/OWNER/zigbee2matter-addon-{arch}
+init: false
+startup: application
+boot: auto
+# Matter mDNS(UDP 5353, ff02::fb)·IPv6 link-local 광고·UDP 5540 때문에 host network 필수(T039).
+host_network: true
+ingress: true
+ingress_port: 8080
+ingress_stream: true
+panel_icon: mdi:zigbee
+panel_title: Zigbee2Matter
+# host_network 에서는 포트 매핑이 아니라 선언/watchdog 용이다. 실제 listen 포트는 options 가 결정한다.
+ports:
+  8080/tcp: null
+  8090/tcp: null
+  5540/udp: null
+ports_description:
+  8080/tcp: Frontend (ingress 사용 시 불필요)
+  8090/tcp: Management API
+  5540/udp: Matter
+watchdog: http://[HOST]:[PORT:8080]/
+# 시리얼 어댑터: tty 접근(uart), USB 열거(usb), udev DB(udev). privileged 는 요청하지 않는다.
+uart: true
+usb: true
+udev: true
+# 영속 데이터는 /data (Supervisor backup 포함). 추가 map 없음.
+map: []
+options:
+  matter_enabled: false
+  matter_ipv4: false
+  api_enabled: true
+  api_host: 127.0.0.1
+  api_port: 8090
+  log_level: info
+schema:
+  serial_port: str?
+  serial_adapter: list(zstack|ember|deconz|zigate|zboss|ezsp|zoh)?
+  matter_enabled: bool
+  matter_mdns_interface: str?
+  matter_ipv4: bool
+  matter_passcode: int(1,99999998)?
+  matter_discriminator: int(0,4095)?
+  matter_port: port?
+  api_enabled: bool
+  api_host: str
+  api_port: port
+  api_auth_token: password?
+  frontend_auth_token: password?
+  log_level: list(error|warning|info|debug)

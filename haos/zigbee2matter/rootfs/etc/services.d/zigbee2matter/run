@@ -1,0 +1,52 @@
+#!/usr/bin/with-contenv bashio
+# options(/data/options.json) -> ZIGBEE2MATTER_CONFIG_* 환경 변수. env 가 configuration.yaml 보다 우선한다.
+set -e
+
+export ZIGBEE2MATTER_DATA=/data
+export ZIGBEE2MATTER_CONFIG_FRONTEND_ENABLED=true
+export ZIGBEE2MATTER_CONFIG_FRONTEND_HOST=0.0.0.0
+export ZIGBEE2MATTER_CONFIG_FRONTEND_PORT=8080
+export ZIGBEE2MATTER_CONFIG_ADVANCED_LOG_LEVEL="$(bashio::config 'log_level')"
+export ZIGBEE2MATTER_CONFIG_MATTER_ENABLED="$(bashio::config 'matter_enabled')"
+export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_IPV4="$(bashio::config 'matter_ipv4')"
+export ZIGBEE2MATTER_CONFIG_API_ENABLED="$(bashio::config 'api_enabled')"
+export ZIGBEE2MATTER_CONFIG_API_HOST="$(bashio::config 'api_host')"
+export ZIGBEE2MATTER_CONFIG_API_PORT="$(bashio::config 'api_port')"
+
+# SDK mDNS 전역 설정(T039)
+export MATTER_MDNS_IPV4="$(bashio::config 'matter_ipv4')"
+if bashio::config.has_value 'matter_mdns_interface'; then
+    export MATTER_MDNS_NETWORKINTERFACE="$(bashio::config 'matter_mdns_interface')"
+    export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_MDNSINTERFACE="${MATTER_MDNS_NETWORKINTERFACE}"
+fi
+if bashio::config.has_value 'matter_passcode'; then
+    export ZIGBEE2MATTER_CONFIG_MATTER_PASSCODE="$(bashio::config 'matter_passcode')"
+fi
+if bashio::config.has_value 'matter_discriminator'; then
+    export ZIGBEE2MATTER_CONFIG_MATTER_DISCRIMINATOR="$(bashio::config 'matter_discriminator')"
+fi
+if bashio::config.has_value 'matter_port'; then
+    export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_PORT="$(bashio::config 'matter_port')"
+fi
+if bashio::config.has_value 'serial_port'; then
+    export ZIGBEE2MATTER_CONFIG_SERIAL_PORT="$(bashio::config 'serial_port')"
+fi
+if bashio::config.has_value 'serial_adapter'; then
+    export ZIGBEE2MATTER_CONFIG_SERIAL_ADAPTER="$(bashio::config 'serial_adapter')"
+fi
+if bashio::config.has_value 'frontend_auth_token'; then
+    export ZIGBEE2MATTER_CONFIG_FRONTEND_AUTH_TOKEN="$(bashio::config 'frontend_auth_token')"
+fi
+if bashio::config.has_value 'api_auth_token'; then
+    export ZIGBEE2MATTER_CONFIG_API_AUTH_TOKEN="$(bashio::config 'api_auth_token')"
+fi
+
+# 최초 기동: 예시 설정 복사(없을 때만)
+if ! bashio::fs.file_exists /data/configuration.yaml; then
+    bashio::log.info "Creating /data/configuration.yaml from example"
+    cp /app/configuration.example.yaml /data/configuration.yaml
+fi
+
+bashio::log.info "Starting Zigbee2Matter (data: ${ZIGBEE2MATTER_DATA})"
+cd /app
+exec node index.js

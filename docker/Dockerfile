@@ -5,6 +5,8 @@ FROM alpine:3.24 AS base
 ENV NODE_ENV=production
 WORKDIR /app
 RUN apk add --no-cache tzdata eudev tini nodejs
+# package.json engines(^22.13.0 || ^24, O5) 정합성 검사: 미충족 시 빌드 실패
+RUN node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit((a===22&&b>=13)||a>=24?0:1)"
 
 # Dependencies and build
 FROM base AS deps
@@ -53,6 +55,10 @@ RUN echo "$COMMIT" > dist/.hash
 
 # Expose the default frontend port (see lib/util/settings.ts defaults.frontend.port)
 EXPOSE 8080
+# Management API 기본 포트(lib/util/settings.ts defaults.api.port). 기본 bind 는 127.0.0.1.
+EXPOSE 8090/tcp
+# Matter 기본 포트. host network 에서는 publish 가 없으며 mDNS(UDP 5353)도 host network 필요(T039).
+EXPOSE 5540/udp
 
 # The independent Linux deployment exposes the existing local frontend on host network.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch('http://127.0.0.1:8080/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"

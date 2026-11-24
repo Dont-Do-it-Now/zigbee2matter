@@ -1,0 +1,42 @@
+configuration:
+  serial_port:
+    name: 시리얼 포트
+    description: 코디네이터 경로(예 /dev/serial/by-id/usb-...) 또는 tcp://host:port. 비우면 자동 탐색.
+  serial_adapter:
+    name: 어댑터
+    description: 코디네이터 어댑터 종류. tcp:// 이거나 자동 탐색이 실패하면 필수.
+  matter_enabled:
+    name: Matter 브리지 사용
+    description: Matter 브리지 노드를 시작합니다.
+  matter_mdns_interface:
+    name: Matter mDNS 인터페이스
+    description: mDNS 를 이 네트워크 인터페이스(예 enp0s3)로 제한. 비우면 내부가 아닌 모든 인터페이스 사용.
+  matter_ipv4:
+    name: Matter IPv4 mDNS
+    description: IPv4 로도 광고합니다. 기본은 IPv6 전용.
+  matter_passcode:
+    name: 커미셔닝 passcode
+  matter_discriminator:
+    name: 커미셔닝 discriminator
+  matter_port:
+    name: Matter UDP 포트
+  api_enabled:
+    name: 관리 API
+    description: REST/WebSocket 관리 API 사용.
+  api_host:
+    name: API 바인드 호스트
+    description: LAN 에서 필요하지 않으면 127.0.0.1 유지. loopback 이 아니면 토큰 필수.
+  api_port:
+    name: API 포트
+  api_auth_token:
+    name: API 토큰
+    description: 관리 API Bearer 토큰.
+  frontend_auth_token:
+    name: 프론트엔드 토큰
+    description: 8080 포트 웹 UI 접근 토큰. host network 이므로 미설정 시 HA 인증 없이 LAN 에서 UI 에 접근할 수 있다.
+  log_level:
+    name: 로그 레벨
+network:
+  8080/tcp: Frontend
+  8090/tcp: 관리 API
+  5540/udp: Matter

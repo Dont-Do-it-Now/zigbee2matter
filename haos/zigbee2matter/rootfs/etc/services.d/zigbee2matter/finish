@@ -1,0 +1,6 @@
+#!/usr/bin/with-contenv bashio
+# 서비스 종료 시 컨테이너를 종료해 Supervisor watchdog/재시작 정책이 동작하게 한다.
+if [[ "$1" -ne 0 && "$1" -ne 256 ]]; then
+    bashio::log.warning "Zigbee2Matter exited with code $1"
+fi
+exec /run/s6/basedir/bin/halt
