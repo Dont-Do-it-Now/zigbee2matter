@@ -92,7 +92,7 @@ pnpm start
 
 Use the existing Zigbee2MQTT configuration flow for coordinator and Zigbee settings. Matter runtime integration is exposed through the adapter boundaries under `lib/matter/`.
 
-To enable the Matter node, set `matter.enabled: true` in the configuration and provide both `matter.passcode` and `matter.discriminator` when commissioning credentials are configured. The Matter SDK is loaded at runtime; an enabled Matter node requires the selected SDK version to be installed.
+To enable the Matter node, set `matter.enabled: true` in the configuration and provide both `matter.passcode` and `matter.discriminator` when commissioning credentials are configured. Optional `matter.network` settings expose the Matter UDP `port`, mDNS `mdnsInterface`, `ipv4`, and listening addresses. IPv6 is required; the runtime performs a network preflight and stops before SDK startup when an error is detected. The Matter SDK is loaded at runtime; an enabled Matter node requires the selected SDK version to be installed.
 
 ### Docker
 
