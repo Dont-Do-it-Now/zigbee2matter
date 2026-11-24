@@ -17,6 +17,7 @@ import {
     zigbeeColorXyToMatter,
 } from "./lightingMapping";
 import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
+import {mapCoverPosition} from "./coverMapping";
 
 interface EndpointDefinition {
     with(behavior: unknown): unknown;
@@ -32,6 +33,7 @@ interface EndpointEvents {
         currentX$Changed?: {on(listener: (value: number) => void): void};
         currentY$Changed?: {on(listener: (value: number) => void): void};
     };
+    windowCovering?: {targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void}};
 }
 
 interface MatterEndpointInstance {
@@ -51,7 +53,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "temperature" | "humidity" | "contact" | "occupancy";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -153,6 +155,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                     patch.colorControl = {currentX: mapped.x, currentY: mapped.y};
                 }
             }
+        } else if (capability === "cover" && typeof state.position === "number") {
+            patch.windowCovering = {currentPositionLiftPercent100ths: Math.round(mapCoverPosition(state.position) * 100)};
         } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
             const value = celsiusToMatter(state.temperature);
             if (value.known) patch.temperatureMeasurement = {measuredValue: value.value};
@@ -181,7 +185,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const humidity = flattened.find((expose) => expose.type === "numeric" && expose.name === "humidity");
         const contact = flattened.find((expose) => expose.type === "binary" && expose.name === "contact");
         const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
-        const matches = [light, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
+        const cover = flattened.find((expose) => expose.type === "cover");
+        const matches = [light, cover, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
@@ -204,6 +209,16 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
 
             const {OnOffLightDevice} = await import("@matter/main/devices/on-off-light");
             return {definition: OnOffLightDevice as unknown as EndpointDefinition, capability: "light"};
+        }
+        if (cover) {
+            const [{WindowCoveringDevice}, {WindowCoveringServer}] = await Promise.all([
+                import("@matter/main/devices/window-covering"),
+                import("@matter/main/behaviors/window-covering"),
+            ]);
+            return {
+                definition: WindowCoveringDevice.with(WindowCoveringServer.with("Lift", "PositionAwareLift")) as unknown as EndpointDefinition,
+                capability: "cover",
+            };
         }
         if (temperature) {
             const {TemperatureSensorDevice} = await import("@matter/main/devices/temperature-sensor");
@@ -266,6 +281,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             colors.y = value;
             this.colorValues.set(endpointId, colors);
             if (colors.x !== undefined) this.sendCommand(endpointId, send, {color: matterColorXyToZigbee(colors.x, value)});
+        });
+        endpoint.events?.windowCovering?.targetPositionLiftPercent100ths$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId) || value === null) return;
+            this.sendCommand(endpointId, send, {position: mapCoverPosition(value / 100)});
         });
     }
 
