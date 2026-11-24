@@ -8,6 +8,9 @@ import {DiagnosticRegistry} from "../api/diagnostics";
 import {MatterSdkRuntime, type MatterNodeOptions} from "../matter/sdkRuntime";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
+import {EndpointRegistry, type EndpointRegistryOptions} from "../matter/endpointRegistry";
+import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
+import type {BridgeId} from "../identity";
 
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
@@ -27,6 +30,7 @@ export class BridgeRuntime {
     readonly diagnostics: DiagnosticRegistry;
     readonly matter: MatterSdkRuntime;
     private readonly api?: ApiServer;
+    private endpointRegistry?: EndpointRegistry;
     private attachedEventBus?: EventBus;
 
     constructor(options: BridgeRuntimeOptions = {}) {
@@ -59,6 +63,20 @@ export class BridgeRuntime {
     async startMatter(options: MatterNodeOptions): Promise<void> {
         await this.matter.createNode(options);
         await this.matter.start();
+    }
+
+    async openEndpointRegistry(bridgeId: BridgeId, options: EndpointRegistryOptions = {}): Promise<EndpointRegistry> {
+        if (this.endpointRegistry) {
+            if (this.endpointRegistry.bridgeId !== bridgeId) throw new Error("BridgeRuntime endpoint registry identity mismatch");
+            return this.endpointRegistry;
+        }
+
+        this.endpointRegistry = await EndpointRegistry.open(bridgeId, new FileEndpointRegistryStore(), options);
+        return this.endpointRegistry;
+    }
+
+    get currentEndpointRegistry(): EndpointRegistry | undefined {
+        return this.endpointRegistry;
     }
 
     async stop(): Promise<void> {

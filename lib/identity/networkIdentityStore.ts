@@ -4,7 +4,7 @@ import {chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFi
 import path from "node:path";
 import data from "../util/data";
 import type {NetworkIdentity, NetworkIdentityStore} from "./adapter";
-import {generateNetworkId, parseNetworkId} from "./keys";
+import {generateBridgeId, generateNetworkId, parseBridgeId, parseNetworkId, type BridgeId} from "./keys";
 
 const DEFAULT_FILE = data.joinPath("network-identity.json");
 
@@ -54,6 +54,65 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
 
         try {
             writeFileSync(descriptor, `${JSON.stringify({networkId: identity.networkId})}\n`, "utf8");
+            fsyncSync(descriptor);
+        } finally {
+            closeSync(descriptor);
+        }
+
+        try {
+            renameSync(temporary, this.filePath);
+            chmodSync(this.filePath, 0o600);
+        } catch (error) {
+            try {
+                unlinkSync(temporary);
+            } catch {
+                // Preserve the original creation error.
+            }
+            throw error;
+        }
+    }
+}
+
+/** 단일 브리지의 UUID를 별도 파일에 보존한다. 네트워크 UUID와 같은 값으로 대체하지 않는다. */
+export class FileBridgeIdentityStore {
+    private readonly filePath: string;
+
+    constructor(options: FileNetworkIdentityStoreOptions = {}) {
+        this.filePath = options.filePath ?? data.joinPath("bridge-identity.json");
+    }
+
+    getOrCreate(): BridgeId {
+        if (existsSync(this.filePath)) return this.read();
+
+        const bridgeId = generateBridgeId();
+
+        try {
+            this.write(bridgeId);
+            return bridgeId;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+            return this.read();
+        }
+    }
+
+    private read(): BridgeId {
+        const parsed: unknown = JSON.parse(readFileSync(this.filePath, "utf8"));
+        if (!isRecord(parsed) || typeof parsed.bridgeId !== "string") throw new Error("bridge identity: invalid document");
+
+        const bridgeId = parseBridgeId(parsed.bridgeId);
+        if (bridgeId === undefined) throw new Error("bridge identity: invalid bridgeId");
+        return bridgeId;
+    }
+
+    private write(bridgeId: BridgeId): void {
+        const directory = path.dirname(this.filePath);
+        mkdirSync(directory, {recursive: true, mode: 0o700});
+        chmodSync(directory, 0o700);
+        const temporary = `${this.filePath}.${randomUUID()}.tmp`;
+        const descriptor = openSync(temporary, "wx", 0o600);
+
+        try {
+            writeFileSync(descriptor, `${JSON.stringify({bridgeId})}\n`, "utf8");
             fsyncSync(descriptor);
         } finally {
             closeSync(descriptor);

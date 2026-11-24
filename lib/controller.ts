@@ -28,7 +28,7 @@ import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
-import {FileNetworkIdentityStore, type NetworkIdentity} from "./identity";
+import {FileBridgeIdentityStore, FileNetworkIdentityStore, type BridgeId, type NetworkIdentity} from "./identity";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
 import data from "./util/data";
@@ -49,6 +49,7 @@ export class Controller {
     public readonly state: State;
     public readonly runtime: BridgeRuntime;
     public readonly networkIdentity: NetworkIdentity;
+    public readonly bridgeIdentity: BridgeId;
     private readonly commandRouter: CommandRouter;
     private readonly commandDeduplicator: CommandDeduplicator;
     private readonly commandQueue: DeviceCommandQueue;
@@ -90,6 +91,7 @@ export class Controller {
                 : undefined,
         });
         this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
+        this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
         this.runtime.attachEventBus(this.eventBus);
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
@@ -309,6 +311,7 @@ export class Controller {
         }
 
         try {
+            await this.runtime.openEndpointRegistry(this.bridgeIdentity);
             await this.runtime.start();
         } catch (error) {
             logger.error(`Bridge runtime failed to start, exiting... (${(error as Error).message})`);
