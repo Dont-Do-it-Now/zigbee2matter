@@ -8,6 +8,12 @@ version: 5
 homeassistant:
     enabled: false
 
+# Enable the Matter bridge node (requires the configured Matter SDK runtime)
+matter:
+    enabled: false
+    # passcode: 20202021
+    # discriminator: 3840
+
 # Enable the frontend, runs on port 8080 by default
 frontend:
     enabled: true

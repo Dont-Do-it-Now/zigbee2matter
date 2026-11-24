@@ -46,6 +46,35 @@
             },
             "required": []
         },
+        "matter": {
+            "title": "Matter bridge",
+            "description": "Matter bridge node runtime",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "title": "Enabled",
+                    "description": "Start the Matter bridge node",
+                    "default": false,
+                    "requiresRestart": true
+                },
+                "passcode": {
+                    "type": "integer",
+                    "title": "Commissioning passcode",
+                    "minimum": 1,
+                    "maximum": 99999998,
+                    "requiresRestart": true
+                },
+                "discriminator": {
+                    "type": "integer",
+                    "title": "Commissioning discriminator",
+                    "minimum": 0,
+                    "maximum": 4095,
+                    "requiresRestart": true
+                }
+            },
+            "required": []
+        },
         "availability": {
             "type": "object",
             "title": "Availability",

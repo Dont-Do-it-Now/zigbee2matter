@@ -71,6 +71,9 @@ export class MatterSdkRuntime {
 
     async createNode(options: MatterNodeOptions): Promise<MatterServerNode> {
         if (!options.id) throw new Error("Matter node id is required");
+        if ((options.passcode === undefined) !== (options.discriminator === undefined)) {
+            throw new Error("Matter passcode and discriminator must be provided together");
+        }
         const sdk = await this.load();
         const commissioning = options.passcode === undefined || options.discriminator === undefined
             ? undefined

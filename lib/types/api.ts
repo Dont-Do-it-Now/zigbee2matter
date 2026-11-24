@@ -106,6 +106,11 @@ export type Zigbee2MQTTSettings = {
         experimental_event_entities: boolean;
         legacy_action_sensor: boolean;
     };
+    matter: {
+        enabled: boolean;
+        passcode?: number;
+        discriminator?: number;
+    };
     availability: {
         enabled: boolean;
         active: {

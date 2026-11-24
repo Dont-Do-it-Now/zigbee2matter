@@ -320,6 +320,13 @@ export class Controller {
 
         try {
             await this.runtime.openEndpointRegistry(this.bridgeIdentity);
+            if (settings.get().matter.enabled) {
+                await this.runtime.startMatter({
+                    id: this.bridgeIdentity,
+                    ...(settings.get().matter.passcode !== undefined ? {passcode: settings.get().matter.passcode} : {}),
+                    ...(settings.get().matter.discriminator !== undefined ? {discriminator: settings.get().matter.discriminator} : {}),
+                });
+            }
             await this.runtime.start();
         } catch (error) {
             logger.error(`Bridge runtime failed to start, exiting... (${(error as Error).message})`);

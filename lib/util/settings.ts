@@ -33,6 +33,9 @@ export const defaults = {
         legacy_action_sensor: false,
         experimental_event_entities: false,
     },
+    matter: {
+        enabled: false,
+    },
     availability: {
         enabled: false,
         active: {timeout: 10, max_jitter: 30000, backoff: true, pause_on_backoff_gt: 0},
@@ -173,6 +176,9 @@ export function writeMinimalDefaults(): void {
         },
         homeassistant: {
             enabled: defaults.homeassistant.enabled,
+        },
+        matter: {
+            enabled: defaults.matter.enabled,
         },
     } as Partial<Settings>;
 
