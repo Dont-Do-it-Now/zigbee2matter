@@ -109,11 +109,15 @@ GET  /api/v1/groups
 GET  /api/v1/jobs
 GET  /api/v1/bridges
 GET  /api/v1/diagnostics
+GET  /api/v1/tokens
+POST /api/v1/tokens
+DELETE /api/v1/tokens/:id
 POST /api/v1/commands
 WS   /api/v1/events
 ```
 
 REST는 `Authorization: Bearer <token>`을 사용합니다. WebSocket은 기존 UI 호환을 위해 `token` query parameter도 사용할 수 있습니다. 신규 API는 명시적으로 anonymous scope를 설정하지 않으면 fail-closed입니다. token은 저장 시 hash만 남기고, scope는 `read < control < admin` 순서이며, 외부 오류에는 secret과 stack trace를 포함하지 않습니다.
+관리 API는 `api.ssl_cert`와 `api.ssl_key`로 HTTPS/WSS를 사용할 수 있으며, 두 값 모두 읽을 수 있는 인증서·개인 키 파일을 가리켜야 합니다.
 
 WebSocket 이벤트는 epoch와 증가하는 sequence를 사용합니다. gap, epoch 변경, 잘못된 replay, queue overflow가 발생하면 누락된 상태를 조용히 적용하지 않고 snapshot/resync를 요구합니다.
 
@@ -157,6 +161,8 @@ pnpm run test:fork
 ```
 
 현재 작업 지시가 위 명령 실행을 금지하는 경우에는 `NOT RUN`으로 기록하고 승인된 검증 단계에서 실행하세요.
+
+구현 근거와 미실행 검증 항목은 [`docs/evidence/`](docs/evidence/)에서 작업 ID별로 확인할 수 있습니다.
 
 ## 문서 지도
 

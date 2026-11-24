@@ -102,11 +102,15 @@ GET  /api/v1/groups
 GET  /api/v1/jobs
 GET  /api/v1/bridges
 GET  /api/v1/diagnostics
+GET  /api/v1/tokens
+POST /api/v1/tokens
+DELETE /api/v1/tokens/:id
 POST /api/v1/commands
 WS   /api/v1/events
 ```
 
 REST requests use `Authorization: Bearer <token>`. WebSocket clients may use the compatibility `token` query parameter. New API access is fail-closed unless an explicit anonymous scope is configured. Tokens are hashed at rest, scopes are ordered `read < control < admin`, and external errors omit secrets and stack traces.
+The management API can use `api.ssl_cert` and `api.ssl_key` for HTTPS/WSS; both values must point to readable certificate and private-key files.
 
 The WebSocket event stream uses an epoch and monotonically increasing sequence. A gap, epoch change, invalid replay request, or queue overflow requires a snapshot/resynchronization instead of silently applying incomplete state.
 
@@ -158,6 +162,7 @@ The current working task instructions may deliberately prohibit these commands d
 - [`docs/README.md`](docs/README.md) — design rules and chapter map.
 - [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — cross-module contracts.
 - [`docs/TASK_INDEX.md`](docs/TASK_INDEX.md) — implementation queue.
+- [`docs/evidence/`](docs/evidence/) — implementation evidence and explicit `NOT RUN` verification records.
 - [`docs/01-product/`](docs/01-product/) — scope, licensing, and product decisions.
 - [`docs/02-core/`](docs/02-core/) — Core, transport, state, and upstream boundaries.
 - [`docs/03-zigbee/`](docs/03-zigbee/) — coordinator, pairing, converter, and OTA behavior.
