@@ -1,6 +1,6 @@
 /** C7 REST 라우팅 경계(T056). 기존 frontend HTTP 서버에 주입할 수 있는 Node handler. */
 import type {IncomingMessage, ServerResponse} from "node:http";
-import {authorizeRequest, type ApiAuth, ApiError, redactSecrets, toApiError} from "./auth";
+import {authorizeRequest, type ApiAuth, type Principal, ApiError, redactSecrets, toApiError} from "./auth";
 import {AuthFailureRateLimiter} from "./rateLimit";
 
 export interface RestDevice {
@@ -17,7 +17,7 @@ export interface RestRouterDeps {
     readonly listJobs?: () => readonly unknown[];
     readonly listBridges?: () => readonly unknown[];
     readonly listDiagnostics?: () => unknown;
-    readonly executeCommand?: (input: unknown) => Promise<unknown>;
+    readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
     readonly maxBodyBytes?: number;
     readonly authFailureRateLimiter?: AuthFailureRateLimiter;
@@ -47,8 +47,9 @@ export class RestApiRouter {
         if (this.deps.authFailureRateLimiter && !this.deps.authFailureRateLimiter.allow(clientKey)) {
             throw new ApiError("BUSY", "Too many authentication failures");
         }
+        let principal: Principal;
         try {
-            authorizeRequest(this.deps.auth, {method: req.method ?? "GET", headers: req.headers, url: req.url}, pathname, {
+            principal = authorizeRequest(this.deps.auth, {method: req.method ?? "GET", headers: req.headers, url: req.url}, pathname, {
                 origin: this.deps.origin,
             });
             this.deps.authFailureRateLimiter?.reset(clientKey);
@@ -85,7 +86,7 @@ export class RestApiRouter {
         if (req.method === "POST" && pathname === "/commands") {
             if (!this.deps.executeCommand) throw new ApiError("UNSUPPORTED", "Commands unavailable");
             const body = await readJson(req, this.maxBodyBytes);
-            this.writeJson(res, 202, redactSecrets(await this.deps.executeCommand(body)));
+            this.writeJson(res, 202, redactSecrets(await this.deps.executeCommand(body, principal)));
             return;
         }
 

@@ -29,6 +29,8 @@ export interface CommandIdentity {
     principal: string;
     fabricIndex?: number;
     sessionId?: string;
+    /** Adapter-derived authorization scope; never read from the request body. */
+    scope?: "read" | "control" | "admin";
 }
 
 /** Device/group target: friendly name or IEEE string as known to upstream (`Zigbee.resolveEntity`). */

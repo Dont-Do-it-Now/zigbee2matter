@@ -1,21 +1,21 @@
 /** Core·EventStream·API·Matter adapter를 묶는 composition root(T032/T053/T056/T057). */
 import type EventBus from "../eventBus";
 import {EventStream} from "../events";
-import {ApiAuth, type AuthOptions} from "../api/auth";
+import {ApiAuth, type AuthOptions, type Principal} from "../api/auth";
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
 import {MatterSdkRuntime, type MatterNodeOptions} from "../matter/sdkRuntime";
-import type {RestDevice} from "../api/restRouter";
+import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
 
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly auth?: AuthOptions;
-    readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter"> & {
+    readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter" | keyof RestRouterDeps> & {
         readonly listDevices: () => readonly RestDevice[];
         readonly snapshot?: () => WsSnapshot;
-        readonly executeCommand?: (input: unknown) => Promise<unknown>;
+        readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
     };
 }
 

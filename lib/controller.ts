@@ -21,6 +21,9 @@ import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
 import type {RestDevice} from "./api/restRouter";
+import {ApiError, type Principal} from "./api/auth";
+import CommandRouter from "./command/router";
+import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
@@ -29,6 +32,10 @@ import {stringify} from "./util/stringify";
 import utils from "./util/utils";
 import Zigbee from "./zigbee";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export class Controller {
     /** Allows canceling in-progress startup sequence if necessary. Signal can be passed to long-running ops as necessary for finer control. */
     #startAbortController: AbortController | undefined;
@@ -36,6 +43,7 @@ export class Controller {
     public readonly zigbee: Zigbee;
     public readonly state: State;
     public readonly runtime: BridgeRuntime;
+    private readonly commandRouter: CommandRouter;
     public readonly bridgeBus: BridgeBus; // z2m-fork: T006 renamed from mqtt
     private restartCallback: () => Promise<void>;
     private exitCallback: (code: number, restart: boolean) => Promise<void>;
@@ -56,6 +64,7 @@ export class Controller {
                       host: apiSettings.host,
                       port: apiSettings.port,
                       listDevices: () => this.listRestDevices(),
+                      executeCommand: (input, principal) => this.executeRestCommand(input, principal),
                       snapshot: () => ({
                           epoch: this.runtime.events.epoch,
                           sequence: this.runtime.events.lastSequence,
@@ -68,6 +77,13 @@ export class Controller {
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
         this.state = new State(this.eventBus, this.zigbee);
+        const resolver: TargetResolver = {
+            resolve: (target) => this.resolveCommandTarget(target.entity, target.endpoint),
+        };
+        const authorizer: CommandAuthorizer = {
+            authorize: (command) => this.authorizeCommand(command),
+        };
+        this.commandRouter = new CommandRouter({eventBus: this.eventBus, bridgeBus: this.bridgeBus, resolver, authorizer});
         this.restartCallback = restartCallback;
         this.exitCallback = exitCallback;
         // Initialize extensions.
@@ -112,6 +128,64 @@ export class Controller {
             name: device.name,
             available: this.state.get(device).available !== false,
         }));
+    }
+
+    private resolveCommandTarget(entityName: string, endpoint?: string): ResolvedTarget {
+        const entity = this.zigbee.resolveEntity(entityName);
+        if (!entity) return {ok: false, errorCode: "NOT_FOUND", message: "target not found"};
+
+        if (entity.isDevice()) {
+            const endpointNames = entity.zh.endpoints.map((item) => String(item.ID));
+            if (entity.definition?.endpoint) endpointNames.push(...Object.keys(entity.definition.endpoint(entity.zh)));
+            return {
+                ok: true,
+                name: entity.name,
+                kind: "device",
+                supported: entity.isSupported,
+                endpointNames: [...new Set(endpointNames)],
+            };
+        }
+
+        if (endpoint !== undefined) return {ok: false, errorCode: "INVALID_ARGUMENT", message: "groups have no endpoint"};
+        return {ok: true, name: entity.name, kind: "group", supported: true, endpointNames: []};
+    }
+
+    private authorizeCommand(command: Command): {ok: true} | {ok: false; errorCode: "UNAUTHORIZED" | "FORBIDDEN"; message: string} {
+        const scope = command.identity.scope;
+        if (!scope) return {ok: false, errorCode: "UNAUTHORIZED", message: "no command scope"};
+        if (scope === "admin" || (scope === "control" && command.operation !== "get") || (scope === "read" && command.operation === "get")) {
+            return {ok: true};
+        }
+        return {ok: false, errorCode: "FORBIDDEN", message: "insufficient command scope"};
+    }
+
+    private async executeRestCommand(input: unknown, principal: Principal): Promise<unknown> {
+        if (!isRecord(input) || typeof input.requestId !== "string" || typeof input.correlationId !== "string" || typeof input.deadline !== "number") {
+            throw new ApiError("INVALID_ARGUMENT", "requestId, correlationId and deadline are required");
+        }
+        if (input.operation !== "set" && input.operation !== "get" && input.operation !== "request") {
+            throw new ApiError("INVALID_ARGUMENT", "invalid command operation");
+        }
+        if (!isRecord(input.value) || !isRecord(input.target)) throw new ApiError("INVALID_ARGUMENT", "invalid command target or value");
+
+        const command = {
+            requestId: input.requestId,
+            correlationId: input.correlationId,
+            source: "http" as const,
+            identity: {principal: principal.tokenId, scope: principal.scope},
+            deadline: input.deadline,
+            ...(typeof input.idempotencyKey === "string" ? {idempotencyKey: input.idempotencyKey} : {}),
+            operation: input.operation,
+            target: input.operation === "request"
+                ? {request: typeof input.target.request === "string" ? input.target.request : ""}
+                : {
+                      entity: typeof input.target.entity === "string" ? input.target.entity : "",
+                      ...(typeof input.target.endpoint === "string" ? {endpoint: input.target.endpoint} : {}),
+                  },
+            value: input.value,
+        } as Command;
+
+        return await this.commandRouter.submit(command);
     }
 
     async start(): Promise<void> {
@@ -194,6 +268,7 @@ export class Controller {
         // BridgeBus // z2m-fork: T006
         try {
             await this.bridgeBus.connect();
+            this.commandRouter.start();
         } catch (error) {
             logger.error(`BridgeBus failed to connect, exiting... (${(error as Error).message})`);
             await this.zigbee.stop();
@@ -204,6 +279,7 @@ export class Controller {
             await this.runtime.start();
         } catch (error) {
             logger.error(`Bridge runtime failed to start, exiting... (${(error as Error).message})`);
+            this.commandRouter.stop();
             await this.bridgeBus.disconnect();
             await this.zigbee.stop();
             return await this.exit(1);
@@ -390,6 +466,7 @@ export class Controller {
         }
 
         this.eventBus.removeListeners(this);
+        this.commandRouter.stop();
         try {
             await this.runtime.stop();
         } catch (error) {
