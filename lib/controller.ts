@@ -202,6 +202,7 @@ export class Controller {
             this.runtime.stateSnapshots.observe(`${kind}:${data.entity.ID}`, data.to);
             if (data.entity.isDevice()) void this.updateMatterState(data.entity, data.to);
         });
+        this.eventBus.onBridgeBusMessagePublished(this, (data) => this.onAvailabilityPublished(data));
         this.eventBus.onDeviceInterview(this, (data) => {
             if (data.status === "successful") void this.syncMatterEndpoints(data.device, true);
         });
@@ -328,6 +329,30 @@ export class Controller {
                 logger.warning(`Matter state update failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
+    }
+
+    private onAvailabilityPublished(data: eventdata.BridgeBusMessagePublished): void {
+        const prefix = `${BASE_TOPIC}/`;
+        if (!data.topic.startsWith(prefix) || !data.topic.endsWith("/availability")) return;
+
+        const name = data.topic.substring(prefix.length, data.topic.length - "/availability".length);
+        const entity = this.zigbee.resolveEntity(name);
+        if (!entity) return;
+
+        let payload: unknown;
+        try {
+            payload = JSON.parse(data.payload);
+        } catch {
+            return;
+        }
+
+        if (!isRecord(payload) || (payload.state !== "online" && payload.state !== "offline")) return;
+        const available = payload.state === "online";
+        const kind = entity.isDevice() ? "device" : "group";
+        const key = `${kind}:${entity.ID}`;
+        if (available) this.runtime.stateSnapshots.markAvailable(key);
+        else this.runtime.stateSnapshots.markUnavailable(key);
+        if (entity.isDevice()) void this.updateMatterState(entity, {available});
     }
 
     private async restoreMatterEndpoints(): Promise<void> {
