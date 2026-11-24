@@ -97,6 +97,9 @@ export class MatterSdkRuntime {
     async createNode(options: MatterNodeOptions): Promise<MatterServerNode> {
         if (!options.id) throw new Error("Matter node id is required");
         if (this.node) throw new Error(`Matter node '${this.nodeId ?? "unknown"}' has already been created`);
+        if (options.attestation !== undefined && (options.vendorId !== options.attestation.vendorId || options.productId !== options.attestation.productId)) {
+            throw new Error("Matter attestation VID/PID must match basic information");
+        }
         if ((options.passcode === undefined) !== (options.discriminator === undefined)) {
             throw new Error("Matter passcode and discriminator must be provided together");
         }
