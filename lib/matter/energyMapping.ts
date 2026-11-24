@@ -35,15 +35,19 @@ export class EnergyAccumulator {
 /** 명시된 전력 단위만 W로 변환한다. 단위를 추정하지 않는다. */
 export function toWatts(value: number, unit: PowerUnit): number {
     assertFinite(value, "power");
+    const result = unit === "W" ? value : value * 1000;
+    assertFinite(result, "power");
 
-    return unit === "W" ? value : value * 1000;
+    return result;
 }
 
 /** 명시된 에너지 단위만 Wh로 변환한다. 단위를 추정하지 않는다. */
 export function toWattHours(value: number, unit: EnergyUnit): number {
     assertFinite(value, "energy");
+    const result = unit === "Wh" ? value : value * 1000;
+    assertFinite(result, "energy");
 
-    return unit === "Wh" ? value : value * 1000;
+    return result;
 }
 
 export function assertMatterIntegerRange(value: number, min: number, max: number, name: string): number {
