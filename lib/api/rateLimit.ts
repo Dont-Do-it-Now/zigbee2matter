@@ -18,8 +18,12 @@ export class AuthFailureRateLimiter {
     private readonly windows = new Map<string, FailureWindow>();
 
     constructor(options: RateLimitOptions = {}) {
-        this.maxFailures = Math.max(1, Math.floor(options.maxFailures ?? 10));
-        this.windowMs = Math.max(1, Math.floor(options.windowMs ?? 60_000));
+        const maxFailures = options.maxFailures ?? 10;
+        const windowMs = options.windowMs ?? 60_000;
+        if (!Number.isSafeInteger(maxFailures) || maxFailures < 1) throw new Error("maxFailures must be a positive integer");
+        if (!Number.isSafeInteger(windowMs) || windowMs < 1) throw new Error("windowMs must be a positive integer");
+        this.maxFailures = maxFailures;
+        this.windowMs = windowMs;
         this.now = options.now ?? Date.now;
     }
 
@@ -30,6 +34,7 @@ export class AuthFailureRateLimiter {
 
     recordFailure(key: string): boolean {
         const now = this.now();
+        if (!Number.isSafeInteger(now)) throw new Error("rate-limit clock is invalid");
         const window = this.current(key) ?? {startedAt: now, failures: 0};
         window.failures += 1;
         this.windows.set(key, window);
@@ -49,7 +54,9 @@ export class AuthFailureRateLimiter {
     private current(key: string): FailureWindow | undefined {
         const window = this.windows.get(key);
         if (!window) return undefined;
-        if (this.now() - window.startedAt >= this.windowMs) {
+        const now = this.now();
+        if (!Number.isSafeInteger(now)) throw new Error("rate-limit clock is invalid");
+        if (now - window.startedAt >= this.windowMs) {
             this.windows.delete(key);
             return undefined;
         }

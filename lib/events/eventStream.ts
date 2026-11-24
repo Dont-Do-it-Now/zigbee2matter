@@ -67,6 +67,7 @@ export class EventStream {
      * 저장·전달되는 이벤트와 payload는 호출자 객체를 건드리지 않는 깊은 복사본으로 freeze 된다.
      */
     publish<T>(type: BridgeEventType, key: string, payload: T, options: PublishOptions = {}): BridgeEvent<T> {
+        if (this.seq >= Number.MAX_SAFE_INTEGER) throw new Error("event stream sequence exhausted");
         const frozen = cloneAndFreeze(payload);
         const event: BridgeEvent<T> = {epoch: this.epochId, sequence: ++this.seq, type, key, payload: frozen};
 
@@ -120,7 +121,7 @@ export class EventStream {
 
     private listenerFailed(error: unknown): void {
         this.stats.listenerErrors += 1;
-        logger.error(`EventStream listener error: ${(error as Error).message}`);
+        logger.error(`EventStream listener error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     /** attach()로 건 EventBus 구독을 해제한다. 주의: EventBus.removeListeners는 key.constructor.name 기준이라 EventStream 인스턴스가 여러 개면 서로의 구독도 해제된다(단일 인스턴스 전제). */
@@ -144,7 +145,7 @@ export class EventStream {
     replay(afterSequence: number, epoch: string = this.epochId): ReplayResult {
         const oldestSequence = this.buffer[0]?.sequence;
 
-        if (!Number.isInteger(afterSequence) || afterSequence < 0) {
+        if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) {
             return {resync: true, reason: "invalid", epoch: this.epochId, oldestSequence};
         }
 
