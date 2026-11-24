@@ -1,6 +1,7 @@
 import type {BridgeBus} from "../bridgeBus/types";
 import type EventBus from "../eventBus";
 import type CommandLoopGuard from "./loopGuard";
+import CommandRetryPolicy from "./retry";
 import {
     BRIDGE_RESPONSE_PREFIX,
     buildBridgeRequestTopic,
@@ -36,6 +37,7 @@ export interface CommandRouterDeps {
     validator?: ValueValidator;
     loopGuard?: CommandLoopGuard;
     hooks?: CommandHooks;
+    retryPolicy?: CommandRetryPolicy;
     /** Test seam. */
     now?: () => number;
 }
@@ -43,6 +45,7 @@ export interface CommandRouterDeps {
 interface Pending {
     command: Command;
     resolve: (result: CommandResult) => void;
+    attempt: number;
     timer: ReturnType<typeof setTimeout> | undefined;
     dispatched: boolean;
     /** `request`: transaction echoed by upstream `utils.getResponse`. */
@@ -71,6 +74,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  */
 export default class CommandRouter {
     private readonly pending = new Map<string, Pending>();
+    private readonly retryTimers = new Map<string, {timer: ReturnType<typeof setTimeout>; pending: Pending}>();
     private started = false;
     private readonly now: () => number;
 
@@ -92,6 +96,16 @@ export default class CommandRouter {
         for (const requestId of [...this.pending.keys()]) {
             this.settle(requestId, "unknown", {errorCode: "UNAVAILABLE", errorMessage: "router stopped"});
         }
+        for (const [requestId, retry] of this.retryTimers) {
+            clearTimeout(retry.timer);
+            this.retryTimers.delete(requestId);
+            retry.pending.resolve(this.build(retry.pending.command, "unknown", {
+                errorCode: "UNAVAILABLE",
+                errorMessage: "router stopped before retry",
+                terminal: true,
+                dispatched: retry.pending.dispatched,
+            }));
+        }
     }
 
     /** Resolves with the FINAL result. Intermediate statuses (`accepted`) go to `hooks.onResult`. Never rejects. */
@@ -111,7 +125,7 @@ export default class CommandRouter {
         }
 
         return new Promise<CommandResult>((resolve) => {
-            const pending = this.register(command, resolve);
+            const pending = this.register(command, resolve, 1);
             this.emit(this.build(command, "accepted", {terminal: false, dispatched: false}));
 
             const run = (): void => this.inject(pending);
@@ -243,8 +257,8 @@ export default class CommandRouter {
         return rejection ? fail(rejection.errorCode, rejection.message) : undefined;
     }
 
-    private register(command: Command, resolve: (result: CommandResult) => void): Pending {
-        const pending: Pending = {command, resolve, timer: undefined, dispatched: false};
+    private register(command: Command, resolve: (result: CommandResult) => void, attempt: number): Pending {
+        const pending: Pending = {command, resolve, attempt, timer: undefined, dispatched: false};
 
         if (command.operation === "request") {
             pending.transaction = `${TRANSACTION_PREFIX}${command.requestId}`;
@@ -366,9 +380,43 @@ export default class CommandRouter {
             return;
         }
 
-        this.pending.delete(requestId);
         clearTimeout(pending.timer);
-        pending.resolve(this.emit(this.build(pending.command, status, {...extra, terminal: true, dispatched: pending.dispatched})));
+        const result = this.build(pending.command, status, {...extra, terminal: true, dispatched: pending.dispatched});
+        const decision = this.deps.retryPolicy?.decide(pending.command, result, pending.attempt, this.now());
+
+        this.pending.delete(requestId);
+        this.emit(result);
+
+        if (decision?.retry) {
+            const retryCommand = {...pending.command, requestId: `${pending.command.requestId}:retry:${pending.attempt}`} as Command;
+            const timer = setTimeout(() => {
+                this.retryTimers.delete(requestId);
+                if (!this.started) {
+                    pending.resolve(this.build(pending.command, "unknown", {
+                        errorCode: "UNAVAILABLE",
+                        errorMessage: "router stopped before retry",
+                        terminal: true,
+                        dispatched: pending.dispatched,
+                    }));
+                    return;
+                }
+                const next = this.register(retryCommand, pending.resolve, pending.attempt + 1);
+                this.emit(this.build(retryCommand, "accepted", {terminal: false, dispatched: false}));
+                const schedule = this.deps.hooks?.schedule;
+                const run = (): void => this.inject(next);
+                if (schedule) {
+                    if (schedule(retryCommand, run) === false) {
+                        this.settle(retryCommand.requestId, "failed", {errorCode: "BUSY", errorMessage: "command queue is full"});
+                    }
+                } else {
+                    run();
+                }
+            }, decision.delayMs);
+            this.retryTimers.set(requestId, {timer, pending});
+            return;
+        }
+
+        pending.resolve(result);
     }
 
     private build(command: Command, status: CommandStatus, extra: Partial<CommandResult> & {terminal: boolean; dispatched: boolean}): CommandResult {
