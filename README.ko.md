@@ -99,7 +99,7 @@ pnpm start
 
 코디네이터와 Zigbee 설정은 기존 Zigbee2MQTT 설정 흐름을 사용합니다. Matter 런타임 연결은 `lib/matter/` 아래 adapter 경계를 사용합니다.
 
-Matter node를 사용하려면 설정에서 `matter.enabled: true`를 지정하세요. commissioning credential을 설정할 때는 `matter.passcode`와 `matter.discriminator`를 함께 지정해야 합니다. Matter SDK는 런타임에 로드되며, Matter node를 활성화하려면 고정된 SDK 패키지가 설치되어 있어야 합니다.
+Matter node를 사용하려면 설정에서 `matter.enabled: true`를 지정하세요. commissioning credential을 설정할 때는 `matter.passcode`와 `matter.discriminator`를 함께 지정해야 합니다. Matter SDK는 런타임에 로드되며, Matter node를 활성화하려면 선택한 SDK 버전이 설치되어 있어야 합니다.
 
 ### Docker
 
