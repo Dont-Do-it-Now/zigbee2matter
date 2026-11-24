@@ -81,6 +81,7 @@ export class Controller {
                           ? {tls: {certPath: apiSettings.ssl_cert ?? "", keyPath: apiSettings.ssl_key ?? ""}}
                           : {}),
                       listDevices: () => this.listRestDevices(),
+                      listJobs: () => this.listRestJobs(),
                       executeCommand: (input, principal) => this.executeRestCommand(input, principal),
                       snapshot: () => ({
                           epoch: this.runtime.events.epoch,
@@ -162,6 +163,11 @@ export class Controller {
             name: device.name,
             available: this.state.get(device).available !== false,
         }));
+    }
+
+    private listRestJobs(): readonly unknown[] {
+        const extension = this.getExtension("OTAUpdate");
+        return extension instanceof ExtensionOTAUpdate ? extension.listJobs() : [];
     }
 
     private resolveCommandTarget(entityName: string, endpoint?: string): ResolvedTarget {

@@ -93,6 +93,10 @@ export default class OTAUpdate extends Extension {
         this.#lastChecked.clear();
     }
 
+    listJobs(): readonly OtaJob[] {
+        return this.#jobs.list();
+    }
+
     #removeProgressAndRemainingFromState(device: Device): void {
         const deviceState = this.state.get(device);
 

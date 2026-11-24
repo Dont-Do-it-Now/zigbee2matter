@@ -61,6 +61,10 @@ export class OtaJobStore {
         return this.#jobs.get(id);
     }
 
+    list(): readonly OtaJob[] {
+        return [...this.#jobs.values()].map((job) => ({...job}));
+    }
+
     findActiveByDevice(deviceIeeeAddr: string): OtaJob | undefined {
         return [...this.#jobs.values()].find(
             (job) => job.deviceIeeeAddr === deviceIeeeAddr && (job.status === "queued" || job.status === "running"),
