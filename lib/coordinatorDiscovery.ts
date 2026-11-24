@@ -99,3 +99,33 @@ function isValidCandidate(candidate: CoordinatorCandidate): boolean {
 
     return match !== null && Number(match[1]) >= 1 && Number(match[1]) <= 65535;
 }
+
+/** zigbee-herdsman `findAllDevices()`가 반환하는 항목 중 정책에 필요한 필드. */
+export interface HerdsmanDiscoveredDevice {
+    path: string;
+    adapter?: string;
+}
+
+/**
+ * herdsman 탐지 결과(`findAllDevices`)를 후보로 변환해 정책으로 판정한다. 탐지는 호출자가 주입한 herdsman 함수가 수행한다(재구현 없음).
+ * `configured`는 사용자가 설정에 명시한 포트(TCP 포함)이며, herdsman이 자동 수집한 TCP는 선택 대상에서 제외된다.
+ */
+export async function discoverCoordinators(
+    findAll: () => Promise<readonly HerdsmanDiscoveredDevice[]>,
+    options: {configured?: {path: string; adapter?: string}; selectionId?: string} = {},
+): Promise<CoordinatorDiscoveryResult> {
+    const toCandidate = (device: HerdsmanDiscoveredDevice, origin: CoordinatorCandidateOrigin): CoordinatorCandidate => ({
+        id: device.path,
+        transport: /^(?:tcp|socket):\/\//.test(device.path) ? "tcp" : "serial",
+        path: device.path,
+        adapter: device.adapter,
+        origin,
+    });
+    const candidates: CoordinatorCandidate[] = [];
+
+    if (options.configured?.path) candidates.push(toCandidate(options.configured, "configured"));
+
+    candidates.push(...(await findAll()).map((device) => toCandidate(device, "automatic")));
+
+    return evaluateCoordinatorDiscovery({candidates, selectionId: options.selectionId});
+}

@@ -296,7 +296,7 @@ export default class Publish extends Extension {
 
         for (const [ID, payload] of Object.entries(toPublish)) {
             if (!utils.objectIsEmpty(payload)) {
-                await this.publishEntityState(toPublishEntity[ID], payload);
+                await this.publishEntityState(toPublishEntity[ID], payload, "commandOptimistic"); // z2m-fork: T020 낙관값은 confirmed 관측이 아니다
             }
         }
 

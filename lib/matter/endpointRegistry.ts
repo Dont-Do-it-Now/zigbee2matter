@@ -52,14 +52,24 @@ export interface EndpointRegistryStore {
 export class MemoryEndpointRegistryStore implements EndpointRegistryStore {
     #data = new Map<string, string>();
 
-    async load(bridgeId: BridgeId): Promise<EndpointRegistryDocument | undefined> {
-        const raw = this.#data.get(bridgeId);
+    load(bridgeId: BridgeId): Promise<EndpointRegistryDocument | undefined> {
+        try {
+            const raw = this.#data.get(bridgeId);
 
-        return raw === undefined ? undefined : parseEndpointRegistryDocument(JSON.parse(raw), bridgeId);
+            return Promise.resolve(raw === undefined ? undefined : parseEndpointRegistryDocument(JSON.parse(raw), bridgeId));
+        } catch (error) {
+            return Promise.reject(error);
+        }
     }
 
-    async save(bridgeId: BridgeId, document: EndpointRegistryDocument): Promise<void> {
-        this.#data.set(bridgeId, JSON.stringify(document));
+    save(bridgeId: BridgeId, document: EndpointRegistryDocument): Promise<void> {
+        try {
+            this.#data.set(bridgeId, JSON.stringify(document));
+
+            return Promise.resolve();
+        } catch (error) {
+            return Promise.reject(error);
+        }
     }
 }
 

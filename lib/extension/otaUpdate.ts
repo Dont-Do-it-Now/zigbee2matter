@@ -62,7 +62,7 @@ export default class OTAUpdate extends Extension {
     );
     #inProgress = new Set<string>();
     #lastChecked = new Map<string, number>();
-    #jobs = new OtaJobStore({maxConcurrent: 1});
+    #jobs = new OtaJobStore({maxConcurrent: Number.MAX_SAFE_INTEGER});
     #lastJobByDevice = new Map<string, OtaJob>();
 
     // biome-ignore lint/suspicious/useAwait: API
@@ -153,7 +153,13 @@ export default class OTAUpdate extends Extension {
                     this.#removeProgressAndRemainingFromState(data.device);
                     await this.publishEntityState(
                         data.device,
-                        this.#getEntityPublishPayload(data.device, "scheduled", undefined, undefined, this.#lastJobByDevice.get(data.device.ieeeAddr)),
+                        this.#getEntityPublishPayload(
+                            data.device,
+                            "scheduled",
+                            undefined,
+                            undefined,
+                            this.#lastJobByDevice.get(data.device.ieeeAddr),
+                        ),
                     );
                 }
 
@@ -568,9 +574,9 @@ export default class OTAUpdate extends Extension {
 
         const job = this.#jobs.create(device.ieeeAddr);
         this.#lastJobByDevice.set(device.ieeeAddr, job);
-        this.#jobs.start(job);
 
         try {
+            this.#jobs.start(job); // z2m-fork: T031 start 실패도 job을 fail 처리한다
             const [from, to] = await device.zh.updateOta(
                 source,
                 requestPayload,
@@ -587,7 +593,10 @@ export default class OTAUpdate extends Extension {
             if (to === undefined) {
                 this.#jobs.fail(job, "No OTA image currently available");
                 this.#removeProgressAndRemainingFromState(device);
-                await this.publishEntityState(device, this.#getEntityPublishPayload(device, {available: false, current: from}, undefined, undefined, job));
+                await this.publishEntityState(
+                    device,
+                    this.#getEntityPublishPayload(device, {available: false, current: from}, undefined, undefined, job),
+                );
 
                 return [from.fileVersion, undefined];
             }

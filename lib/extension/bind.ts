@@ -6,6 +6,7 @@ import type {TClusterAttributeKeys} from "zigbee-herdsman/dist/zspec/zcl/definit
 import type {ClusterName} from "zigbee-herdsman/dist/zspec/zcl/definition/tstype";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
 import BindingRegistry from "../groupBinding";
+import {deviceKeyOf, FileNetworkIdentityStore, groupKeyOf, type NetworkId} from "../identity";
 import Device from "../model/device";
 import Group from "../model/group";
 import type {Zigbee2MQTTAPI, Zigbee2MQTTResponseEndpoints} from "../types/api";
@@ -192,6 +193,7 @@ export default class Bind extends Extension {
     #topicRegex = new RegExp(`^${BASE_TOPIC}/bridge/request/device/(bind|unbind|binds/clear)`);
     private pollDebouncers: {[s: string]: () => void} = {};
     private readonly bindingRegistry = new BindingRegistry();
+    private networkId: NetworkId | undefined;
 
     // biome-ignore lint/suspicious/useAwait: API
     override async start(): Promise<void> {
@@ -378,7 +380,8 @@ export default class Bind extends Extension {
 
                     successfulClusters.push(cluster);
                     logger.info(
-                        `Successfully ${type === "bind" ? "bound" : "unbound"} cluster '${cluster}' from '${resolvedSource.name}' to '${resolvedTarget.name}'`,
+                        `Successfully ${type === "bind" ? "bound" : "unbound"} cluster '${cluster}' from '${resolvedSource.name}' ` +
+                            `to '${resolvedTarget.name}'`,
                     );
                 } catch (error) {
                     failedClusters.push(cluster);
@@ -414,24 +417,26 @@ export default class Bind extends Extension {
         if (successfulClusters.length !== 0) {
             /* v8 ignore stop */
             if (type === "bind") {
-                if (sourceKey !== undefined && targetKey !== undefined) {
-                    for (const cluster of successfulClusters) {
-                        const source = `${sourceKey}:${String(sourceEndpointKey)}`;
-                        const target = `${String(targetKey)}:${String(targetEndpointKey ?? "default")}`;
-                        this.bindingRegistry.upsert(source, target, cluster, true);
-                    }
-                }
+                this.recordBinding(
+                    resolvedSource,
+                    resolvedSourceEndpoint,
+                    resolvedTarget,
+                    resolvedBindTarget,
+                    successfulClusters,
+                    true,
+                ); // z2m-fork: T028
                 await this.setupReporting(
                     resolvedSourceEndpoint.binds.filter((b) => successfulClusters.includes(b.cluster.name) && b.target === resolvedBindTarget),
                 );
             } else {
-                if (sourceKey !== undefined && targetKey !== undefined) {
-                    for (const cluster of successfulClusters) {
-                        const source = `${sourceKey}:${String(sourceEndpointKey)}`;
-                        const target = `${String(targetKey)}:${String(targetEndpointKey ?? "default")}`;
-                        this.bindingRegistry.remove(source, target, cluster);
-                    }
-                }
+                this.recordBinding(
+                    resolvedSource,
+                    resolvedSourceEndpoint,
+                    resolvedTarget,
+                    resolvedBindTarget,
+                    successfulClusters,
+                    false,
+                ); // z2m-fork: T028
                 if (typeof resolvedBindTarget !== "number" && !skipDisableReporting) {
                     await this.disableUnnecessaryReportings(resolvedBindTarget);
                 }
@@ -440,6 +445,32 @@ export default class Bind extends Extension {
 
         await this.publishResponse(parsed.type, raw, responseData);
         this.eventBus.emitDevicesChanged();
+    }
+
+    /** z2m-fork: T028 BindingRegistry에는 C1 DeviceKey/GroupKey를 전달한다(이름 문자열 금지). */
+    private recordBinding(
+        source: Device | Group,
+        sourceEndpoint: zh.Endpoint,
+        target: Device | Group,
+        bindTarget: zh.Endpoint | zh.Group | number,
+        clusters: readonly string[],
+        active: boolean,
+    ): void {
+        this.networkId ??= new FileNetworkIdentityStore().getOrCreate().networkId;
+        const sourceKey = source instanceof Device ? deviceKeyOf(this.networkId, source.zh, sourceEndpoint, "bind") : undefined;
+        const targetKey =
+            target instanceof Device && utils.isZHEndpoint(bindTarget)
+                ? deviceKeyOf(this.networkId, target.zh, bindTarget, "bind")
+                : target instanceof Group
+                  ? groupKeyOf(this.networkId, target.zh, "bind")
+                  : undefined;
+
+        if (sourceKey === undefined || targetKey === undefined) return;
+
+        for (const cluster of clusters) {
+            if (active) this.bindingRegistry.upsert(sourceKey, targetKey, cluster, true);
+            else this.bindingRegistry.remove(sourceKey, targetKey, cluster);
+        }
     }
 
     private async publishResponse<T extends Zigbee2MQTTResponseEndpoints>(

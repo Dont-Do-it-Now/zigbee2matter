@@ -5,17 +5,28 @@ import type {TokenRecord} from "./auth";
 
 /** File-backed API token hashes. Token secrets are never written by this store. */
 export class FileApiTokenStore {
-    constructor(private readonly filePath: string) {}
+    constructor(
+        private readonly filePath: string,
+        private readonly warn?: (message: string) => void,
+    ) {}
 
     load(): TokenRecord[] {
         if (!existsSync(this.filePath)) return [];
 
         try {
             const parsed: unknown = JSON.parse(readFileSync(this.filePath, "utf8"));
-            return Array.isArray(parsed) ? (parsed as TokenRecord[]) : [];
+            if (Array.isArray(parsed)) return parsed as TokenRecord[];
         } catch {
-            return [];
+            // 아래에서 손상 파일로 처리한다.
         }
+        const corruptPath = `${this.filePath}.corrupt-${Date.now()}`;
+        try {
+            renameSync(this.filePath, corruptPath);
+            this.warn?.(`API token store is corrupt; preserved as ${corruptPath} and starting empty`);
+        } catch {
+            this.warn?.("API token store is corrupt and could not be preserved; starting empty");
+        }
+        return [];
     }
 
     save(records: readonly TokenRecord[]): void {

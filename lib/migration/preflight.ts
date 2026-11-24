@@ -130,7 +130,12 @@ function checkDevices(input: PreflightInput, issues: PreflightIssue[]): void {
         }
 
         if (device.supported === false) {
-            issues.push({category: "device", severity: "block", code: "DEVICE_UNSUPPORTED", detail: `기기 '${device.name ?? device.modelId ?? identity}'가 지원되지 않습니다.`});
+            issues.push({
+                category: "device",
+                severity: "block",
+                code: "DEVICE_UNSUPPORTED",
+                detail: `기기 '${device.name ?? device.modelId ?? identity}'가 지원되지 않습니다.`,
+            });
         }
     }
 }

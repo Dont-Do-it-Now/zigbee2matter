@@ -6,6 +6,8 @@ export interface RateLimitOptions {
     readonly now?: () => number;
 }
 
+const MAX_TRACKED_KEYS = 10_000;
+
 interface FailureWindow {
     startedAt: number;
     failures: number;
@@ -36,6 +38,10 @@ export class AuthFailureRateLimiter {
         const now = this.now();
         if (!Number.isSafeInteger(now)) throw new Error("rate-limit clock is invalid");
         const window = this.current(key) ?? {startedAt: now, failures: 0};
+        if (!this.windows.has(key) && this.windows.size >= MAX_TRACKED_KEYS) {
+            this.clearExpired();
+            if (this.windows.size >= MAX_TRACKED_KEYS) this.windows.delete(this.windows.keys().next().value as string);
+        }
         window.failures += 1;
         this.windows.set(key, window);
         return window.failures <= this.maxFailures;

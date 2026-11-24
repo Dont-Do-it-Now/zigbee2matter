@@ -8,7 +8,8 @@ export interface BridgeEvent<T = unknown> {
     /** epoch 내 1부터 단조 증가. 건너뛰면 gap. */
     sequence: number;
     type: BridgeEventType;
-    /** 대상 식별자: `device/<ieee>`, `group/<id>`, `bridge`. */
+    /** 대상 식별자. state/delta/availability는 C1 키(`dev:<net>:<ieee>:<ep>:<feature>`, `grp:...`),
+     * inventory/transient는 `device/<ieee>`, `group/<id>`, `bridge`. */
     key: string;
     /** 상태 revision(C2, T020/T021 범위). 아직 없으면 undefined. */
     revision?: number;
@@ -21,7 +22,9 @@ export interface PublishOptions {
     correlationId?: string;
 }
 
-export type ReplayResult = {resync: false; events: BridgeEvent[]} | {resync: true; reason: "epoch" | "gap" | "invalid"; epoch: string; oldestSequence: number | undefined};
+export type ReplayResult =
+    | {resync: false; events: BridgeEvent[]}
+    | {resync: true; reason: "epoch" | "gap" | "invalid"; epoch: string; oldestSequence: number | undefined};
 
 export interface EventStreamStats {
     published: number;

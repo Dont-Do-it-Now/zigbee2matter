@@ -11,6 +11,7 @@ import type {WsSnapshot} from "./wsSession";
 
 export interface ApiServerOptions extends RestRouterDeps {
     readonly stream: EventStream;
+    /** 요청자에게만 보낼 snapshot. 이벤트 스트림에 snapshot 이벤트를 발행하지 않는 조회용(peek)이어야 한다(T021). */
     readonly snapshot?: () => WsSnapshot;
     readonly host?: string;
     readonly port: number;
@@ -18,7 +19,8 @@ export interface ApiServerOptions extends RestRouterDeps {
 }
 
 export class ApiServer {
-    private readonly http: Server;
+    private http?: Server;
+    private degraded?: string;
     private readonly websocket: WebSocket.Server;
     private readonly rest: RestApiRouter;
     private readonly ws: WsApiRouter;
@@ -36,51 +38,76 @@ export class ApiServer {
             maxPayloadBytes: 65_536,
             snapshot: options.snapshot,
         });
-        if (options.tls !== undefined && (!options.tls.certPath || !options.tls.keyPath)) {
-            throw new Error("API TLS requires both cert and key");
-        }
-        this.http = options.tls
-            ? createSecureServer({cert: readFileSync(options.tls.certPath), key: readFileSync(options.tls.keyPath)}, (req, res) => this.rest.handle(req, res))
-            : createServer((req, res) => this.rest.handle(req, res));
         this.websocket = new WebSocket.Server({noServer: true, maxPayload: 65_536});
         this.ws.attach(this.websocket);
-        this.http.on("upgrade", (request, socket, head) => this.upgrade(request, socket, head));
+    }
+
+    /** TLS 설정/인증서 읽기 실패 시 API만 UNAVAILABLE(degraded)이 되고 서버는 listen하지 않는다. */
+    get degradedReason(): string | undefined {
+        return this.degraded;
+    }
+
+    private createHttp(): Server {
+        const tls = this.options.tls;
+        if (tls === undefined) return createServer((req, res) => this.rest.handle(req, res));
+        if (!tls.certPath || !tls.keyPath) throw new Error("API TLS requires both cert and key");
+        return createSecureServer({cert: readFileSync(tls.certPath), key: readFileSync(tls.keyPath)}, (req, res) =>
+            this.rest.handle(req, res),
+        );
     }
 
     async start(): Promise<void> {
         if (this.listening) return;
+        let http: Server;
+        try {
+            http = this.createHttp();
+        } catch (error) {
+            this.degraded = `UNAVAILABLE: ${error instanceof Error ? error.message : String(error)}`;
+            return;
+        }
+        this.degraded = undefined;
+        http.on("upgrade", (request, socket, head) => this.upgrade(request, socket, head));
+        this.http = http;
         await new Promise<void>((resolve, reject) => {
             const onError = (error: Error): void => {
-                this.http.off("listening", onListening);
+                http.off("listening", onListening);
                 reject(error);
             };
             const onListening = (): void => {
-                this.http.off("error", onError);
+                http.off("error", onError);
                 this.listening = true;
                 resolve();
             };
-            this.http.once("error", onError);
-            this.http.once("listening", onListening);
-            if (this.options.host) this.http.listen(this.options.port, this.options.host);
-            else this.http.listen(this.options.port);
+            http.once("error", onError);
+            http.once("listening", onListening);
+            if (this.options.host) http.listen(this.options.port, this.options.host);
+            else http.listen(this.options.port);
         });
     }
 
     async stop(): Promise<void> {
         if (!this.listening) return;
         for (const client of this.websocket.clients) client.terminate();
-        await new Promise<void>((resolve) => this.http.close(() => resolve()));
+        const http = this.http;
+        if (http) await new Promise<void>((resolve) => http.close(() => resolve()));
         await new Promise<void>((resolve) => this.websocket.close(() => resolve()));
         this.listening = false;
     }
 
     address(): ReturnType<Server["address"]> {
-        return this.http.address();
+        return this.http?.address() ?? null;
     }
 
     private upgrade(request: IncomingMessage, socket: Socket, head: Buffer): void {
-        const pathname = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
-        if (pathname !== "/api/v1/events") {
+        let pathname: string;
+        try {
+            pathname = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
+        } catch {
+            socket.destroy();
+            return;
+        }
+        // REST와 같은 정책: 끝 `/` 하나만 허용(`/api/v1/events//`는 거부).
+        if (pathname !== "/api/v1/events" && pathname !== "/api/v1/events/") {
             socket.destroy();
             return;
         }

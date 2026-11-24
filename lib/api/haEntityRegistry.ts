@@ -1,7 +1,19 @@
 /** HA Direct/Matter 공용 엔티티 identity registry 경계 (T052). */
 import {formatDeviceKey, formatGroupKey, type EntityKey} from "../identity";
 
-export type HaEntityPlatform = "sensor" | "binary_sensor" | "switch" | "cover" | "lock" | "climate" | "button";
+// z2m-fork: T052 light/number/select 추가(homeassistant.ts 매핑 재사용)
+export type HaEntityPlatform =
+    | "sensor"
+    | "binary_sensor"
+    | "switch"
+    | "cover"
+    | "lock"
+    | "climate"
+    | "button"
+    | "light"
+    | "number"
+    | "select"
+    | "event";
 export type HaEntityAvailability = "available" | "unavailable" | "removed";
 
 export interface HaEntityRecord {

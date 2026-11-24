@@ -1,6 +1,7 @@
 import {randomUUID} from "node:crypto";
 
 import type EventBus from "../eventBus";
+import {formatDeviceKey, formatGroupKey, makeDeviceKey, makeGroupKey} from "../identity/keys";
 import logger from "../util/logger";
 import type {BridgeEvent, BridgeEventType, EventStreamStats, PublishOptions, ReplayResult} from "./types";
 
@@ -36,14 +37,35 @@ export class EventStream {
         return this.seq;
     }
 
+    private networkId: string | undefined;
+
+    /** C1 키 네임스페이스. 설정하면 inventory/transient 키도 `dev:<net>:<ieee>:0:device`, `grp:<net>:<id>:group` 형식이 된다. */
+    setNetworkId(networkId: string): void {
+        this.networkId = networkId;
+    }
+
+    private deviceKey(ieee: string): string {
+        const key = this.networkId === undefined ? undefined : makeDeviceKey(this.networkId, ieee, 0, "device");
+
+        return key ? formatDeviceKey(key) : `device/${ieee}`;
+    }
+
+    private groupKey(id: number): string {
+        const key = this.networkId === undefined ? undefined : makeGroupKey(this.networkId, id, "group");
+
+        return key ? formatGroupKey(key) : `group/${id}`;
+    }
+
+    private entityKey(entity: Device | Group): string {
+        return entity.isDevice() ? this.deviceKey(entity.ieeeAddr) : this.groupKey(entity.ID);
+    }
+
     /** 기존 EventBus 이벤트 구독을 연결한다. 호출자는 `removeListeners(this)`로 해제한다. */
     attach(eventBus: EventBus): void {
-        eventBus.onStateChange(this, (data) => {
-            this.publish("delta", entityKey(data.entity), {update: {...data.update}, reason: data.reason});
-        });
+        // z2m-fork: T011 stateChange는 구독하지 않는다. 상태 delta의 단일 writer는 StateSnapshotCoordinator(C1 키, revision 포함)다.
         // 버튼/액션 등 순간 이벤트: 상태에 병합하지 않고 개별 보존한다.
         eventBus.onDeviceMessage(this, (data) => {
-            this.publish("transient", `device/${data.device.ieeeAddr}`, {
+            this.publish("transient", this.deviceKey(data.device.ieeeAddr), {
                 messageType: data.type,
                 cluster: data.cluster,
                 endpoint: data.endpoint.ID,
@@ -51,14 +73,22 @@ export class EventStream {
                 data: data.data,
             });
         });
-        eventBus.onDeviceJoined(this, (data) => this.inventory(`device/${data.device.ieeeAddr}`, "joined"));
-        eventBus.onDeviceInterview(this, (data) => this.inventory(`device/${data.device.ieeeAddr}`, `interview_${data.status}`));
-        eventBus.onDeviceLeave(this, (data) => this.inventory(`device/${data.ieeeAddr}`, "leave"));
-        eventBus.onEntityRemoved(this, (data) => this.inventory(entityKey(data.entity), "removed"));
-        eventBus.onEntityRenamed(this, (data) => this.inventory(entityKey(data.entity), "renamed", {from: data.from, to: data.to}));
-        eventBus.onGroupMembersChanged(this, (data) => this.inventory(`group/${data.group.ID}`, `members_${data.action}`));
+        // 변환된 버튼 action(converter 결과): 상태 delta에는 병합하지 않고 transient로 1회만 발행한다(C4). state.ts는 action을 캐시하지 않는다.
+        eventBus.onPublishEntityState(this, (data) => {
+            if (!data.entity.isDevice()) return;
+            const action = data.payload.action;
+            if (typeof action !== "string" || action === "") return;
+            const extra = Object.fromEntries(Object.entries(data.payload).filter(([k]) => k.startsWith("action_")));
+            this.publish("transient", this.deviceKey(data.entity.ieeeAddr), {...extra, action});
+        });
+        eventBus.onDeviceJoined(this, (data) => this.inventory(this.deviceKey(data.device.ieeeAddr), "joined"));
+        eventBus.onDeviceInterview(this, (data) => this.inventory(this.deviceKey(data.device.ieeeAddr), `interview_${data.status}`));
+        eventBus.onDeviceLeave(this, (data) => this.inventory(this.deviceKey(data.ieeeAddr), "leave"));
+        eventBus.onEntityRemoved(this, (data) => this.inventory(this.entityKey(data.entity), "removed"));
+        eventBus.onEntityRenamed(this, (data) => this.inventory(this.entityKey(data.entity), "renamed", {from: data.from, to: data.to}));
+        eventBus.onGroupMembersChanged(this, (data) => this.inventory(this.groupKey(data.group.ID), `members_${data.action}`));
         eventBus.onDevicesChanged(this, () => this.inventory("bridge", "devices_changed"));
-        eventBus.onExposesChanged(this, (data) => this.inventory(`device/${data.device.ieeeAddr}`, "exposes_changed"));
+        eventBus.onExposesChanged(this, (data) => this.inventory(this.deviceKey(data.device.ieeeAddr), "exposes_changed"));
     }
 
     /**
@@ -197,8 +227,4 @@ function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
     for (const [key, item] of Object.entries(value)) clone[key] = cloneAndFreeze(item, seen);
 
     return Object.freeze(clone) as T;
-}
-
-function entityKey(entity: Device | Group): string {
-    return entity.isDevice() ? `device/${entity.ieeeAddr}` : `group/${entity.ID}`;
 }

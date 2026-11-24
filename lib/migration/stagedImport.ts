@@ -38,6 +38,11 @@ export async function executeStagedImport(plan: ImportDataPlan, options: StagedI
     }
 }
 
+/** operations.ts의 runMigrationOperations에 주입할 실행기를 만든다(2차 통합용 진입점). */
+export function createStagedImportExecutor(options: StagedImportOptions): (plan: ImportDataPlan) => Promise<StagedImportResult> {
+    return (plan) => executeStagedImport(plan, options);
+}
+
 async function copyVerified(sourcePath: string, stagedPath: string, expectedSha256: string): Promise<void> {
     const sourceStat = await lstat(sourcePath);
     if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) throw new Error(`source is not a regular file: ${sourcePath}`);
@@ -56,6 +61,9 @@ async function writeConfiguration(
 ): Promise<void> {
     if (!serializeConfiguration) throw new Error("configuration serializer is required for staged import");
     const targetRelative = safeRelativeTarget(targetRoot, action.targetPath);
+    if ((await sha256(action.sourcePath)).toLowerCase() !== action.sourceSha256.toLowerCase()) {
+        throw new Error(`configuration source checksum mismatch: ${action.sourcePath}`);
+    }
     const path = join(stagingDir, targetRelative);
     await mkdir(dirname(path), {recursive: true});
     await writeFile(path, serializeConfiguration(action.configuration), "utf8");
@@ -87,6 +95,7 @@ function safeRelativeCopyPath(sourceRoot: string, sourcePath: string, targetRoot
 
 function safeRelativeTarget(root: string, path: string): string {
     const value = relative(resolve(root), resolve(path));
-    if (!value || value.startsWith("..") || isAbsolute(value) || value.split(/[\\/]/).includes(".")) throw new Error(`path escapes data root: ${path}`);
+    if (!value || value.startsWith("..") || isAbsolute(value) || value.split(/[\\/]/).includes("."))
+        throw new Error(`path escapes data root: ${path}`);
     return value;
 }

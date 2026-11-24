@@ -27,6 +27,8 @@ interface Registration {
     onError?: PlatformFanoutOptions["onError"];
     running: boolean;
     active: boolean;
+    /** T017: 이벤트가 드롭되었으므로 큐가 비면 소비자에게 resync(snapshot) 신호를 한 번 전달한다. */
+    resyncPending: boolean;
     stats: PlatformConsumerStats;
 }
 
@@ -52,6 +54,7 @@ export default class PlatformFanout {
             onError: options.onError,
             running: false,
             active: true,
+            resyncPending: false,
             stats: {queued: 0, dropped: 0, errors: 0},
         };
         registration.unsubscribeFromStream = this.stream.subscribe((event) => this.enqueue(registration, event));
@@ -143,7 +146,17 @@ export default class PlatformFanout {
 
         try {
             while (registration.active) {
-                const event = registration.queue.shift();
+                let event = registration.queue.shift();
+                if (!event && registration.resyncPending) {
+                    registration.resyncPending = false;
+                    event = {
+                        epoch: this.stream.epoch,
+                        sequence: this.stream.lastSequence,
+                        type: "snapshot",
+                        key: "bridge",
+                        payload: {reason: "overflow"},
+                    };
+                }
                 if (!event) {
                     break;
                 }
@@ -168,6 +181,7 @@ export default class PlatformFanout {
     }
 
     private reportDrop(registration: Registration, event: BridgeEvent, reason: "transient" | "state"): void {
+        registration.resyncPending = true;
         try {
             registration.onDrop?.({id: registration.id, platform: registration.platform, event, reason});
         } catch {

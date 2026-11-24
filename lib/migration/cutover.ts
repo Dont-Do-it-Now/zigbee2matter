@@ -26,7 +26,12 @@ export interface CutoverIssue {
     detail: string;
 }
 
+/** plan: 원본 중지 전 계획 검증. execute: 원본 중지 후 시작 직전 검증. */
+export type CutoverPhase = "plan" | "execute";
+
 export interface CutoverInput {
+    /** 생략하면 "plan". 계획 단계와 실행 단계의 조건이 서로 모순되지 않도록 분리한다. */
+    phase?: CutoverPhase;
     sourceServiceId: string;
     targetServiceId: string;
     /** 전환 시작 직전 관찰값. 실제 stop/start는 수행하지 않는다. */
@@ -120,11 +125,16 @@ export function validateCutover(input: CutoverInput): readonly CutoverIssue[] {
     if (sourceId && targetId && sourceId === targetId) {
         issues.push({severity: "block", code: "SERVICE_COLLISION", detail: "원본과 새 서비스 식별자가 같습니다."});
     }
-    if (!input.sourceRunning) issues.push({severity: "block", code: "SOURCE_NOT_RUNNING", detail: "전환 전 원본 서비스가 실행 중이어야 합니다."});
-    if (input.sourceStopConfirmed !== true) {
-        issues.push({severity: "block", code: "SOURCE_NOT_STOPPED", detail: "원본 서비스 중지가 확인되지 않았습니다."});
+    if ((input.phase ?? "plan") === "plan") {
+        // 계획 단계: stop-source 이전이므로 원본은 실행 중이어야 하고 중지/독점 확인은 아직 요구하지 않는다.
+        if (!input.sourceRunning) issues.push({severity: "block", code: "SOURCE_NOT_RUNNING", detail: "전환 전 원본 서비스가 실행 중이어야 합니다."});
+    } else {
+        // 실행 단계: stop-source 이후이므로 원본은 중지되어야 하고 독점 점유가 확인되어야 한다.
+        if (input.sourceRunning || input.sourceStopConfirmed !== true) {
+            issues.push({severity: "block", code: "SOURCE_NOT_STOPPED", detail: "원본 서비스 중지가 확인되지 않았습니다."});
+        }
+        if (!input.exclusiveConfirmed) issues.push({severity: "block", code: "EXCLUSIVE_NOT_CONFIRMED", detail: "원본 중지 후 독점 점유를 확인해야 합니다."});
     }
-    if (!input.exclusiveConfirmed) issues.push({severity: "block", code: "EXCLUSIVE_NOT_CONFIRMED", detail: "원본 중지 후 독점 점유를 확인해야 합니다."});
     if (!input.targetReady) issues.push({severity: "block", code: "TARGET_NOT_READY", detail: "새 서비스의 시작 전 준비 상태가 확인되지 않았습니다."});
     if (input.targetRunning) issues.push({severity: "block", code: "TARGET_ALREADY_RUNNING", detail: "새 서비스가 이미 실행 중이므로 중복 점유 위험이 있습니다."});
     if (!input.backupAvailable) issues.push({severity: "block", code: "BACKUP_NOT_AVAILABLE", detail: "실패 복귀에 사용할 backup이 없습니다."});
@@ -136,7 +146,12 @@ export function validateCutover(input: CutoverInput): readonly CutoverIssue[] {
     if (input.targetFrameCounter !== undefined && (!Number.isSafeInteger(input.targetFrameCounter) || input.targetFrameCounter < 0)) {
         issues.push({severity: "block", code: "FRAME_COUNTER_INVALID", detail: "새 서비스 frame counter는 0 이상의 안전한 정수여야 합니다."});
     } else if (input.targetFrameCounter === undefined) {
-        issues.push({severity: "block", code: "FRAME_COUNTER_UNKNOWN", detail: "새 서비스 frame counter를 확인할 수 없습니다."});
+        // 신규 target은 시작 전 counter가 없으므로 계획 단계에서는 경고만 하고, 실행 단계에서 확인을 요구한다.
+        issues.push({
+            severity: (input.phase ?? "plan") === "plan" ? "warn" : "block",
+            code: "FRAME_COUNTER_UNKNOWN",
+            detail: "새 서비스 frame counter를 확인할 수 없습니다.",
+        });
     } else if (input.targetFrameCounter < input.sourceFrameCounter) {
         issues.push({severity: "block", code: "FRAME_COUNTER_ROLLBACK", detail: "새 서비스 frame counter가 원본보다 작아 rollback 위험이 있습니다."});
     }

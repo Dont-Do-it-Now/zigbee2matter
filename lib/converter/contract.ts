@@ -44,13 +44,18 @@ export function inspectConverterDefinition(definition: unknown): ConverterContra
     const exposes = definition.exposes;
     const options = definition.options;
 
-    if (!Array.isArray(fromZigbee)) {
+    // upstream ExternalDefinitionWithExtend: extend만 쓰는 정의는 fromZigbee/toZigbee가 없을 수 있다.
+    if (fromZigbee === undefined) {
+        // extend 등으로 대체되므로 허용
+    } else if (!Array.isArray(fromZigbee)) {
         issues.push({code: "FROM_ZIGBEE_INVALID", detail: "fromZigbee는 배열이어야 합니다."});
     } else {
         validateFromZigbee(fromZigbee, issues);
     }
 
-    if (!Array.isArray(toZigbee)) {
+    if (toZigbee === undefined) {
+        // extend 등으로 대체되므로 허용
+    } else if (!Array.isArray(toZigbee)) {
         issues.push({code: "TO_ZIGBEE_INVALID", detail: "toZigbee는 배열이어야 합니다."});
     } else {
         validateToZigbee(toZigbee, issues);

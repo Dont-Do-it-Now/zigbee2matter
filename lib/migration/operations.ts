@@ -5,7 +5,15 @@ import {
     type ImportDataInput,
     type ImportDataPlan,
 } from "./importData";
-import {buildAutomationMap, findAutomationRisks, type AutomationReference, type EntityMapping} from "./automationMap";
+import {
+    buildAutomationMap,
+    findAutomationRisks,
+    proposeMappings,
+    scanAutomationReferences,
+    type AutomationReference,
+    type AutomationSource,
+    type EntityMapping,
+} from "./automationMap";
 import {planCutover, type CutoverInput, type CutoverPlan} from "./cutover";
 
 export type MigrationStage = "preflight" | "import-plan" | "staged-import" | "cutover" | "rollback" | "automation-map";
@@ -25,6 +33,10 @@ export interface MigrationOperationsInput {
     readonly automation: {
         readonly references: readonly AutomationReference[];
         readonly mappings: readonly EntityMapping[];
+        /** T066: 호출자가 읽어 온 HA 자동화/z2m 설정 텍스트. 참조를 수집해 references에 합친다. */
+        readonly sources?: readonly AutomationSource[];
+        /** T066: 신규 Direct/Matter entity ID. 일치 후보는 사용자 검토 대기("ambiguous")로만 제안한다. */
+        readonly newEntityIds?: readonly string[];
     };
 }
 
@@ -73,26 +85,40 @@ export async function runMigrationOperations(
     } else if (options.executeStagedImport === undefined) {
         stagedImport = ready("staged-import", importPlan.value);
     } else {
-        try {
-            stagedImport = completed("staged-import", await options.executeStagedImport(importPlan.value));
-        } catch {
-            stagedImport = failed("staged-import", "staged import 실행에 실패했습니다.");
+        // 쓰기 직전 execute 단계로 재검증한다(frame counter unknown이면 차단).
+        const executePlan = planImportData({...input.importData, phase: "execute"});
+        if (!executePlan.canProceed) {
+            stagedImport = blocked("staged-import", "execute 단계 재검증에서 import 계획이 차단되었습니다.");
+        } else {
+            try {
+                stagedImport = completed("staged-import", await options.executeStagedImport(executePlan));
+            } catch {
+                stagedImport = failed("staged-import", "staged import 실행에 실패했습니다.");
+            }
         }
     }
 
     const canPlanCutover = stagedImport.status === "completed" || stagedImport.status === "ready";
-    const cutover = canPlanCutover
-        ? completed("cutover", planCutover(input.cutover))
-        : blocked<CutoverPlan>("cutover", "staged import가 완료되지 않아 cutover 계획을 만들지 않았습니다.");
+    let cutover: MigrationStageResult<CutoverPlan>;
+    if (!canPlanCutover) {
+        cutover = blocked<CutoverPlan>("cutover", "staged import가 완료되지 않아 cutover 계획을 만들지 않았습니다.");
+    } else {
+        const cutoverPlan = planCutover({...input.cutover, phase: "plan"});
+        cutover = cutoverPlan.canProceed
+            ? completed("cutover", cutoverPlan)
+            : {stage: "cutover", status: "blocked", value: cutoverPlan, error: {code: "BLOCKED", message: "cutover 계획에 차단 항목이 있습니다."}};
+    }
 
-    const rollback = cutover.value
+    const rollback = cutover.value && cutover.status !== "blocked"
         ? completed<RollbackPlan>("rollback", {actions: [...cutover.value.rollbackActions], onFailure: cutover.value.onFailure})
         : blocked<RollbackPlan>("rollback", "cutover 계획이 없어 rollback 계획을 만들지 않았습니다.");
 
     let automationMap: MigrationStageResult<AutomationMapResult>;
     try {
-        const map = buildAutomationMap(input.automation.references, input.automation.mappings);
-        automationMap = completed("automation-map", {map, risks: findAutomationRisks(input.automation.references, map)});
+        const references = [...input.automation.references, ...scanAutomationReferences(input.automation.sources ?? [])];
+        const built = buildAutomationMap(references, input.automation.mappings);
+        const map = input.automation.newEntityIds ? proposeMappings(built, input.automation.newEntityIds) : built;
+        automationMap = completed("automation-map", {map, risks: findAutomationRisks(references, map)});
     } catch {
         automationMap = failed("automation-map", "automation 대응표 생성에 실패했습니다.");
     }

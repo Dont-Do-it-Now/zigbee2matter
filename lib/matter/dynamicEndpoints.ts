@@ -16,12 +16,6 @@ export interface EndpointRemovePlan {
     entry: EndpointRegistryEntry;
 }
 
-export interface PartsListChange {
-    partsList: number[];
-    added: number[];
-    removed: number[];
-}
-
 export interface DynamicEndpointAdapter {
     /** SDK endpoint를 생성하고 SDK가 할당한 실제 endpoint number를 반환한다. */
     create(entry: EndpointRegistryEntry): Promise<{number: number}>;
@@ -68,47 +62,49 @@ export class DynamicEndpointCoordinator {
     }
 }
 
-/** Registry 순서와 SDK endpoint adapter의 성공 순서를 하나의 실행 경계로 묶는다. */
+export type EndpointMaterialization = "materialized" | "pending" | "failed" | "unknown";
+
+/**
+ * Registry 순서와 SDK endpoint adapter의 성공 순서를 하나의 실행 경계로 묶는다.
+ *
+ * registry entry(endpoint id)는 write-ahead로 먼저 남지만, SDK endpoint 생성 여부는 이 프로세스에서 따로 추적한다.
+ * 생성이 실패한 entry는 "failed"로 남고, 같은 key로 다시 create/restore 하면 reuse가 아니라 실제 생성을 재시도한다.
+ */
 export class DynamicEndpointRuntime {
+    private readonly materialized = new Set<string>();
+    private readonly failed = new Map<string, string>();
+    private readonly inflight = new Map<string, Promise<EndpointCreatePlan>>();
+
     constructor(
         private readonly coordinator: DynamicEndpointCoordinator,
         private readonly adapter: DynamicEndpointAdapter,
     ) {}
 
+    /** 이 프로세스에서 SDK endpoint가 실제로 생성됐는지. */
+    materialization(endpointId: string): EndpointMaterialization {
+        if (this.materialized.has(endpointId)) return "materialized";
+        if (this.inflight.has(endpointId)) return "pending";
+        return this.failed.has(endpointId) ? "failed" : "unknown";
+    }
+
+    /** 마지막 생성 실패 사유(없으면 undefined). */
+    lastFailure(endpointId: string): string | undefined {
+        return this.failed.get(endpointId);
+    }
+
     async create(key: RegistryKey, interviewSuccessful: boolean): Promise<EndpointCreatePlan> {
         const plan = await this.coordinator.prepareCreate(key, interviewSuccessful);
-        if (plan.action === "reuse") return plan;
+        if (plan.action === "reuse" && this.materialized.has(plan.entry.endpointId)) return plan;
 
-        const created = await this.adapter.create(plan.entry);
-        try {
-            await this.coordinator.recordCreated(key, created.number);
-            return {action: "create", entry: {...plan.entry, number: created.number}};
-        } catch (error) {
-            try {
-                await this.adapter.remove(plan.entry);
-            } catch {
-                // Preserve the registry error; diagnostics own cleanup reporting.
-            }
-            throw error;
-        }
+        return await this.materialize(key, plan.entry, "create");
     }
 
     async restore(key: RegistryKey): Promise<EndpointCreatePlan | undefined> {
         const plan = this.coordinator.prepareRestore(key);
         if (plan === undefined) return undefined;
+        if (this.materialized.has(plan.entry.endpointId)) return plan;
 
-        const created = await this.adapter.create(plan.entry);
-        try {
-            await this.coordinator.recordCreated(key, created.number);
-            return {action: "reuse", entry: {...plan.entry, number: created.number}};
-        } catch (error) {
-            try {
-                await this.adapter.remove(plan.entry);
-            } catch {
-                // Preserve the registry error; diagnostics own cleanup reporting.
-            }
-            throw error;
-        }
+        return await this.materialize(key, plan.entry, "reuse");
     }
 
     async remove(key: RegistryKey): Promise<boolean> {
@@ -116,38 +112,44 @@ export class DynamicEndpointRuntime {
         if (plan === undefined) return false;
 
         const removal = await this.adapter.remove(plan.entry);
+        this.materialized.delete(plan.entry.endpointId);
+        this.failed.delete(plan.entry.endpointId);
         if (removal !== undefined && !removal.permanent) return false;
         return await this.coordinator.completeRemove(key);
     }
-}
 
-/** Descriptor PartsList를 중복 없이 계산한다. 충돌 입력은 조용히 보정하지 않는다. */
-export function planPartsList(current: readonly number[], add: readonly number[], remove: readonly number[]): PartsListChange {
-    const additions = uniqueEndpointNumbers(add, "add");
-    const removals = uniqueEndpointNumbers(remove, "remove");
-    const removeSet = new Set(removals);
+    private materialize(key: RegistryKey, entry: EndpointRegistryEntry, action: EndpointCreatePlan["action"]): Promise<EndpointCreatePlan> {
+        const running = this.inflight.get(entry.endpointId);
+        if (running) return running;
 
-    if (additions.some((endpoint) => removeSet.has(endpoint))) {
-        throw new Error("PartsList add/remove overlap");
+        const task = this.runCreate(key, entry, action).finally(() => this.inflight.delete(entry.endpointId));
+        this.inflight.set(entry.endpointId, task);
+        return task;
     }
 
-    const currentSet = new Set(uniqueEndpointNumbers(current, "current"));
-    for (const endpoint of removals) currentSet.delete(endpoint);
-    for (const endpoint of additions) currentSet.add(endpoint);
-
-    return {partsList: [...currentSet].sort((a, b) => a - b), added: additions, removed: removals};
-}
-
-function uniqueEndpointNumbers(values: readonly number[], field: string): number[] {
-    const result = new Set<number>();
-
-    for (const value of values) {
-        if (!Number.isSafeInteger(value) || value < 1 || value > 0xfffe) {
-            throw new Error(`PartsList ${field} contains an invalid endpoint number`);
+    private async runCreate(key: RegistryKey, entry: EndpointRegistryEntry, action: EndpointCreatePlan["action"]): Promise<EndpointCreatePlan> {
+        let created: {number: number};
+        try {
+            created = await this.adapter.create(entry);
+        } catch (error) {
+            this.failed.set(entry.endpointId, error instanceof Error ? error.message : String(error));
+            throw error;
         }
 
-        result.add(value);
-    }
+        try {
+            await this.coordinator.recordCreated(key, created.number);
+        } catch (error) {
+            this.failed.set(entry.endpointId, error instanceof Error ? error.message : String(error));
+            try {
+                await this.adapter.remove(entry);
+            } catch {
+                // Preserve the registry error; diagnostics own cleanup reporting.
+            }
+            throw error;
+        }
 
-    return [...result];
+        this.failed.delete(entry.endpointId);
+        this.materialized.add(entry.endpointId);
+        return {action, entry: {...entry, number: created.number}};
+    }
 }

@@ -25,7 +25,10 @@ export interface ReleaseGateResult {
 /** 증거가 없는 단계나 실행 미완료 단계를 성공으로 승격하지 않는다. */
 export function evaluateReleaseGate(input: ReleaseGateInput): ReleaseGateResult {
     const missing = RELEASE_PHASES.filter((phase) => input.phases[phase] === undefined);
-    const blockers = [...missing.map((phase) => `${phase} evidence is missing`), ...Object.values(input.phases).flatMap((evidence) => evidence?.blockers ?? [])];
+    const blockers = [
+        ...missing.map((phase) => `${phase} evidence is missing`),
+        ...Object.values(input.phases).flatMap((evidence) => evidence?.blockers ?? []),
+    ];
     if (!input.approvalsComplete) blockers.push("required approvals are incomplete");
 
     const statuses = RELEASE_PHASES.map((phase) => input.phases[phase]?.status);

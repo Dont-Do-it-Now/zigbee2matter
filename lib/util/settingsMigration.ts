@@ -262,12 +262,16 @@ function migrateToTwo(
 
     const haLegacyTriggers: SettingsRemove = {
         path: ["homeassistant", "legacy_triggers"],
-        note: "Action and click sensors have been removed (homeassistant.legacy_triggers setting). This means all sensor.*_action and sensor.*_click entities are removed. Use the MQTT device trigger instead.",
+        note: "Action and click sensors have been removed (homeassistant.legacy_triggers setting). " +
+            "This means all sensor.*_action and sensor.*_click entities are removed. " +
+            "Use the MQTT device trigger instead.",
         noteIf: noteIfWasTrue,
     };
     const haLegacyEntityAttrs: SettingsRemove = {
         path: ["homeassistant", "legacy_entity_attributes"],
-        note: "Entity attributes (homeassistant.legacy_entity_attributes setting) has been removed. This means that entities discovered by Zigbee2MQTT will no longer have entity attributes (Home Assistant entity attributes are accessed via e.g. states.binary_sensor.my_sensor.attributes).",
+        note: "Entity attributes (homeassistant.legacy_entity_attributes setting) has been removed. " +
+            "This means that entities discovered by Zigbee2MQTT will no longer have entity attributes " +
+            "(Home Assistant entity attributes are accessed via e.g. states.binary_sensor.my_sensor.attributes).",
         noteIf: noteIfWasTrue,
     };
     const otaIkeaUseTestUrl: SettingsRemove = {
@@ -307,7 +311,8 @@ function migrateToTwo(
         },
         {
             path: ["advanced", "legacy_availability_payload"],
-            note: 'Due to the removal of advanced.legacy_availability_payload, zigbee2mqtt/bridge/state will now always be a JSON object ({"state":"online"} or {"state":"offline"})',
+            note: 'Due to the removal of advanced.legacy_availability_payload, zigbee2mqtt/bridge/state will now always be a JSON object ' +
+                '({"state":"online"} or {"state":"offline"})',
             noteIf: noteIfWasTrue,
         },
         {
@@ -357,7 +362,10 @@ function migrateToTwo(
         },
         {
             path: ["external_converters"],
-            note: "External converters are now automatically loaded from the 'data/external_converters' directory without requiring settings to be set. Make sure your external converters are still needed (might be supported out-of-the-box now), and if so, move them to that directory.",
+            note: "External converters are now automatically loaded from the 'data/external_converters' directory " +
+                "without requiring settings to be set. " +
+                "Make sure your external converters are still needed (might be supported out-of-the-box now), " +
+                "and if so, move them to that directory.",
             noteIf: noteIfWasNonEmptyArray,
         },
     );
@@ -381,7 +389,9 @@ function migrateToTwo(
         });
         removals.push({
             path: ["groups", groupKey, "devices"],
-            note: "Removed configuring group members through configuration.yaml (groups.xyz.devices setting). This will not impact current group members; however, you will no longer be able to add or remove devices from a group through the configuration.yaml.",
+            note: "Removed configuring group members through configuration.yaml (groups.xyz.devices setting). " +
+                "This will not impact current group members; however, you will no longer be able to add or remove devices " +
+                "from a group through the configuration.yaml.",
             noteIf: noteIfWasDefined,
         });
     }
@@ -546,7 +556,8 @@ export function migrateIfNecessary(): void {
 
     if (!SUPPORTED_VERSIONS.includes(currentSettings.version)) {
         throw new Error(
-            `Your configuration.yaml has an unsupported version ${currentSettings.version}, expected one of ${SUPPORTED_VERSIONS.map((v) => String(v)).join(",")}.`,
+            `Your configuration.yaml has an unsupported version ${currentSettings.version}, ` +
+                `expected one of ${SUPPORTED_VERSIONS.map((v) => String(v)).join(",")}.`,
         );
     }
 

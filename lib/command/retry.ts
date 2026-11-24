@@ -17,11 +17,11 @@ export interface RetryPolicyOptions {
 export interface RetryDecision {
     retry: boolean;
     delayMs: number;
-    reason: "allowed" | "not-retryable" | "non-idempotent" | "attempt-limit" | "deadline";
+    reason: "allowed" | "not-retryable" | "non-idempotent" | "dispatched" | "attempt-limit" | "deadline";
 }
 
 /**
- * T015 policy only. It never dispatches a command; the caller owns resubmission and must create a new requestId.
+ * T015 policy. It never dispatches a command; `CommandRouter` (`retryPolicy` dep) owns resubmission under a new requestId.
  */
 export class CommandRetryPolicy {
     private readonly maxAttempts: number;
@@ -47,6 +47,11 @@ export class CommandRetryPolicy {
 
         if (!result.autoRetryAllowed || !isIdempotent(command)) {
             return {retry: false, delayMs: 0, reason: "non-idempotent"};
+        }
+
+        // Only guaranteed-0-RF failures are retried automatically. A dispatched command may already have taken effect.
+        if (result.dispatched) {
+            return {retry: false, delayMs: 0, reason: "dispatched"};
         }
 
         if (attempts >= this.maxAttempts) {

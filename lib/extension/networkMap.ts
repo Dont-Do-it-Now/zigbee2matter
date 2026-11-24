@@ -77,7 +77,8 @@ export default class NetworkMap extends Extension {
 
             // Add the device short network address, ieeaddr and scan note (if any)
             labels.push(
-                `${node.ieeeAddr} (${utils.toNetworkAddressHex(node.networkAddress)})${node.failed?.length ? `failed: ${node.failed.join(",")}` : ""}`,
+                `${node.ieeeAddr} (${utils.toNetworkAddressHex(node.networkAddress)})` +
+                    `${node.failed?.length ? `failed: ${node.failed.join(",")}` : ""}`,
             );
 
             // Add the device model
@@ -149,7 +150,8 @@ export default class NetworkMap extends Extension {
 
             // Add the device short network address, ieeaddr and scan note (if any)
             text.push(
-                `${node.ieeeAddr} (${utils.toNetworkAddressHex(node.networkAddress)})${node.failed?.length ? ` failed: ${node.failed.join(",")}` : ""}`,
+                `${node.ieeeAddr} (${utils.toNetworkAddressHex(node.networkAddress)})` +
+                    `${node.failed?.length ? ` failed: ${node.failed.join(",")}` : ""}`,
             );
 
             // Add the device model

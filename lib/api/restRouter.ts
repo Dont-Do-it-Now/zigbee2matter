@@ -1,4 +1,5 @@
 /** C7 REST 라우팅 경계(T056). 기존 frontend HTTP 서버에 주입할 수 있는 Node handler. */
+import {createHash, randomUUID} from "node:crypto";
 import type {IncomingMessage, ServerResponse} from "node:http";
 import {authorizeRequest, type ApiAuth, type Principal, type Scope, ApiError, redactSecrets, toApiError} from "./auth";
 import {AuthFailureRateLimiter} from "./rateLimit";
@@ -24,6 +25,19 @@ export interface RestBridge {
     readonly matterRunning: boolean;
 }
 
+export type SettingsKind = "devices" | "groups" | "bridges";
+
+/** 설정 PATCH 대상의 현재 설정 조회. 없으면 undefined. revision은 이 값의 안정 해시(서비스가 별도 revision을 제공하지 않음, C7). */
+export interface RestSettingsProvider {
+    read(kind: SettingsKind, id: string): unknown;
+}
+
+/** Matter 매핑 미지원 기능(lib/matter 팩토리의 `unsupported`/`unsupportedFor`) 공급자. controller 연결은 통합 담당. */
+export interface RestUnsupportedFeatureProvider {
+    list(): readonly unknown[];
+    forEndpoint(endpointId: string): readonly unknown[];
+}
+
 export interface RestRouterDeps {
     readonly auth: ApiAuth;
     readonly listDevices: () => readonly RestDevice[];
@@ -31,12 +45,18 @@ export interface RestRouterDeps {
     readonly listJobs?: () => readonly unknown[];
     readonly listBridges?: () => readonly unknown[];
     readonly listDiagnostics?: () => unknown;
+    readonly settings?: RestSettingsProvider;
+    readonly unsupportedFeatures?: RestUnsupportedFeatureProvider;
     readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
     readonly runMigration?: (input: unknown, principal: Principal) => Promise<unknown>;
+    readonly backup?: {
+        readonly create: (passphrase: string) => Promise<void>;
+        readonly restore: (passphrase: string) => Promise<void>;
+    };
     readonly matterManagement?: {
         readonly commissioningWindow?: () => unknown;
-        readonly openCommissioningWindow?: (input: unknown) => unknown;
-        readonly closeCommissioningWindow?: () => boolean;
+        readonly openCommissioningWindow?: (input: unknown) => Promise<unknown>;
+        readonly closeCommissioningWindow?: () => Promise<boolean>;
         readonly listFabrics?: () => readonly unknown[];
         readonly listEndpoints?: () => readonly unknown[];
     };
@@ -47,6 +67,7 @@ export interface RestRouterDeps {
 
 export class RestApiRouter {
     private readonly maxBodyBytes: number;
+    private readonly patching = new Set<string>();
 
     constructor(private readonly deps: RestRouterDeps) {
         const maxBodyBytes = deps.maxBodyBytes ?? 1_048_576;
@@ -59,18 +80,22 @@ export class RestApiRouter {
     }
 
     private async dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
-        const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+        let url: URL;
+        try {
+            url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+        } catch {
+            throw new ApiError("INVALID_ARGUMENT", "Invalid request URL");
+        }
         const prefix = "/api/v1";
         if (url.pathname !== prefix && !url.pathname.startsWith(`${prefix}/`)) {
             this.writeError(res, new ApiError("NOT_FOUND", "Not found"));
             return;
         }
 
-        const pathname = url.pathname.slice(prefix.length) || "/";
+        let pathname = url.pathname.slice(prefix.length) || "/";
+        // 끝 `/` 하나는 인증 판정 전에 정규화한다(`//`는 남아서 requiredScope가 거부).
+        if (pathname.length > 1 && pathname.endsWith("/")) pathname = pathname.slice(0, -1);
         const clientKey = req.socket.remoteAddress ?? "unknown";
-        if (this.deps.authFailureRateLimiter && !this.deps.authFailureRateLimiter.allow(clientKey)) {
-            throw new ApiError("BUSY", "Too many authentication failures");
-        }
         let principal: Principal;
         try {
             principal = authorizeRequest(this.deps.auth, {method: req.method ?? "GET", headers: req.headers, url: req.url}, pathname, {
@@ -79,7 +104,10 @@ export class RestApiRouter {
             this.deps.authFailureRateLimiter?.reset(clientKey);
         } catch (error) {
             const apiError = toApiError(error);
-            if (apiError.code === "UNAUTHORIZED") this.deps.authFailureRateLimiter?.recordFailure(clientKey);
+            if (apiError.code === "UNAUTHORIZED" && this.deps.authFailureRateLimiter) {
+                if (!this.deps.authFailureRateLimiter.allow(clientKey)) throw new ApiError("BUSY", "Too many authentication failures");
+                this.deps.authFailureRateLimiter.recordFailure(clientKey);
+            }
             throw apiError;
         }
 
@@ -107,6 +135,25 @@ export class RestApiRouter {
             this.writeJson(res, 200, redactSecrets(this.deps.listDiagnostics()));
             return;
         }
+        if (req.method === "GET" && (pathname === "/diagnostics/unsupported" || pathname.startsWith("/diagnostics/unsupported/"))) {
+            const provider = this.deps.unsupportedFeatures;
+            if (!provider) throw new ApiError("NOT_FOUND", "Unsupported feature diagnostics unavailable");
+            if (pathname === "/diagnostics/unsupported") {
+                this.writeJson(res, 200, {unsupported: redactSecrets(provider.list())});
+                return;
+            }
+            const endpointId = decodeId(pathname.slice("/diagnostics/unsupported/".length), "endpoint id");
+            this.writeJson(res, 200, {endpointId, unsupported: redactSecrets(provider.forEndpoint(endpointId))});
+            return;
+        }
+        const settingsRoute = /^\/(devices|groups|bridges)\/([^/]+)(\/settings)?$/.exec(pathname);
+        if (settingsRoute && ((req.method === "GET" && settingsRoute[3]) || (req.method === "PATCH" && !settingsRoute[3]))) {
+            const kind = settingsRoute[1] as SettingsKind;
+            const id = decodeId(settingsRoute[2] ?? "", "resource id");
+            if (req.method === "GET") this.readSettings(res, kind, id);
+            else await this.patchSettings(req, res, kind, id, principal);
+            return;
+        }
         if (pathname === "/matter/commissioning") {
             const matter = this.deps.matterManagement;
             if (!matter) throw new ApiError("NOT_FOUND", "Matter management unavailable");
@@ -118,12 +165,12 @@ export class RestApiRouter {
             if (req.method === "POST") {
                 if (!matter.openCommissioningWindow) throw new ApiError("NOT_FOUND", "Commissioning unavailable");
                 const body = await readJson(req, this.maxBodyBytes);
-                this.writeJson(res, 201, redactSecrets(matter.openCommissioningWindow(body)));
+                this.writeJson(res, 201, redactSecrets(await matter.openCommissioningWindow(body)));
                 return;
             }
             if (req.method === "DELETE") {
                 if (!matter.closeCommissioningWindow) throw new ApiError("NOT_FOUND", "Commissioning unavailable");
-                this.writeJson(res, 200, {closed: matter.closeCommissioningWindow()});
+                this.writeJson(res, 200, {closed: await matter.closeCommissioningWindow()});
                 return;
             }
         }
@@ -165,6 +212,23 @@ export class RestApiRouter {
             this.writeJson(res, 202, redactSecrets(await this.deps.executeCommand(body, principal)));
             return;
         }
+        // admin 권한(requiredScope 기본값). passphrase는 응답/로그에 포함하지 않는다.
+        if (req.method === "POST" && (pathname === "/backup" || pathname === "/backup/restore")) {
+            const backup = this.deps.backup;
+            if (!backup) throw new ApiError("NOT_FOUND", "Backup unavailable");
+            const body = await readJson(req, this.maxBodyBytes);
+            if (!isRecord(body) || typeof body.passphrase !== "string") throw new ApiError("INVALID_ARGUMENT", "passphrase is required");
+            const restoring = pathname === "/backup/restore";
+            try {
+                if (restoring) await backup.restore(body.passphrase);
+                else await backup.create(body.passphrase);
+            } catch (error) {
+                throw new ApiError("INVALID_ARGUMENT", error instanceof Error ? error.message : "backup operation failed");
+            }
+            if (restoring) this.writeJson(res, 200, {restored: true, restartRequired: true});
+            else this.writeJson(res, 201, {created: true});
+            return;
+        }
         if (req.method === "POST" && pathname === "/migration") {
             if (!this.deps.runMigration) throw new ApiError("NOT_FOUND", "Migration unavailable");
             const body = await readJson(req, this.maxBodyBytes);
@@ -173,6 +237,52 @@ export class RestApiRouter {
         }
 
         throw new ApiError("NOT_FOUND", "Not found");
+    }
+
+    private currentSettings(kind: SettingsKind, id: string): unknown {
+        if (!this.deps.settings) throw new ApiError("UNSUPPORTED", "Settings API unavailable");
+        const settings = this.deps.settings.read(kind, id);
+        if (settings === undefined) throw new ApiError("NOT_FOUND", "Resource not found");
+        return settings;
+    }
+
+    private readSettings(res: ServerResponse, kind: SettingsKind, id: string): void {
+        const settings = this.currentSettings(kind, id);
+        const revision = settingsRevision(settings);
+        res.setHeader("ETag", `"${revision}"`);
+        this.writeJson(res, 200, {id, revision, settings: redactSecrets(settings)});
+    }
+
+    /** C7 PATCH: 권한(admin, requiredScope 기본값) -> revision 검사(If-Match 또는 body.revision) -> CommandRouter 위임. */
+    private async patchSettings(req: IncomingMessage, res: ServerResponse, kind: SettingsKind, id: string, principal: Principal): Promise<void> {
+        if (!this.deps.executeCommand) throw new ApiError("UNSUPPORTED", "Commands unavailable");
+        const body = await readJson(req, this.maxBodyBytes);
+        if (!isRecord(body) || !isRecord(body.options)) throw new ApiError("INVALID_ARGUMENT", "options object is required");
+        const expected = ifMatchRevision(req.headers["if-match"]) ?? (typeof body.revision === "string" ? body.revision : undefined);
+        if (expected === undefined) throw new ApiError("INVALID_ARGUMENT", "revision (If-Match or body.revision) is required");
+        const lockKey = `${kind}/${id}`;
+        if (this.patching.has(lockKey)) throw new ApiError("CONFLICT", "Another settings change is in progress");
+        this.patching.add(lockKey);
+        try {
+            const current = settingsRevision(this.currentSettings(kind, id));
+            if (current !== expected) throw new ApiError("CONFLICT", "Revision mismatch");
+            const request = kind === "devices" ? "device/options" : kind === "groups" ? "group/options" : "options";
+            const value = kind === "bridges" ? {options: body.options} : {id, options: body.options};
+            const result = await this.deps.executeCommand(
+                {
+                    requestId: randomUUID(),
+                    correlationId: typeof body.correlationId === "string" ? body.correlationId : randomUUID(),
+                    deadline: Date.now() + 30_000,
+                    operation: "request",
+                    target: {request},
+                    value,
+                },
+                principal,
+            );
+            this.writeJson(res, 202, {previousRevision: current, result: redactSecrets(result)});
+        } finally {
+            this.patching.delete(lockKey);
+        }
     }
 
     private writeJson(res: ServerResponse, status: number, value: unknown): void {
@@ -196,16 +306,41 @@ function isScope(value: unknown): value is Scope {
     return value === "read" || value === "control" || value === "admin";
 }
 
-function decodeTokenId(value: string): string {
-    if (!value || value.includes("/")) throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
+function decodeId(value: string, what: string): string {
+    if (!value || value.includes("/")) throw new ApiError("INVALID_ARGUMENT", `Invalid ${what}`);
     try {
         const id = decodeURIComponent(value);
-        if (!id || id.includes("/")) throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
+        if (!id || id.includes("/")) throw new ApiError("INVALID_ARGUMENT", `Invalid ${what}`);
         return id;
     } catch (error) {
         if (error instanceof ApiError) throw error;
-        throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
+        throw new ApiError("INVALID_ARGUMENT", `Invalid ${what}`);
     }
+}
+
+function decodeTokenId(value: string): string {
+    return decodeId(value, "token id");
+}
+
+function stableStringify(value: unknown): string {
+    if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+    if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+    const entries = Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
+    return `{${entries.join(",")}}`;
+}
+
+/** 설정 revision = 현재 설정의 정규화 JSON sha256 앞 16자(hex). */
+function settingsRevision(settings: unknown): string {
+    return createHash("sha256").update(stableStringify(settings), "utf8").digest("hex").slice(0, 16);
+}
+
+function ifMatchRevision(header: string | string[] | undefined): string | undefined {
+    const raw = Array.isArray(header) ? header[0] : header;
+    if (raw === undefined) return undefined;
+    return /^\s*(?:W\/)?"?([^"\s]+)"?\s*$/.exec(raw)?.[1];
 }
 
 function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {

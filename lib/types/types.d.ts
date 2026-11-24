@@ -21,7 +21,7 @@ declare global {
     type Extension = TypeExtension;
 
     // Types
-    type StateChangeReason = "publishDebounce" | "groupOptimistic" | "lastSeenChanged" | "publishCached" | "publishThrottle";
+    type StateChangeReason = "publishDebounce" | "groupOptimistic" | "lastSeenChanged" | "publishCached" | "publishThrottle" | "commandOptimistic";
     type PublishEntityState = (entity: Device | Group, payload: KeyValue, stateChangeReason?: StateChangeReason) => Promise<void>;
     type RecursivePartial<T> = {[P in keyof T]?: RecursivePartial<T[P]>};
     type MakePartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;

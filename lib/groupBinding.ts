@@ -1,3 +1,8 @@
+import {type DeviceKey, formatDeviceKey, formatGroupKey, type GroupKey, parseEntityKey} from "./identity";
+
+/** C1 키(DeviceKey/GroupKey 객체 또는 canonical 문자열). 비-key 문자열은 레거시 호출자 호환용이며 통합 시 key로 교체해야 한다. */
+export type BindingEntity = DeviceKey | GroupKey | string;
+
 export interface GroupMemberTarget {
     deviceKey: string;
     endpoint: number;
@@ -39,11 +44,24 @@ export function planGroupCommand(groupKey: string, members: ReadonlyArray<GroupM
     };
 }
 
+function entityId(entity: BindingEntity): string {
+    if (typeof entity === "string") {
+        const parsed = parseEntityKey(entity);
+        if (!parsed) return entity;
+
+        return parsed.kind === "device" ? formatDeviceKey(parsed) : formatGroupKey(parsed);
+    }
+
+    return "ieee" in entity ? formatDeviceKey(entity) : formatGroupKey(entity);
+}
+
 /** Tracks direct Zigbee bindings without treating them as Matter group membership. */
 export default class BindingRegistry {
     private readonly bindings = new Map<string, BindingRecord>();
 
-    upsert(sourceKey: string, targetKey: string, cluster: string, active: boolean, updatedAt = Date.now()): BindingRecord {
+    upsert(source: BindingEntity, target: BindingEntity, cluster: string, active: boolean, updatedAt = Date.now()): BindingRecord {
+        const sourceKey = entityId(source);
+        const targetKey = entityId(target);
         if (!sourceKey || !targetKey || !cluster) {
             throw new Error("binding source, target and cluster are required");
         }
@@ -54,7 +72,7 @@ export default class BindingRegistry {
         return {...record};
     }
 
-    remove(sourceKey: string, targetKey: string, cluster: string, updatedAt = Date.now()): BindingRecord {
+    remove(sourceKey: BindingEntity, targetKey: BindingEntity, cluster: string, updatedAt = Date.now()): BindingRecord {
         return this.upsert(sourceKey, targetKey, cluster, false, updatedAt);
     }
 
@@ -62,8 +80,12 @@ export default class BindingRegistry {
         return [...this.bindings.values()].filter((record) => !activeOnly || record.active).map((record) => ({...record}));
     }
 
-    has(sourceKey: string, targetKey: string, cluster: string): boolean {
-        return this.bindings.get(bindingId({sourceKey, targetKey, cluster, active: true, updatedAt: 0}))?.active === true;
+    has(source: BindingEntity, target: BindingEntity, cluster: string): boolean {
+        return (
+            this.bindings.get(
+                bindingId({sourceKey: entityId(source), targetKey: entityId(target), cluster, active: true, updatedAt: 0}),
+            )?.active === true
+        );
     }
 }
 

@@ -2,6 +2,7 @@ import {existsSync, mkdirSync, writeFileSync} from "node:fs";
 import {createServer} from "node:http";
 import path from "node:path";
 import {type Unzipped, unzip} from "fflate";
+import {discoverCoordinators} from "../coordinatorDiscovery"; // z2m-fork: T024
 import {findAllDevices} from "zigbee-herdsman/dist/adapter/adapterDiscovery";
 import type {OnboardData, OnboardFailureData, OnboardSubmitResponse, Zigbee2MQTTSettings} from "../types/api";
 import {stringify} from "../util/stringify";
@@ -68,6 +69,12 @@ async function startOnboardingServer(): Promise<boolean> {
                     settings: currentSettings,
                     settingsSchema: settings.schemaJson,
                     devices: await findAllDevices(),
+                    // z2m-fork: T024
+                    coordinatorDiscovery: await discoverCoordinators(findAllDevices, {
+                        configured: currentSettings.serial?.port
+                            ? {path: currentSettings.serial.port, adapter: currentSettings.serial.adapter ?? undefined}
+                            : undefined,
+                    }),
                 };
 
                 res.setHeader("Content-Type", "application/json");
@@ -98,7 +105,8 @@ async function startOnboardingServer(): Promise<boolean> {
                                 !appliedSettings.frontend.host?.startsWith("/");
                             const protocol = appliedSettings.frontend.ssl_cert && appliedSettings.frontend.ssl_key ? "https" : "http";
                             const frontendUrl = redirect
-                                ? `${protocol}://${appliedSettings.frontend.host ?? "localhost"}:${appliedSettings.frontend.port}${appliedSettings.frontend.base_url}`
+                                ? `${protocol}://${appliedSettings.frontend.host ?? "localhost"}:${appliedSettings.frontend.port}` +
+                                    `${appliedSettings.frontend.base_url}`
                                 : null;
                             const payload: OnboardSubmitResponse = {success: true, frontendUrl};
 

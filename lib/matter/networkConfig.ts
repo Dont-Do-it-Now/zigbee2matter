@@ -5,7 +5,6 @@
  * 이 파일은 (1) 설정 값을 SDK 변수/상태 이름으로 매핑하고 (2) SDK 기동 전에 사람이 읽을 수 있는 진단 메시지를 만든다.
  * 근거: docs/evidence/T039.md
  */
-import dgram from "node:dgram";
 import {existsSync} from "node:fs";
 import {type NetworkInterfaceInfo, networkInterfaces, platform} from "node:os";
 
@@ -158,35 +157,19 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
         add(
             "info",
             "WINDOWS",
-            "Windows: IPv6 multicast interface is addressed by scope id (SDK handles this); allow inbound UDP 5353 and the Matter port in Windows Firewall",
+            "Windows: IPv6 multicast interface is addressed by scope id (SDK handles this); " +
+                "allow inbound UDP 5353 and the Matter port in Windows Firewall",
         );
     }
     if (env.platform() === "linux" && env.inContainer()) {
         add(
             "info",
             "CONTAINER",
-            "Container detected (/.dockerenv): bridge networking does not forward mDNS multicast; run with --network host (HAOS add-on: host_network: true)",
+            "Container detected (/.dockerenv): bridge networking does not forward mDNS multicast; " +
+                "run with --network host (HAOS add-on: host_network: true)",
         );
     }
     return out;
-}
-
-/** UDP 포트 선점 여부 사전 확인(udp6). 점유 중이면 에러 문자열, 가능하면 undefined. 확인 직후 소켓을 닫는다. */
-export function probeUdpPortFree(port: number, address = "::"): Promise<string | undefined> {
-    if (!isMatterPort(port)) return Promise.resolve(`UDP port ${port} is not an integer in 1..65535`);
-
-    return new Promise((resolve) => {
-        const socket = dgram.createSocket({type: "udp6", ipv6Only: true});
-        socket.once("error", (error: NodeJS.ErrnoException) => {
-            socket.close();
-            if (error.code === "EADDRINUSE") resolve(`UDP port ${port} is already in use (another Matter node/process?)`);
-            else if (error.code === "EAFNOSUPPORT" || error.code === "EADDRNOTAVAIL")
-                resolve(`IPv6 UDP bind failed (${error.code}); IPv6 unavailable`);
-            else if (error.code === "EACCES") resolve(`No permission to bind UDP port ${port}`);
-            else resolve(`UDP bind failed: ${error.code ?? error.message}`);
-        });
-        socket.bind(port, address, () => socket.close(() => resolve(undefined)));
-    });
 }
 
 function isMatterPort(value: number): value is number {

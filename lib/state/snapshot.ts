@@ -19,6 +19,10 @@ export default class StateSnapshotCoordinator {
         return this.publishDelta(this.state.observe(key, value, observedAt));
     }
 
+    estimate(key: string, value: unknown): StateRecord {
+        return this.publishDelta(this.state.estimate(key, value));
+    }
+
     desire(key: string, value: unknown): StateRecord {
         return this.publishDelta(this.state.desire(key, value));
     }
@@ -44,7 +48,13 @@ export default class StateSnapshotCoordinator {
         return removed;
     }
 
-    snapshot(): StateSnapshot {
+    /** T021: 이벤트를 발행하지 않는 조회. watermark는 현재 마지막 sequence이므로 이후 delta만 적용하면 된다. */
+    peek(): StateSnapshot {
+        return {epoch: this.stream.epoch, watermark: this.stream.lastSequence, revision: this.state.lastRevision, records: this.state.list()};
+    }
+
+    /** 스트림에 snapshot 이벤트를 발행한다(epoch reset·resync 용). 조회에는 `peek()`를 쓴다. */
+    publishSnapshot(): StateSnapshot {
         const records = this.state.list();
         const revision = this.state.lastRevision;
         const event = this.stream.publish("snapshot", "bridge", {records}, {revision});
@@ -55,7 +65,7 @@ export default class StateSnapshotCoordinator {
     resetEpoch(): StateSnapshot {
         this.stream.resetEpoch();
 
-        return this.snapshot();
+        return this.publishSnapshot();
     }
 
     private publishDelta(record: StateRecord): StateRecord {

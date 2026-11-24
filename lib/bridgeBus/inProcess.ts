@@ -50,10 +50,10 @@ export default class InProcessBridgeBus implements BridgeBus {
         this.eventBus.emitBridgeBusMessage({topic, message: message.toString()});
     }
 
-    async publish(topic: string, payload: string, options: Partial<BridgeBusPublishOptions> = {}): Promise<void> {
+    publish(topic: string, payload: string, options: Partial<BridgeBusPublishOptions> = {}): Promise<void> {
         if (topic.includes("+") || topic.includes("#")) {
             logger.error(`Topic '${topic}' includes wildcard characters, skipping publish.`);
-            return;
+            return Promise.resolve();
         }
 
         const finalOptions = {...this.defaultPublishOptions, ...options};
@@ -72,5 +72,7 @@ export default class InProcessBridgeBus implements BridgeBus {
         }
 
         this.eventBus.emitBridgeBusMessagePublished({topic, payload, options: finalOptions});
+
+        return Promise.resolve();
     }
 }

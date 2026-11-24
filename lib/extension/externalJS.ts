@@ -214,7 +214,10 @@ export default abstract class ExternalJSExtension<M> extends Extension {
         for (const extension of this.getFiles()) {
             const trust = evaluateExternalJSTrust(extension.name);
             if (!trust.allowed) {
-                logger.warning(`External ${this.bridgeBusTopic} '${extension.name}' was not loaded: explicit trust is required (${externalJSTrustEnvironmentVariable()}=1).`);
+                logger.warning(
+                    `External ${this.bridgeBusTopic} '${extension.name}' was not loaded: ` +
+                        `explicit trust is required (${externalJSTrustEnvironmentVariable()}=1).`,
+                );
                 continue;
             }
 
@@ -226,7 +229,8 @@ export default abstract class ExternalJSExtension<M> extends Extension {
                 await this.loadJS(extension.name, mod.default);
             } catch (error) {
                 logger.error(
-                    `Invalid external ${this.bridgeBusTopic} '${extension.name}' was ignored and renamed to prevent interference with Zigbee2MQTT. (${(error as Error).message})`,
+                    `Invalid external ${this.bridgeBusTopic} '${extension.name}' was ignored and renamed to prevent interference ` +
+                        `with Zigbee2MQTT. (${(error as Error).message})`,
                 );
                 // biome-ignore lint/style/noNonNullAssertion: always Error
                 logger.debug((error as Error).stack!);

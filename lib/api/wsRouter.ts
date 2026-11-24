@@ -83,7 +83,8 @@ export class WsApiRouter {
                     const message = JSON.parse(raw.toString()) as Record<string, unknown>;
                     if (message.type === "replay") {
                         if (!isSequence(message.afterSequence)) throw new Error("invalid replay sequence");
-                        session.acceptReplay(this.options.stream.replay(message.afterSequence, typeof message.epoch === "string" ? message.epoch : undefined));
+                        const epoch = typeof message.epoch === "string" ? message.epoch : undefined;
+                        session.acceptReplay(this.options.stream.replay(message.afterSequence, epoch));
                         this.flush(socket, session);
                     } else if (message.type === "snapshot-applied") {
                         if (typeof message.epoch !== "string" || message.epoch.length === 0 || !isSequence(message.sequence)) {

@@ -25,9 +25,20 @@ export interface PersistentSnapshot {
     identity: unknown;
     fabric: unknown;
     endpointRegistry: unknown;
+    /** Zigbee 필수 데이터(database.db, coordinator_backup.json, configuration.yaml, secret.yaml 등) 파일 집합. 구버전 snapshot에는 없다. */
+    zigbee?: unknown;
+}
+
+export const MIN_PASSPHRASE_LENGTH = 12;
+
+export function validatePassphrase(passphrase: unknown): asserts passphrase is string {
+    if (typeof passphrase !== "string" || passphrase.length < MIN_PASSPHRASE_LENGTH) {
+        throw new Error(`backup passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`);
+    }
 }
 
 export function createBackup(payload: unknown, passphrase: string): string {
+    validatePassphrase(passphrase);
     const key = deriveKey(passphrase, randomBytes(16));
     const serialized = JSON.stringify(payload);
 

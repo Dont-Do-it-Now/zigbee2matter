@@ -46,12 +46,21 @@ export default class StateReconciler {
         const record = this.getOrCreate(key);
         record.observedValue = cloneValue(value);
         record.observedAt = observedAt;
-        record.availability = true;
-        record.quality = "confirmed";
+        // T020: 보고 수신이 offline 기기를 available로 되돌리지 않는다. availability는 availability 이벤트만 바꾼다.
+        record.quality = record.availability === false ? "stale" : "confirmed";
 
-        if (record.desiredValue !== undefined && isDeepStrictEqual(record.desiredValue, record.observedValue)) {
+        if (record.desiredValue !== undefined && covers(record.observedValue, record.desiredValue)) {
             delete record.desiredValue;
         }
+
+        return this.commit(record);
+    }
+
+    /** T020: 캐시 재송신/낙관값처럼 기기가 직접 보고하지 않은 값. observedAt은 갱신하지 않고 quality는 estimated다. */
+    estimate(key: string, value: unknown): StateRecord {
+        const record = this.getOrCreate(key);
+        record.observedValue = cloneValue(value);
+        record.quality = "estimated";
 
         return this.commit(record);
     }
@@ -61,7 +70,7 @@ export default class StateReconciler {
         const record = this.getOrCreate(key);
         const desired = cloneValue(value);
 
-        if (record.observedValue !== undefined && isDeepStrictEqual(record.observedValue, desired)) {
+        if (record.observedValue !== undefined && covers(record.observedValue, desired)) {
             delete record.desiredValue;
             record.quality = record.availability === false ? "stale" : "confirmed";
         } else {
@@ -82,8 +91,10 @@ export default class StateReconciler {
 
     markAvailable(key: string): StateRecord {
         const record = this.getOrCreate(key);
+        const wasUnavailable = record.availability === false;
         record.availability = true;
-        record.quality = record.observedValue === undefined ? "unknown" : "stale";
+        if (record.observedValue === undefined) record.quality = "unknown";
+        else if (wasUnavailable) record.quality = "stale";
 
         return this.commit(record);
     }
@@ -124,6 +135,18 @@ export default class StateReconciler {
 
         return cloneRecord(record);
     }
+}
+
+/** desired가 observed의 부분집합(객체는 키별 재귀, 그 외 deep equal)이면 true. 명령 payload는 전체 상태가 아니라 부분값이다. */
+function covers(observed: unknown, desired: unknown): boolean {
+    if (typeof desired === "object" && desired !== null && !Array.isArray(desired)) {
+        if (typeof observed !== "object" || observed === null || Array.isArray(observed)) return false;
+        const source = observed as Record<string, unknown>;
+
+        return Object.entries(desired).every(([name, value]) => covers(source[name], value));
+    }
+
+    return isDeepStrictEqual(observed, desired);
 }
 
 function cloneValue(value: unknown): unknown {

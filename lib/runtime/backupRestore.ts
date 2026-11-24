@@ -3,6 +3,8 @@ import type {PersistentSnapshot} from "../storage/backup";
 export interface BackupSnapshotProvider {
     identity(): unknown | Promise<unknown>;
     fabric(): unknown | Promise<unknown>;
+    /** Zigbee 필수 데이터 파일 집합(선택). */
+    zigbee?(): unknown | Promise<unknown>;
 }
 
 export interface BackupRestoreResult {

@@ -2,7 +2,7 @@
 import type EventBus from "../eventBus";
 import {EventStream} from "../events";
 import PlatformFanout, {type Platform, type PlatformFanoutOptions, type PlatformListener} from "../events/fanout";
-import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../api/auth";
+import {ApiAuth, type AuthOptions, type TokenRecord} from "../api/auth";
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
@@ -12,11 +12,8 @@ import {
     type MatterEndpointFactory,
     type MatterFabricStore,
     type MatterNodeOptions,
-    type MatterReportingAdapter,
 } from "../matter/sdkRuntime";
 import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
-import type {RestDevice, RestRouterDeps} from "../api/restRouter";
-import type {WsSnapshot} from "../api/wsSession";
 import {EndpointRegistry, type EndpointRegistryOptions, type RegistryKey} from "../matter/endpointRegistry";
 import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
 import type {BridgeId} from "../identity";
@@ -25,6 +22,7 @@ import type {PersistentSnapshot} from "../storage/backup";
 import StateReconciler from "../state/reconciliation";
 import StateSnapshotCoordinator from "../state/snapshot";
 import ServiceLifecycle from "../lifecycle";
+import data from "../util/data";
 import {CommissioningManager} from "../matter/commissioning";
 import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
@@ -41,8 +39,11 @@ export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly matterEndpointFactory?: MatterEndpointFactory;
     readonly matterFabricStore?: MatterFabricStore;
-    readonly matterReportingAdapter?: MatterReportingAdapter;
     readonly commissioning?: CommissioningManager;
+    /**
+     * 복수 브리지(T038). 프로덕션 composition root가 factory를 주입한다(예: MatterSdkBridgeNodeRuntimeFactory).
+     * 제약: SDK mdns 네트워크 설정(MATTER_MDNS_*)과 storage.path는 프로세스 전역이라 한 프로세스의 브리지는 같은 값을 공유한다.
+     */
     readonly multiBridge?: {
         readonly registry?: MultiBridgeRegistry;
         readonly factory: BridgeNodeRuntimeFactory;
@@ -54,12 +55,7 @@ export interface BridgeRuntimeOptions {
     };
     readonly auth?: AuthOptions;
     readonly initialTokens?: readonly TokenRecord[];
-    readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter" | keyof RestRouterDeps> & {
-        readonly listDevices: () => readonly RestDevice[];
-        readonly snapshot?: () => WsSnapshot;
-        readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
-        readonly tls?: {readonly certPath: string; readonly keyPath: string};
-    };
+    readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDiagnostics" | "authFailureRateLimiter">;
 }
 
 export class BridgeRuntime {
@@ -76,6 +72,7 @@ export class BridgeRuntime {
     private readonly api?: ApiServer;
     private readonly matterEndpointFactory?: MatterEndpointFactory;
     private dynamicEndpointRuntime?: DynamicEndpointRuntime;
+    private sdkEndpointAdapter?: MatterSdkEndpointAdapter;
     private readonly backupStore: BackupFileStore;
     private readonly backupSnapshotProvider?: BackupSnapshotProvider;
     private readonly backupSnapshotAdapter?: BackupSnapshotAdapter;
@@ -87,11 +84,11 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.fanout = new PlatformFanout(this.events);
-        this.matter = new MatterSdkRuntime(undefined, options.matterFabricStore, options.matterReportingAdapter);
+        this.matter = new MatterSdkRuntime(undefined, options.matterFabricStore);
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
         this.lifecycle = new ServiceLifecycle();
-        this.commissioning = options.commissioning ?? new CommissioningManager({codeFactory: () => this.matter.getCommissioningCode()});
+        this.commissioning = options.commissioning ?? new CommissioningManager({backend: this.matter.commissioningBackend()});
         this.multiBridge = options.multiBridge
             ? new MultiBridgeRuntime(options.multiBridge.registry ?? new MultiBridgeRegistry(), options.multiBridge.factory)
             : undefined;
@@ -134,15 +131,41 @@ export class BridgeRuntime {
         });
     }
 
-    async start(): Promise<void> {
-        const components = [];
-        if (this.matter.currentNode) {
-            components.push({name: "matter", start: () => this.matter.start(), stop: () => this.matter.stop()});
-        }
-        if (this.api) {
-            components.push({name: "api", start: () => this.api!.start(), stop: () => this.api!.stop()});
-        }
+    /**
+     * T022: matter/api는 서로 격리된다. 한쪽 시작이 실패해도 다른 쪽과 Zigbee는 계속 동작하며, 실패는 반환값과 diagnostics로 보고한다.
+     */
+    async start(): Promise<readonly {readonly name: "matter" | "api"; readonly error: unknown}[]> {
+        const failures: {name: "matter" | "api"; error: unknown}[] = [];
+        const components: {name: string; start: () => Promise<void>; stop: () => Promise<void>}[] = [];
+        const isolate = (name: "matter" | "api", platform: Platform, start: () => Promise<void>, stop: () => Promise<void>): void => {
+            let started = false;
+            components.push({
+                name,
+                start: async () => {
+                    try {
+                        await start();
+                        started = true;
+                    } catch (error) {
+                        failures.push({name, error});
+                        this.diagnostics.record(`service-${name}`, platform, {queued: 0, dropped: 0, errors: 1}, undefined, error);
+                        try {
+                            await stop();
+                        } catch {
+                            // The original start failure is the one reported.
+                        }
+                    }
+                },
+                stop: async () => {
+                    if (started) await stop();
+                },
+            });
+        };
+        if (this.matter.currentNode) isolate("matter", "matter", () => this.matter.start(), () => this.matter.stop());
+        const api = this.api;
+        if (api) isolate("api", "http", () => api.start(), () => api.stop());
         await this.lifecycle.start(components);
+
+        return failures;
     }
 
     async startMatter(options: MatterNodeOptions): Promise<void> {
@@ -153,7 +176,8 @@ export class BridgeRuntime {
             throw new Error("Matter endpoint factory is not configured");
         }
 
-        await this.matter.createNode(options);
+        // D4: SDK fabric/키 저장소를 `<ZIGBEE2MATTER_DATA>/matter/storage` 하위로 고정한다(컨테이너 재생성 시 fabric 보존).
+        await this.matter.createNode({storagePath: data.joinPath("matter/storage"), ...options});
         this.dynamicEndpointRuntime = this.createSdkDynamicEndpointRuntime(this.matterEndpointFactory);
     }
 
@@ -180,7 +204,15 @@ export class BridgeRuntime {
     }
 
     createSdkDynamicEndpointRuntime(factory: MatterEndpointFactory): DynamicEndpointRuntime {
-        return this.createDynamicEndpointRuntime(new MatterSdkEndpointAdapter(this.matter, factory));
+        const adapter = new MatterSdkEndpointAdapter(this.matter, factory);
+        this.sdkEndpointAdapter = adapter;
+
+        return this.createDynamicEndpointRuntime(adapter);
+    }
+
+    /** Matter로 노출하지 못한 expose 공급자(API 연결용). Matter 시작 전에는 undefined. */
+    get unsupportedFeatures(): MatterSdkEndpointAdapter | undefined {
+        return this.sdkEndpointAdapter;
     }
 
     get currentDynamicEndpointRuntime(): DynamicEndpointRuntime | undefined {
@@ -204,6 +236,7 @@ export class BridgeRuntime {
             identity: await provider.identity(),
             fabric: await provider.fabric(),
             endpointRegistry: this.endpointRegistry.serialize(),
+            ...(provider.zigbee ? {zigbee: await provider.zigbee()} : {}),
         };
         validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);
         await this.backupStore.writeSnapshot(snapshot, passphrase);
@@ -229,6 +262,7 @@ export class BridgeRuntime {
             firstError = error;
         }
         this.dynamicEndpointRuntime = undefined;
+        this.sdkEndpointAdapter = undefined;
         if (this.attachedEventBus) {
             this.events.detach(this.attachedEventBus);
             this.attachedEventBus = undefined;
@@ -237,6 +271,11 @@ export class BridgeRuntime {
         if (firstError !== undefined) {
             throw firstError;
         }
+    }
+
+    /** API가 시작은 됐지만 일부 기능이 제한된 사유(없으면 undefined). */
+    get apiDegradedReason(): string | undefined {
+        return this.api?.degradedReason;
     }
 
     get apiAddress(): ReturnType<ApiServer["address"]> | undefined {

@@ -25,9 +25,9 @@ export function celsiusToMatter(value: number | null | undefined): KnownValue<nu
 export function humidityPercentToMatter(value: number | null | undefined): KnownValue<number> {
     if (value === null || value === undefined) return {known: false};
     assertFinite(value, "humidity");
-    if (value < 0 || value > 100) throw new Error("humidity must be in 0..100 percent");
 
-    return {known: true, value: Math.round(value * 100)};
+    // 센서 노이즈(예: 100.3)로 업데이트 전체가 실패하지 않도록 0..100으로 clamp한다.
+    return {known: true, value: Math.round(Math.min(100, Math.max(0, value)) * 100)};
 }
 
 export function booleanSensorToMatter(value: boolean | null | undefined, invert = false): KnownValue<boolean> {
@@ -61,4 +61,9 @@ export function assertSensorReadOnly(writable: boolean): void {
 
 function assertFinite(value: number, name: string): void {
     if (!Number.isFinite(value)) throw new Error(`${name} must be a finite number`);
+}
+
+/** OccupancySensing.occupancy는 bitmap 객체({occupied})다 (@matter/types 0.18.0 occupancy-sensing.d.ts). */
+export function occupancyToMatter(occupied: boolean): {occupied: boolean} {
+    return {occupied};
 }

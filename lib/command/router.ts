@@ -13,7 +13,10 @@ import {
     SENSITIVE_BRIDGE_REQUESTS,
     sanitizeErrorMessage,
 } from "./mapping";
+import {authorizeByScope} from "./permissions";
+import type CommandRetryPolicy from "./retry";
 import type {
+    AuthDecision,
     Command,
     CommandAuthorizer,
     CommandErrorCode,
@@ -21,6 +24,7 @@ import type {
     CommandResult,
     CommandStatus,
     EntityCommand,
+    ResolvedTarget,
     TargetResolver,
     ValueValidator,
 } from "./types";
@@ -42,6 +46,11 @@ export interface CommandRouterDeps {
     /** Sensitive bridge requests (see `SENSITIVE_BRIDGE_REQUESTS`) explicitly allowed. Default: none. */
     allowedSensitiveRequests?: ReadonlySet<string>;
     loopGuard?: CommandLoopGuard;
+    /**
+     * T015: automatic resubmission policy. Only failures with `dispatched: false` (guaranteed 0 RF) of idempotent commands are retried,
+     * under a new requestId; `submit` then resolves with the final attempt. Absent = no automatic retry.
+     */
+    retryPolicy?: CommandRetryPolicy;
     /** Test seam. */
     now?: () => number;
 }
@@ -54,8 +63,22 @@ interface Expectation {
     existsOnly: boolean;
 }
 
+export interface RetryContext {
+    /** 1-based attempt number of this submission. */
+    attempt: number;
+    /** requestId of the first attempt; retry ids derive from it. */
+    originId: string;
+}
+
+interface RetryWait {
+    timer: ReturnType<typeof setTimeout>;
+    result: CommandResult;
+    resolve: (result: CommandResult) => void;
+}
+
 interface Pending {
     command: Command;
+    retry: RetryContext;
     resolve: (result: CommandResult) => void;
     timer: ReturnType<typeof setTimeout> | undefined;
     dispatched: boolean;
@@ -111,6 +134,7 @@ function valuesMatch(published: unknown, expected: unknown): boolean {
  */
 export default class CommandRouter {
     private readonly pending = new Map<string, Pending>();
+    private readonly retryWaits = new Set<RetryWait>();
     private running = false;
     private readonly now: () => number;
 
@@ -133,37 +157,47 @@ export default class CommandRouter {
             // Not yet injected (queued by the schedule hook): guaranteed 0 RF -> failed. Injected: outcome unknown.
             this.settle(requestId, pending.dispatched ? "unknown" : "failed", {errorCode: "UNAVAILABLE", errorMessage: "router stopped"});
         }
+
+        for (const wait of [...this.retryWaits]) {
+            clearTimeout(wait.timer);
+            this.retryWaits.delete(wait);
+            wait.resolve(wait.result);
+        }
     }
 
     /** Resolves with the FINAL result. Intermediate statuses (`accepted`) go to `hooks.onResult`. Never throws, never rejects. */
-    submit(command: Command): Promise<CommandResult> {
+    submit(command: Command, retry: RetryContext = {attempt: 1, originId: String(command?.requestId ?? "")}): Promise<CommandResult> {
         if (!this.running) {
-            return Promise.resolve(this.emit(this.build(command, "failed", {errorCode: "UNAVAILABLE", errorMessage: "router not running", terminal: true, dispatched: false})));
+            return Promise.resolve(this.fail(command, "UNAVAILABLE", "router not running"));
         }
 
         try {
             const validation = this.validate(command);
 
             if (validation.rejection) {
-                return Promise.resolve(this.emit(this.build(command, validation.rejection.status ?? "failed", {...validation.rejection, terminal: true, dispatched: false})));
+                const {status, ...rejection} = validation.rejection;
+
+                return Promise.resolve(this.emit(this.build(command, status ?? "failed", {...rejection, terminal: true, dispatched: false})));
             }
 
-            try {
-                this.deps.loopGuard?.record(command);
-            } catch {
-                // Loop diagnostics must never reject an otherwise valid command.
-            }
             const duplicate = this.deps.hooks?.admit?.(command);
 
             if (duplicate) {
                 return Promise.resolve(this.emit(duplicate));
             }
 
+            // After admit: a replayed duplicate is not a loop iteration.
+            try {
+                this.deps.loopGuard?.record(command);
+            } catch {
+                // Loop diagnostics must never reject an otherwise valid command.
+            }
+
             return new Promise<CommandResult>((resolve) => {
                 let registered: Pending | undefined;
 
                 try {
-                    registered = this.register(command, validation.name, validation.endpoint, resolve);
+                    registered = this.register(command, validation, resolve, retry);
                     this.emit(this.build(command, "accepted", {terminal: false, dispatched: false}));
 
                     const pending = registered;
@@ -172,11 +206,7 @@ export default class CommandRouter {
 
                     if (schedule) {
                         if (schedule(command, run) === false) {
-                            this.settleNow(registered, "failed", {
-                                errorCode: "BUSY",
-                                errorMessage: "command queue is full",
-                                terminal: true,
-                            });
+                            this.settleNow(registered, "failed", {errorCode: "BUSY", errorMessage: "command queue is full", terminal: true});
                         }
                     } else {
                         run();
@@ -186,12 +216,12 @@ export default class CommandRouter {
                     if (registered && this.pending.get(command.requestId) === registered) {
                         this.settleNow(registered, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true});
                     } else {
-                        resolve(this.emit(this.build(command, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true, dispatched: false})));
+                        resolve(this.fail(command, "INTERNAL", "internal error"));
                     }
                 }
             });
         } catch {
-            return Promise.resolve(this.emit(this.build(command, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true, dispatched: false})));
+            return Promise.resolve(this.fail(command, "INTERNAL", "internal error"));
         }
     }
 
@@ -252,7 +282,7 @@ export default class CommandRouter {
             return reject("INVALID_ARGUMENT", "'transaction' is reserved");
         }
 
-        const auth = this.deps.authorizer.authorize(command, undefined);
+        const auth = this.authorize(command, undefined);
 
         if (!auth.ok) {
             return reject(auth.errorCode, auth.message);
@@ -283,7 +313,7 @@ export default class CommandRouter {
 
         // The ONLY resolve call; its canonical name is reused for topic building and observation.
         const resolved = this.deps.resolver.resolve(command.target);
-        const auth = this.deps.authorizer.authorize(command, resolved);
+        const auth = this.authorize(command, resolved);
 
         // Authorize before revealing existence (NOT_FOUND) to unauthorized callers.
         if (!auth.ok) {
@@ -315,8 +345,16 @@ export default class CommandRouter {
         return rejection ? reject(rejection.errorCode, rejection.message) : {name: resolved.name, ...(endpoint === undefined ? {} : {endpoint})};
     }
 
-    private register(command: Command, name: string | undefined, endpoint: string | undefined, resolve: (result: CommandResult) => void): Pending {
-        const pending: Pending = {command, resolve, timer: undefined, dispatched: false};
+    /** T012: the per-request scope floor (`authorizeByScope`) applies before the injected authorizer; both must allow. */
+    private authorize(command: Command, resolved: ResolvedTarget | undefined): AuthDecision {
+        const floor = authorizeByScope(command);
+
+        return floor.ok ? this.deps.authorizer.authorize(command, resolved) : floor;
+    }
+
+    private register(command: Command, validation: Validation, resolve: (result: CommandResult) => void, retry: RetryContext): Pending {
+        const {name, endpoint} = validation;
+        const pending: Pending = {command, retry, resolve, timer: undefined, dispatched: false};
 
         if (command.operation === "request") {
             pending.transaction = `${TRANSACTION_PREFIX}${command.requestId}`;
@@ -467,9 +505,52 @@ export default class CommandRouter {
 
         // `emit` swallows hook errors, so `resolve` is always reached.
         const result = this.emit(this.build(pending.command, status, {...extra, dispatched: pending.dispatched}));
-        pending.resolve(result);
+        const delayMs = this.retryDelay(pending, result);
+
+        if (delayMs === undefined) {
+            pending.resolve(result);
+        } else {
+            this.scheduleRetry(pending, result, delayMs);
+        }
 
         return result;
+    }
+
+    /** T015: delay before an automatic retry, or undefined. Runs after `emit`, so queue/dedup already released this attempt. */
+    private retryDelay(pending: Pending, result: CommandResult): number | undefined {
+        const policy = this.deps.retryPolicy;
+
+        // A stopped router never retries; `autoRetryAllowed=false` and dispatched results are refused by the policy as well.
+        if (!policy || !this.running || !result.terminal || result.dispatched || !result.autoRetryAllowed || result.errorCode === "CONFLICT") {
+            return undefined;
+        }
+
+        const decision = policy.decide(pending.command, result, pending.retry.attempt, this.now());
+
+        return decision.retry ? decision.delayMs : undefined;
+    }
+
+    private scheduleRetry(pending: Pending, result: CommandResult, delayMs: number): void {
+        const {command, retry} = pending;
+        const next = {attempt: retry.attempt + 1, originId: retry.originId};
+        const wait: RetryWait = {
+            timer: setTimeout(() => {
+                this.retryWaits.delete(wait);
+                const retried: Command = {...command, requestId: `${retry.originId}:r${next.attempt}`};
+
+                void this.submit(retried, next).then((final) => pending.resolve({...final, requestId: retry.originId}));
+            }, delayMs),
+            result,
+            resolve: pending.resolve,
+        };
+
+        wait.timer.unref();
+        this.retryWaits.add(wait);
+    }
+
+    /** Result for a command that was refused before registration (never reaches hooks as in-flight state). */
+    private fail(command: Command, errorCode: CommandErrorCode, errorMessage: string): CommandResult {
+        return this.emit(this.build(command, "failed", {errorCode, errorMessage, terminal: true, dispatched: false}));
     }
 
     private build(command: Command, status: CommandStatus, extra: Partial<CommandResult> & {terminal: boolean; dispatched: boolean}): CommandResult {

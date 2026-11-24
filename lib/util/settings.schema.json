@@ -533,6 +533,12 @@
                     "description": "Log rotation",
                     "default": true
                 },
+                "coordinator_replacement_approved": {
+                    "type": "boolean",
+                    "title": "Coordinator replacement approved",
+                    "description": "Set to true after verifying a replaced coordinator to lift the Matter block caused by a network/key/frame counter mismatch.",
+                    "default": false
+                },
                 "log_console_json": {
                     "type": "boolean",
                     "title": "Console json log",

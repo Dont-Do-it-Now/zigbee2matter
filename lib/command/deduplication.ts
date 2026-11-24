@@ -67,14 +67,23 @@ export default class CommandDeduplicator {
         return undefined;
     };
 
-    /** Store only terminal results; accepted does not make a command replayable. */
+    /**
+     * Store only terminal results of commands that may have reached RF; accepted does not make a command replayable.
+     * Failures with `dispatched: false` (BUSY/UNAVAILABLE/pre-dispatch timeout, guaranteed 0 RF) are forgotten so a new attempt is admitted.
+     */
     onResult = (result: CommandResult): void => {
-        if (!result.terminal) {
+        // CONFLICT results are emitted for duplicates of an in-flight requestId; they never describe the original request.
+        if (!result.terminal || result.errorCode === "CONFLICT") {
             return;
         }
 
         const entry = this.records.get(result.requestId);
-        if (!entry) {
+        if (!entry || entry.result) {
+            return;
+        }
+
+        if (!result.dispatched && result.status !== "executed" && result.status !== "confirmed") {
+            this.forget(result.requestId, entry);
             return;
         }
 
@@ -89,14 +98,18 @@ export default class CommandDeduplicator {
 
             const evicted = this.records.get(requestId);
             if (evicted?.result?.requestId === requestId) {
-                this.records.delete(requestId);
-
-                if (evicted.idempotencyScope !== undefined && this.idempotency.get(evicted.idempotencyScope) === requestId) {
-                    this.idempotency.delete(evicted.idempotencyScope);
-                }
+                this.forget(requestId, evicted);
             }
         }
     };
+
+    private forget(requestId: string, entry: RecordEntry): void {
+        this.records.delete(requestId);
+
+        if (entry.idempotencyScope !== undefined && this.idempotency.get(entry.idempotencyScope) === requestId) {
+            this.idempotency.delete(entry.idempotencyScope);
+        }
+    }
 }
 
 function idempotencyScope(command: Command): string | undefined {

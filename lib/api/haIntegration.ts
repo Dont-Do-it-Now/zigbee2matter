@@ -1,10 +1,15 @@
 /** HA Direct/Matter 공용 통합 경계(T049/T050/T051). */
 import type {EntityKey} from "../identity";
 import {HaEntityRegistry, type HaEntityPlatform} from "./haEntityRegistry";
-import type {ReportUpdate} from "../matter/reporting";
 
 export type HaIntegrationMode = "direct" | "matter" | "hybrid";
 export type HaCommand = {entity: EntityKey; service: string; data?: Record<string, unknown>};
+
+export interface HaReportUpdate {
+    readonly subscriptionId: string;
+    readonly fabricId?: string;
+    readonly value: unknown;
+}
 
 export interface HaStateUpdate {
     readonly entity: EntityKey;
@@ -28,7 +33,7 @@ export interface HaIntegrationAdapter {
     /** Core 상태를 해당 HA transport로 전달한다. */
     publishState?(update: HaStateUpdate): void;
     /** Matter reporting 결과를 해당 HA transport로 전달한다. */
-    publishReport?(update: ReportUpdate): void;
+    publishReport?(update: HaReportUpdate): void;
 }
 
 export interface CallbackHaIntegrationAdapterOptions {
@@ -36,7 +41,7 @@ export interface CallbackHaIntegrationAdapterOptions {
     readonly onRegister?: (entity: EntityKey, platform: HaEntityPlatform, name: string) => void;
     readonly onAvailability?: (entity: EntityKey, available: boolean) => void;
     readonly onState?: (update: HaStateUpdate) => void;
-    readonly onReport?: (update: ReportUpdate) => void;
+    readonly onReport?: (update: HaReportUpdate) => void;
 }
 
 /** In-process adapter used by the Direct and Matter composition roots. */
@@ -67,7 +72,7 @@ export class CallbackHaIntegrationAdapter implements HaIntegrationAdapter {
         this.options.onState?.(update);
     }
 
-    publishReport(update: ReportUpdate): void {
+    publishReport(update: HaReportUpdate): void {
         this.options.onReport?.(update);
     }
 }
@@ -115,7 +120,7 @@ export class HaIntegrationRouter {
         adapter.publishState?.({entity, value: record.state.value, revision: record.state.revision, observedAt: record.state.observedAt});
     }
 
-    publishReport(mode: HaIntegrationMode, update: ReportUpdate): void {
+    publishReport(mode: HaIntegrationMode, update: HaReportUpdate): void {
         const adapter = this.adapters.get(mode);
         if (!adapter) throw new Error(`HA integration is not configured: ${mode}`);
 

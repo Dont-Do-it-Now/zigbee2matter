@@ -75,13 +75,24 @@ export class OtaJobStore {
     }
 
     start(job: OtaJob): void {
-        this.assertMutable(job);
+        try {
+            this.#assertMutable(job);
+        } catch (error) {
+            // 시작 전 취소 요청 등으로 실패하면 queued로 남아 전체 OTA를 막지 않도록 종료 처리한다.
+            this.fail(job, error);
+            throw error;
+        }
         job.status = "running";
         job.startedAt = this.#timestamp();
     }
 
     progress(job: OtaJob, progress: number, remaining?: number): void {
-        this.assertMutable(job);
+        try {
+            this.#assertMutable(job);
+        } catch (error) {
+            this.fail(job, error);
+            throw error;
+        }
         if (!Number.isFinite(progress) || progress < 0 || progress > 100) throw new Error("OTA progress must be between 0 and 100");
         job.progress = progress;
         if (remaining !== undefined) {
@@ -104,8 +115,8 @@ export class OtaJobStore {
     }
 
     complete(job: OtaJob): void {
-        this.assertMutable(job);
         if (job.cancelRequested) return this.cancel(job);
+        this.#assertMutable(job);
         job.progress = 100;
         job.status = "completed";
         job.finishedAt = this.#timestamp();

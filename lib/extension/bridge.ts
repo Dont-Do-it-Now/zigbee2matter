@@ -8,6 +8,7 @@ import {Zcl} from "zigbee-herdsman";
 import {InterviewState} from "zigbee-herdsman/dist/controller/model/device";
 import * as zhc from "zigbee-herdsman-converters";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
+import PairingPolicy, {assertPermitJoinTime} from "../pairing"; // z2m-fork: T027
 import Device from "../model/device";
 import type Group from "../model/group";
 import type {Zigbee2MQTTAPI, Zigbee2MQTTDevice, Zigbee2MQTTResponse, Zigbee2MQTTResponseEndpoints} from "../types/api";
@@ -28,6 +29,7 @@ export default class Bridge extends Extension {
     private zigbeeHerdsmanConvertersVersion!: {version: string};
     private coordinatorVersion!: zh.CoordinatorVersion;
     private restartRequired = false;
+    private pairing?: PairingPolicy; // z2m-fork: T027
     private lastJoinedDeviceIeeeAddr?: string;
     private lastBridgeLoggingPayload?: string;
     private logTransport!: winston.transport;
@@ -107,6 +109,13 @@ export default class Bridge extends Extension {
         this.zigbeeHerdsmanVersion = await utils.getDependencyVersion("zigbee-herdsman");
         this.zigbeeHerdsmanConvertersVersion = await utils.getDependencyVersion("zigbee-herdsman-converters");
         this.coordinatorVersion = await this.zigbee.getCoordinatorVersion();
+
+        // z2m-fork: T027
+        this.pairing = new PairingPolicy({eventBus: this.eventBus});
+        const pairing = this.pairing;
+        this.eventBus.onPermitJoinChanged(this, (data) => {
+            pairing.setPermitJoinEnd(data.permitted && data.timeout ? Date.now() + data.timeout * 1000 : undefined);
+        });
 
         this.eventBus.onEntityRenamed(this, async () => {
             await this.publishInfo();
@@ -199,6 +208,7 @@ export default class Bridge extends Extension {
 
     override async stop(): Promise<void> {
         await super.stop();
+        if (this.pairing) this.eventBus.removeListeners(this.pairing); // z2m-fork: T027
         logger.removeTransport(this.logTransport);
     }
 
@@ -385,6 +395,7 @@ export default class Bridge extends Extension {
             time = Number.parseInt(message, 10);
         }
 
+        assertPermitJoinTime(time); // z2m-fork: T027
         await this.zigbee.permitJoin(time, device);
 
         const response: {time: number; device?: string} = {time};

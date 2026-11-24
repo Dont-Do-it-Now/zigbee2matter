@@ -1,6 +1,18 @@
 /** T061 파일 기반 네트워크 식별자 저장소. Matter fabric/키 저장소와 분리한다. */
 import {randomUUID} from "node:crypto";
-import {chmodSync, closeSync, existsSync, fsyncSync, linkSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync} from "node:fs";
+import {
+    chmodSync,
+    closeSync,
+    existsSync,
+    fsyncSync,
+    linkSync,
+    mkdirSync,
+    openSync,
+    readFileSync,
+    renameSync,
+    unlinkSync,
+    writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import data from "../util/data";
 import type {NetworkIdentity, NetworkIdentityStore} from "./adapter";
@@ -31,6 +43,28 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
             if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
             return this.read();
         }
+    }
+
+    /** T019: 최초 기동 시 live extended PAN ID를 기록한다. 이미 기록된 값은 덮어쓰지 않는다(교체는 명시적 절차). */
+    recordExtendedPanId(identity: NetworkIdentity, extendedPanId: string): NetworkIdentity {
+        if (identity.extendedPanId !== undefined) return identity;
+
+        const next: NetworkIdentity = {networkId: identity.networkId, extendedPanId};
+        const temporary = `${this.filePath}.${randomUUID()}.tmp`;
+        try {
+            writeFileSync(temporary, `${JSON.stringify(next)}
+`, {encoding: "utf8", mode: 0o600});
+            renameSync(temporary, this.filePath);
+        } catch (error) {
+            try {
+                unlinkSync(temporary);
+            } catch {
+                // Preserve the original write error.
+            }
+            throw error;
+        }
+
+        return next;
     }
 
     private read(): NetworkIdentity {

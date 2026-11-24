@@ -69,9 +69,24 @@ export class ApiError extends Error {
     }
 }
 
-/** 알 수 없는 예외를 비밀/스택 없이 INTERNAL로 변환. */
+// 서비스 계층(ServiceUnavailableError 등)이 `code`로 알리는 C6 코드. 인증/인가 코드는 이 계층이 결정하므로 제외한다.
+const SERVICE_ERROR_MESSAGES = new Map<string, string>([
+    ["INVALID_ARGUMENT", "Invalid argument"],
+    ["NOT_FOUND", "Not found"],
+    ["UNSUPPORTED", "Unsupported"],
+    ["UNAVAILABLE", "Service unavailable"],
+    ["BUSY", "Busy"],
+    ["TIMEOUT", "Timeout"],
+    ["CONFLICT", "Conflict"],
+]);
+
+/** 예외를 비밀/스택 없이 변환. C6 `code`를 가진 서비스 오류는 그 코드로, 그 외는 INTERNAL. 원본 message는 노출하지 않는다. */
 export function toApiError(err: unknown): ApiError {
-    return err instanceof ApiError ? err : new ApiError("INTERNAL", "Internal error");
+    if (err instanceof ApiError) return err;
+    const code = err instanceof Error ? (err as {code?: unknown}).code : undefined;
+    const message = typeof code === "string" ? SERVICE_ERROR_MESSAGES.get(code) : undefined;
+    if (message !== undefined) return new ApiError(code as ApiErrorCode, message);
+    return new ApiError("INTERNAL", "Internal error");
 }
 
 /** 인증된 세션 주체 (C3: 권한은 인증된 세션에서 도출). 토큰 원문/해시는 포함하지 않는다. */
@@ -164,7 +179,12 @@ export class ApiAuth {
             expiresAt: opts.ttlMs === undefined ? undefined : this.now() + opts.ttlMs,
         };
         this.records.set(id, rec);
-        this.persist();
+        try {
+            this.persist();
+        } catch (error) {
+            this.records.delete(id);
+            throw error;
+        }
         return {id, secret, info: toInfo(rec)};
     }
 
@@ -173,7 +193,12 @@ export class ApiAuth {
         const rec = this.records.get(id);
         if (!rec || rec.revokedAt !== undefined) throw new ApiError("NOT_FOUND", "Token not found");
         rec.revokedAt = this.now();
-        this.persist();
+        try {
+            this.persist();
+        } catch (error) {
+            rec.revokedAt = undefined;
+            throw error;
+        }
     }
 
     list(): TokenInfo[] {
@@ -273,7 +298,11 @@ export function extractToken(req: RequestLike, opts: {allowQueryToken?: boolean}
         return m ? m[1] : "";
     }
     if (opts.allowQueryToken && req.url) {
-        return new URL(req.url, "http://localhost").searchParams.get("token") ?? undefined;
+        try {
+            return new URL(req.url, "http://localhost").searchParams.get("token") ?? undefined;
+        } catch {
+            return "";
+        }
     }
     return undefined;
 }

@@ -37,6 +37,7 @@ export interface OnboardInitData {
     page: "form";
     settings: Zigbee2MQTTSettings;
     settingsSchema: typeof schemaJson;
+    coordinatorDiscovery?: import("../coordinatorDiscovery").CoordinatorDiscoveryResult; // z2m-fork: T024
     devices: {
         name: string;
         path: Zigbee2MQTTSettings["serial"]["port"];
@@ -194,6 +195,7 @@ export type Zigbee2MQTTSettings = {
     advanced: {
         log_rotation: boolean;
         log_console_json: boolean;
+        coordinator_replacement_approved: boolean; // z2m-fork: T026
         log_symlink_current: boolean;
         log_output: ("console" | "file" | "syslog")[];
         log_directory: string;

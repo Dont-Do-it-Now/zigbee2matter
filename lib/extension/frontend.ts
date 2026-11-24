@@ -70,7 +70,8 @@ export class Frontend extends Extension {
 
             logger.info(
                 /* v8 ignore next */
-                `Frontend UI serving is disabled. WebSocket at: ${this.wss.options.host ?? "0.0.0.0"}:${this.wss.options.port}${this.wss.options.path}`,
+                `Frontend UI serving is disabled. WebSocket at: ` +
+                    `${this.wss.options.host ?? "0.0.0.0"}:${this.wss.options.port}${this.wss.options.path}`,
             );
         } else {
             const {host, port, ssl_key: sslKey, ssl_cert: sslCert} = settings.get().frontend;
@@ -200,7 +201,10 @@ export class Frontend extends Extension {
                     stringify({
                         // Send topic without base_topic
                         topic: topic.substring(this.bridgeBusBaseTopic.length + 1),
-                        payload: windfrontCompat(topic.substring(this.bridgeBusBaseTopic.length + 1), utils.parseJSON(payload.payload, payload.payload)),
+                        payload: windfrontCompat(
+                            topic.substring(this.bridgeBusBaseTopic.length + 1),
+                            utils.parseJSON(payload.payload, payload.payload),
+                        ),
                     }),
                 );
             }

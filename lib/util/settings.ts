@@ -88,6 +88,7 @@ export const defaults = {
     advanced: {
         log_rotation: true,
         log_console_json: false,
+        coordinator_replacement_approved: false, // z2m-fork: T026
         log_symlink_current: false,
         log_output: ["console", "file"],
         log_directory: path.join(data.getPath(), "log", "%TIMESTAMP%"),
@@ -404,7 +405,7 @@ function applyEnvironmentVariables(settings: Partial<Settings>): void {
                                 // biome-ignore lint/suspicious/noExplicitAny: auto-parsing
                                 setting[key as keyof Settings] = envVariable as any;
                             }
-                        } else if (type.indexOf("number") >= 0) {
+                        } else if (type.indexOf("number") >= 0 || type.indexOf("integer") >= 0) { // z2m-fork: T059 integer env
                             // biome-ignore lint/suspicious/noExplicitAny: auto-parsing
                             setting[key as keyof Settings] = ((envVariable as unknown as number) * 1) as any;
                         } else if (type.indexOf("boolean") >= 0) {

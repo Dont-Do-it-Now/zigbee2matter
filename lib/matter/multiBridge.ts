@@ -1,4 +1,11 @@
-/** 복수 Matter 브리지의 격리·주소 충돌 정책(T038). */
+/**
+ * 복수 Matter 브리지의 격리·주소 충돌 정책(T038).
+ *
+ * 실제 SDK node 생성은 주입되는 `BridgeNodeRuntimeFactory`가 담당한다(기본 구현: sdkRuntime.ts `MatterSdkBridgeNodeRuntimeFactory`).
+ * 명시적 제약: SDK의 mdns 네트워크 설정(MATTER_MDNS_NETWORKINTERFACE/IPV4)과 `storage.path`는 프로세스 전역이다.
+ * 한 프로세스에서 실행하는 브리지는 같은 mDNS interface/ipv4/storage 루트를 공유해야 하고, 서로 다른 interface가 필요하면 프로세스를 분리한다.
+ * 브리지별 격리는 port, discriminator, mDNS instance, SDK node id(= fabricStoreKey 저장소 네임스페이스)로 보장한다.
+ */
 
 export interface BridgeNodeConfig {
     readonly bridgeId: string;
@@ -30,12 +37,16 @@ export class MultiBridgeRegistry {
     register(config: BridgeNodeConfig): BridgeNodeState {
         if (!config.bridgeId || !config.fabricStoreKey || !config.mdnsInstance) throw new Error("bridge identity is required");
         if (!Number.isSafeInteger(config.port) || config.port < 1 || config.port > 65535) throw new Error("invalid bridge port");
-        if (!Number.isSafeInteger(config.discriminator) || config.discriminator < 0 || config.discriminator > 4095) throw new Error("invalid bridge discriminator");
+        if (!Number.isSafeInteger(config.discriminator) || config.discriminator < 0 || config.discriminator > 4095)
+            throw new Error("invalid bridge discriminator");
         if (this.nodes.has(config.bridgeId)) throw new Error(`bridge already registered: ${config.bridgeId}`);
         if ([...this.nodes.values()].some((node) => node.port === config.port)) throw new Error(`bridge port already used: ${config.port}`);
-        if ([...this.nodes.values()].some((node) => node.fabricStoreKey === config.fabricStoreKey)) throw new Error(`fabric store already used: ${config.fabricStoreKey}`);
-        if ([...this.nodes.values()].some((node) => node.mdnsInstance === config.mdnsInstance)) throw new Error(`mDNS instance already used: ${config.mdnsInstance}`);
-        if ([...this.nodes.values()].some((node) => node.discriminator === config.discriminator)) throw new Error(`discriminator already used: ${config.discriminator}`);
+        if ([...this.nodes.values()].some((node) => node.fabricStoreKey === config.fabricStoreKey))
+            throw new Error(`fabric store already used: ${config.fabricStoreKey}`);
+        if ([...this.nodes.values()].some((node) => node.mdnsInstance === config.mdnsInstance))
+            throw new Error(`mDNS instance already used: ${config.mdnsInstance}`);
+        if ([...this.nodes.values()].some((node) => node.discriminator === config.discriminator))
+            throw new Error(`discriminator already used: ${config.discriminator}`);
         const state: BridgeNodeState = {...config, status: "stopped"};
         this.nodes.set(config.bridgeId, state);
         return {...state};
@@ -129,5 +140,11 @@ function isAllowedTransition(from: BridgeNodeStatus, to: BridgeNodeStatus): bool
 }
 
 function sameConfig(a: BridgeNodeConfig, b: BridgeNodeConfig): boolean {
-    return a.bridgeId === b.bridgeId && a.fabricStoreKey === b.fabricStoreKey && a.port === b.port && a.mdnsInstance === b.mdnsInstance && a.discriminator === b.discriminator;
+    return (
+        a.bridgeId === b.bridgeId &&
+        a.fabricStoreKey === b.fabricStoreKey &&
+        a.port === b.port &&
+        a.mdnsInstance === b.mdnsInstance &&
+        a.discriminator === b.discriminator
+    );
 }

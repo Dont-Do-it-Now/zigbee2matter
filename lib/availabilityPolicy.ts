@@ -59,5 +59,6 @@ export function evaluateAvailability(input: AvailabilityInput, now = Date.now())
         return {status: "unknown", scope: input.scope, shouldProbe: false, reason: "sleepy-timeout"};
     }
 
-    return {status: "offline", reachable: false, scope: input.scope, shouldProbe: true, reason: "timeout"};
+    // timeout 후 probe 결과를 기다리는 동안은 offline으로 단정하지 않고 unknown으로 두어 probe와 모순되지 않게 한다.
+    return {status: "unknown", scope: input.scope, shouldProbe: true, reason: "timeout"};
 }

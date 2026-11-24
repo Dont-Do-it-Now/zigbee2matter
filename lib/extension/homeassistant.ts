@@ -39,10 +39,14 @@ const ACTION_PATTERNS: string[] = [
 const ACCESS_STATE = 0b001;
 const ACCESS_SET = 0b010;
 const GROUP_SUPPORTED_TYPES: ReadonlyArray<string> = ["light", "switch", "lock", "cover"];
-const COVER_OPENING_LOOKUP: ReadonlyArray<string> = ["opening", "open", "forward", "up", "rising"];
-const COVER_CLOSING_LOOKUP: ReadonlyArray<string> = ["closing", "close", "backward", "back", "reverse", "down", "declining"];
-const COVER_STOPPED_LOOKUP: ReadonlyArray<string> = ["stopped", "stop", "pause", "paused"];
-const CONFIG_SWITCH_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
+// z2m-fork: T052 export for HA entity mapping reuse
+export const COVER_OPENING_LOOKUP: ReadonlyArray<string> = ["opening", "open", "forward", "up", "rising"];
+// z2m-fork: T052 export for HA entity mapping reuse
+export const COVER_CLOSING_LOOKUP: ReadonlyArray<string> = ["closing", "close", "backward", "back", "reverse", "down", "declining"];
+// z2m-fork: T052 export for HA entity mapping reuse
+export const COVER_STOPPED_LOOKUP: ReadonlyArray<string> = ["stopped", "stop", "pause", "paused"];
+// z2m-fork: T052 export for HA entity mapping reuse
+export const CONFIG_SWITCH_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     auto_lock: {entity_category: "config", icon: "mdi:lock"},
     away_mode: {entity_category: "config", icon: "mdi:home-export-outline"},
     comfort_smiley: {entity_category: "config", icon: "mdi:emoticon-happy-outline"},
@@ -52,8 +56,10 @@ const CONFIG_SWITCH_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     valve_detection: {entity_category: "config", icon: "mdi:pipe-valve"},
     window_detection: {entity_category: "config", icon: "mdi:window-open-variant"},
 } as const;
-const SWITCH_DIFFERENT: ReadonlyArray<string> = Object.keys(CONFIG_SWITCH_DISCOVERY_LOOKUP);
-const BINARY_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
+// z2m-fork: T052 export for HA entity mapping reuse
+export const SWITCH_DIFFERENT: ReadonlyArray<string> = Object.keys(CONFIG_SWITCH_DISCOVERY_LOOKUP);
+// z2m-fork: T052 export for HA entity mapping reuse
+export const BINARY_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     activity_led_indicator: {icon: "mdi:led-on"},
     area1Occupancy: {device_class: "occupancy"},
     area2Occupancy: {device_class: "occupancy"},
@@ -126,7 +132,8 @@ const BINARY_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     window_detection: {entity_category: "config", icon: "mdi:window-open-variant"},
     window_open: {device_class: "window"},
 } as const;
-const NUMERIC_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
+// z2m-fork: T052 export for HA entity mapping reuse
+export const NUMERIC_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     ac_frequency: {device_class: "frequency", state_class: "measurement"},
     action_duration: {icon: "mdi:timer", device_class: "duration"},
     alarm_humidity_max: {device_class: "humidity", entity_category: "config", icon: "mdi:water-plus"},
@@ -323,7 +330,8 @@ const NUMERIC_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     z: {icon: "mdi:axis-z-arrow", state_class: "measurement"},
     z_axis: {icon: "mdi:axis-z-arrow", state_class: "measurement"},
 } as const;
-const ENUM_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
+// z2m-fork: T052 export for HA entity mapping reuse
+export const ENUM_DISCOVERY_LOOKUP: {[s: string]: KeyValue} = {
     action: {icon: "mdi:gesture-double-tap"},
     alarm_humidity: {entity_category: "config", icon: "mdi:water-percent-alert"},
     alarm_temperature: {entity_category: "config", icon: "mdi:thermometer-alert"},
@@ -391,7 +399,7 @@ const featurePropertyWithoutEndpoint = (feature: zhc.Feature): string => {
     return feature.property;
 };
 
-const cleanName = (name: string): string => name.replace(/^(?:analog_in_|analog_out_)/, "");
+export const cleanName = (name: string): string => name.replace(/^(?:analog_in_|analog_out_)/, "");
 
 /**
  * Reads `property` from the state payload, guarded against it being absent, which otherwise logs
@@ -790,7 +798,8 @@ export class HomeAssistant extends Extension {
                     discoveryEntry.discovery_payload.action_topic = true;
                     discoveryEntry.discovery_payload.action_template = stateValueTemplate(
                         state.property,
-                        `{% set values = {None:None,'idle':'idle','heat':'heating','cool':'cooling','fan_only':'fan'} %}{{ values[value_json["${state.property}"]] }}`,
+                        `{% set values = {None:None,'idle':'idle','heat':'heating','cool':'cooling','fan_only':'fan'} %}` +
+                            `{{ values[value_json["${state.property}"]] }}`,
                     );
                 }
 
@@ -995,7 +1004,9 @@ export class HomeAssistant extends Extension {
                     assert(position, `Cover must have 'position' when it has 'running'`);
                     const runningProperty = featurePropertyWithoutEndpoint(running);
                     const positionProperty = featurePropertyWithoutEndpoint(position);
-                    discoveryEntry.discovery_payload.value_template = `{% if "${runningProperty}" in value_json and value_json["${runningProperty}"] and "${positionProperty}" in value_json %} {% if value_json["${positionProperty}"] > 0 %} closing {% else %} opening {% endif %} {% else %} stopped {% endif %}`;
+                    discoveryEntry.discovery_payload.value_template =
+                        `{% if "${runningProperty}" in value_json and value_json["${runningProperty}"] and "${positionProperty}" in value_json %} ` +
+                        `{% if value_json["${positionProperty}"] > 0 %} closing {% else %} opening {% endif %} {% else %} stopped {% endif %}`;
                 }
 
                 // If curtains have `motor_state` or `moving` property, lookup for possible
@@ -1139,7 +1150,8 @@ export class HomeAssistant extends Extension {
                     discoveryEntry.discovery_payload.preset_mode_command_topic = endpointName ? modeEmulatedSpeed.property : "fan_mode";
                     discoveryEntry.discovery_payload.preset_mode_value_template = stateValueTemplate(
                         modeEmulatedSpeed.property,
-                        `{{ value_json["${modeEmulatedSpeed.property}"] if value_json["${modeEmulatedSpeed.property}"] in [${presetList}] else 'None' }}`,
+                        `{{ value_json["${modeEmulatedSpeed.property}"] if value_json["${modeEmulatedSpeed.property}"] in [${presetList}] ` +
+                            `else 'None' }}`,
                     );
                     discoveryEntry.discovery_payload.preset_modes = presets;
 
@@ -1525,7 +1537,7 @@ export class HomeAssistant extends Extension {
         return discoveryEntries;
     }
 
-    @bind async onEntityRemoved(data: eventdata.EntityRemoved): Promise<void> {
+    @bind onEntityRemoved(data: eventdata.EntityRemoved): void {
         logger.debug(`Clearing Home Assistant discovery for '${data.name}'`);
         // z2m-fork: T006 MQTT Discovery send removed, mapping kept for T052
         delete this.discovered[data.entity.ID];
@@ -1719,7 +1731,10 @@ export class HomeAssistant extends Extension {
                     payload_install: `{"id": "${entity.ieeeAddr}"}`,
                     value_template: stateValueTemplate(
                         "update",
-                        `{"latest_version":"{{ value_json['update']['latest_version'] }}","installed_version":"{{ value_json['update']['installed_version'] }}","update_percentage":{{ value_json['update'].get('progress', 'null') }},"in_progress":{{ (value_json['update'].get('state') == 'updating')|lower }}}`,
+                        `{"latest_version":"{{ value_json['update']['latest_version'] }}",` +
+                            `"installed_version":"{{ value_json['update']['installed_version'] }}",` +
+                            `"update_percentage":{{ value_json['update'].get('progress', 'null') }},` +
+                            `"in_progress":{{ (value_json['update'].get('state') == 'updating')|lower }}}`,
                     ),
                 },
             };
@@ -1771,20 +1786,20 @@ export class HomeAssistant extends Extension {
         return configs;
     }
 
-    private async discover(entity: Device | Group | Bridge, publish = true): Promise<void> {
+    private discover(entity: Device | Group | Bridge, publish = true): Promise<void> {
         // Handle type differences.
         const isDevice = entity.isDevice();
         const isGroup = entity.isGroup();
 
         if (isGroup && entity.zh.members.length === 0) {
-            return;
+            return Promise.resolve();
         }
 
         if (
             isDevice &&
             (!entity.definition || !entity.interviewed || (entity.options.homeassistant !== undefined && !entity.options.homeassistant))
         ) {
-            return;
+            return Promise.resolve();
         }
 
         const discovered = this.getDiscovered(entity);
@@ -2055,6 +2070,7 @@ export class HomeAssistant extends Extension {
                 // z2m-fork: T006 MQTT Discovery send removed, mapping kept for T052
             }
         }
+        return Promise.resolve();
     }
 
     @bind private async onBridgeBusMessage(data: eventdata.BridgeBusMessage): Promise<void> {
@@ -2239,19 +2255,19 @@ export class HomeAssistant extends Extension {
         return `${config.type}/${key}/${config.object_id}/config`;
     }
 
-    private async publishDeviceTriggerDiscover(device: Device, key: string, value: string, force = false): Promise<void> {
+    private publishDeviceTriggerDiscover(device: Device, key: string, value: string, force = false): Promise<void> {
         const haConfig = device.options.homeassistant;
         if (
             device.options.homeassistant !== undefined &&
             (haConfig == null || (haConfig.device_automation !== undefined && typeof haConfig === "object" && haConfig.device_automation == null))
         ) {
-            return;
+            return Promise.resolve();
         }
 
         const discovered = this.getDiscovered(device);
         const discoveredKey = `${key}_${value}`;
         if (discovered.triggers.has(discoveredKey) && !force) {
-            return;
+            return Promise.resolve();
         }
 
         const config: DiscoveryEntry = {
@@ -2273,9 +2289,11 @@ export class HomeAssistant extends Extension {
             origin: this.discoveryOrigin,
         };
 
-        // z2m-fork: T006 MQTT Discovery send removed; the built device_automation config is kept in `discovered.messages` (published: false, same structure as `discover()`) for T052
+        // z2m-fork: T006 MQTT Discovery send removed; the built device_automation config is kept in `discovered.messages`
+        // (published: false, same structure as `discover()`) for T052
         discovered.messages[topic] = {payload: stringify(payload), published: false};
         discovered.triggers.add(discoveredKey);
+        return Promise.resolve();
     }
 
     private getBridgeEntity(coordinatorVersion: zh.CoordinatorVersion): Bridge {

@@ -40,7 +40,7 @@ export default class ConnectionRecovery {
         this.maxDelayMs = Math.max(this.baseDelayMs, Math.floor(options.maxDelayMs ?? 10_000));
         this.maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 8));
         this.onPhase = options.onPhase;
-        this.eventBus?.onAdapterDisconnected(this, async () => this.notifyDisconnected());
+        this.eventBus?.onAdapterDisconnected(this, () => Promise.resolve(this.notifyDisconnected()));
     }
 
     get phase(): RecoveryPhase {
@@ -88,6 +88,11 @@ export default class ConnectionRecovery {
             try {
                 await this.connector.connect(this.controller.signal);
                 await this.connector.validateNetwork();
+                // stop()이 await 중 호출되었으면 stopped에서 connected로 되돌리지 않는다.
+                if (generation !== this.generation || this.currentPhase === "stopped") {
+                    return;
+                }
+
                 this.setPhase("connected");
                 this.attempt = 0;
 
@@ -129,6 +134,10 @@ export default class ConnectionRecovery {
     }
 
     private setPhase(phase: RecoveryPhase): void {
+        if (this.currentPhase === "stopped" && phase !== "stopped") {
+            return;
+        }
+
         this.currentPhase = phase;
         this.onPhase?.(phase, this.attempt);
     }

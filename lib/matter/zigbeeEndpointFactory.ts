@@ -4,7 +4,8 @@
  * SDK 정의는 동적으로 로드하고, 승인된 조명 매핑만 선택한다. 정의가 없는
  * expose를 임의의 Matter device type으로 바꾸지 않는다.
  */
-import type {MappingExpose} from "./mappingRegistry";
+import {type CapabilityId, type MappingExpose, planEndpointMapping} from "./mappingRegistry";
+import type {FeatureDecision} from "./unsupportedFeatures";
 import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
 import {
@@ -16,48 +17,51 @@ import {
     zigbeeColorToMatter,
     zigbeeColorXyToMatter,
 } from "./lightingMapping";
-import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
-import {toWattHours, toWatts} from "./energyMapping";
-import {mapCoverPosition} from "./coverMapping";
-import {mapButtonAction} from "./buttonMapping";
+import {celsiusToMatter, humidityPercentToMatter, occupancyToMatter} from "./sensorMapping";
+import {toMatterElectrical} from "./energyMapping";
+import {matterPercent100thsToZigbee, zigbeeToMatterPercent100ths} from "./coverMapping";
+import {DEFAULT_BUTTON, mapButtonActionSequence, toSwitchEmission} from "./buttonMapping";
+import {
+    authorizeLockCommand,
+    celsiusSetpointToMatter,
+    type LockOutcome,
+    matterSetpointToCelsius,
+    matterSystemModeToZigbee,
+    resolveLockOutcome,
+    validateThermostatMode,
+    zigbeeLockStateToMatter,
+    zigbeeSystemModeToMatter,
+} from "./lockThermostatMapping";
 
 interface EndpointDefinition {
-    with(behavior: unknown): unknown;
+    with(...behaviors: unknown[]): unknown;
 }
 
+type Listener<T> = {on(listener: (value: T) => void): void};
+
 interface EndpointEvents {
-    onOff?: {onOff$Changed?: {on(listener: (value: boolean) => void): void}};
-    levelControl?: {currentLevel$Changed?: {on(listener: (value: number) => void): void}};
+    onOff?: {onOff$Changed?: Listener<boolean>};
+    levelControl?: {currentLevel$Changed?: Listener<number>};
     colorControl?: {
-        colorTemperatureMireds$Changed?: {on(listener: (value: number) => void): void};
-        currentHue$Changed?: {on(listener: (value: number) => void): void};
-        currentSaturation$Changed?: {on(listener: (value: number) => void): void};
-        currentX$Changed?: {on(listener: (value: number) => void): void};
-        currentY$Changed?: {on(listener: (value: number) => void): void};
+        colorTemperatureMireds$Changed?: Listener<number>;
+        currentHue$Changed?: Listener<number>;
+        currentSaturation$Changed?: Listener<number>;
+        currentX$Changed?: Listener<number>;
+        currentY$Changed?: Listener<number>;
     };
-    windowCovering?: {
-        targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
-        targetPositionTiltPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
-    };
-    thermostat?: {
-        systemMode$Changed?: {on(listener: (value: number) => void): void};
-        occupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
-        occupiedCoolingSetpoint$Changed?: {on(listener: (value: number) => void): void};
-        unoccupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
-        unoccupiedCoolingSetpoint$Changed?: {on(listener: (value: number) => void): void};
-    };
-    switch?: {
-        initialPress?: {on(listener: (value: unknown) => void): void};
-        shortRelease?: {on(listener: (value: unknown) => void): void};
-        longPress?: {on(listener: (value: unknown) => void): void};
-        multiPressComplete?: {on(listener: (value: {totalNumberOfPressesCounted?: number}) => void): void};
-    };
+    thermostat?: Record<string, Listener<number> | undefined>;
+}
+
+interface EventAgent {
+    context: unknown;
+    get(type: unknown): {events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>};
 }
 
 interface MatterEndpointInstance {
     number?: unknown;
     events?: EndpointEvents;
     set(values: Record<string, unknown>): Promise<void>;
+    act?<R>(actor: (agent: EventAgent) => R): Promise<R> | R;
     close(): Promise<void>;
     delete?(): Promise<void>;
 }
@@ -71,21 +75,57 @@ interface ZigbeeMatterEndpointSource {
     available: boolean;
     exposes: readonly MappingExpose[];
     send: (payload: Record<string, unknown>) => Promise<void>;
+    /** z2m invert_cover 옵션이 켜진 장치면 true. 컨트롤러(통합 단계)가 채운다. */
+    invertCover?: boolean;
+    /** Matter 쪽 lock/unlock 명령 허용 정책. 기본 true(Matter ACL이 이미 인가). */
+    lockCommandsAllowed?: boolean;
+    /** 기기의 대표(가장 작은 Zigbee endpoint ID) endpoint면 true(기본 true). 컨트롤러가 채운다. */
+    isPrimaryEndpoint?: boolean;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy" | "lock" | "thermostat";
+type Capabilities = Partial<Record<CapabilityId, MappingExpose>>;
+type SendFn = ZigbeeMatterEndpointSource["send"];
+type SetpointRange = {min: number; max: number};
+type ColorValues = {hue?: number; saturation?: number; x?: number; y?: number};
+type CommandBuilder = () => Record<string, unknown> | undefined;
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
-    capability: MatterCapability;
-    supportsTilt?: boolean;
-    supportsPower?: boolean;
-    supportsEnergy?: boolean;
+    capabilities: Capabilities;
+    unsupported: readonly FeatureDecision[];
+    lightKind?: "light" | "colorTemperature" | "color";
+    supportsTilt: boolean;
+    /** 버튼용 Switch behavior/definition. 버튼은 항상 자체 GenericSwitch endpoint(root 또는 child part)에서만 이벤트를 낸다. */
+    switchBehavior?: unknown;
+    switchDefinition?: EndpointDefinition;
+    /** 버튼 식별자 목록(action enum values에서 도출). */
+    buttons: readonly string[];
+    /** root endpoint 자체가 Switch인 버튼(버튼 전용 기기의 첫 버튼). 없으면 모든 버튼이 child part. */
+    rootButton?: string;
+    setpointRanges: Record<string, SetpointRange>;
+    supportedModes: readonly string[];
 }
 
-interface CoverPositionState {
-    lift?: number;
-    tilt?: number;
+type PlanBase = Omit<EndpointDefinitionPlan, "definition">;
+
+interface ButtonRuntime {
+    instance: MatterEndpointInstance;
+    longActive: boolean;
+}
+
+type Guard = (label: string, fn: () => void) => void;
+
+interface EndpointRuntime {
+    instance: MatterEndpointInstance;
+    /** 버튼 식별자 -> Switch endpoint. 이벤트는 여기서만 발생한다. */
+    buttons: Map<string, ButtonRuntime>;
+    /** 버튼 이벤트 직렬화 큐(hold/release 인터리빙 방지). */
+    buttonQueue: Promise<void>;
+    plan: EndpointDefinitionPlan;
+    source: ZigbeeMatterEndpointSource;
+    coverPositions: {lift?: number; tilt?: number};
+    colorValues: ColorValues;
+    lockOutcome?: LockOutcome;
 }
 
 interface FactoryOptions {
@@ -94,19 +134,60 @@ interface FactoryOptions {
     onCommandError?: (endpointId: string, error: unknown) => void;
 }
 
+const SETPOINT_FIELDS: Readonly<Record<string, string>> = {
+    occupiedHeatingSetpoint: "occupied_heating_setpoint",
+    occupiedCoolingSetpoint: "occupied_cooling_setpoint",
+    unoccupiedHeatingSetpoint: "unoccupied_heating_setpoint",
+    unoccupiedCoolingSetpoint: "unoccupied_cooling_setpoint",
+};
+
+const SWITCH_INITIAL_STATE = {numberOfPositions: 2, currentPosition: 0, multiPressMax: 4, longPressDelay: 500, multiPressDelay: 300};
+
+/**
+ * 버튼 식별자 -> child endpoint id. id는 같은 owner(기기 root)의 Parts 내에서만 유일하면 되므로 기기 간 충돌은 없다.
+ * 이미 [a-z0-9_-]뿐인 이름은 기존 id를 유지하고, 치환(대문자/특수문자)이 일어난 이름만 원본 해시 접미사로 구분한다.
+ */
+function buttonPartId(button: string): string {
+    if (button === DEFAULT_BUTTON) return "button";
+    const safe = button.replace(/[^a-z0-9_-]/g, "_");
+    if (safe === button) return `button-${safe}`;
+    let hash = 0;
+    for (const char of button) hash = (Math.imul(hash, 31) + (char.codePointAt(0) ?? 0)) >>> 0;
+    return `button-${safe}-${hash.toString(36)}`;
+}
+
+function unsupportedError(unsupported: readonly FeatureDecision[]): Error {
+    const reasons = unsupported.map((item) => `${item.type}:${item.name ?? ""}`).join(", ");
+
+    return new Error(`Matter mapping is unsupported: no approved capability (unsupported: ${reasons})`);
+}
+
+const SENSOR_DEVICES = {
+    temperature: "temperature-sensor",
+    humidity: "humidity-sensor",
+    contact: "contact-sensor",
+    occupancy: "occupancy-sensor",
+} as const;
+
+const DEVICE_EXPORTS: Readonly<Record<string, string>> = {
+    "extended-color-light": "ExtendedColorLightDevice",
+    "color-temperature-light": "ColorTemperatureLightDevice",
+    "dimmable-light": "DimmableLightDevice",
+    "on-off-light": "OnOffLightDevice",
+    "on-off-plug-in-unit": "OnOffPlugInUnitDevice",
+    "temperature-sensor": "TemperatureSensorDevice",
+    "humidity-sensor": "HumiditySensorDevice",
+    "contact-sensor": "ContactSensorDevice",
+    "occupancy-sensor": "OccupancySensorDevice",
+};
+
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
-    private readonly endpoints = new Map<string, MatterEndpointInstance>();
-    private readonly capabilities = new Map<string, MatterCapability>();
-    private readonly coverTilts = new Map<string, boolean>();
-    private readonly coverPositions = new Map<string, CoverPositionState>();
-    private readonly energyPower = new Map<string, boolean>();
-    private readonly energyCumulative = new Map<string, boolean>();
+    private readonly runtimes = new Map<string, EndpointRuntime>();
     private readonly stateUpdates = new Set<string>();
-    private readonly colorValues = new Map<string, {hue?: number; saturation?: number; x?: number; y?: number}>();
 
     constructor(private readonly options: FactoryOptions) {}
 
-    async create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown}> {
+    async create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; unsupported: readonly FeatureDecision[]}> {
         const source = await this.options.resolve(entry);
         if (source === undefined) throw new Error(`Matter source is unavailable for ${entry.key}`);
 
@@ -114,10 +195,28 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const Endpoint = sdk.Endpoint as MatterEndpointConstructor | undefined;
         if (!Endpoint) throw new Error("Matter SDK does not expose Endpoint");
 
-        const plan = await this.definitionFor(sdk, source.exposes, source.send);
+        const report = (error: unknown): void => this.options.onCommandError?.(entry.endpointId, error);
+        const plan = await this.definitionFor(source, report);
         const {BridgedDeviceBasicInformationServer} = await import("@matter/main/behaviors/bridged-device-basic-information");
+        const occupancyInit =
+            plan.capabilities.occupancy === undefined
+                ? {}
+                : {occupancySensing: {occupancySensorType: 0, occupancySensorTypeBitmap: {passiveInfrared: true}}};
+        const buttons = new Map<string, ButtonRuntime>();
+        const parts: MatterEndpointInstance[] = [];
+        if (plan.switchDefinition !== undefined) {
+            for (const button of plan.buttons) {
+                if (button === plan.rootButton) continue;
+                const part = new Endpoint(plan.switchDefinition, {id: buttonPartId(button), switch: SWITCH_INITIAL_STATE});
+                parts.push(part);
+                buttons.set(button, {instance: part, longActive: false});
+            }
+        }
         const endpoint = new Endpoint(plan.definition.with(BridgedDeviceBasicInformationServer), {
             id: entry.endpointId,
+            ...(parts.length > 0 ? {parts} : {}),
+            ...occupancyInit,
+            ...initialClusterState(plan.capabilities, plan.rootButton !== undefined),
             bridgedDeviceBasicInformation: {
                 nodeLabel: source.name,
                 productName: source.name,
@@ -127,16 +226,30 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             },
         });
 
-        this.bindCommands(endpoint, entry.endpointId, source.send);
-        this.endpoints.set(entry.endpointId, endpoint);
-        this.capabilities.set(entry.endpointId, plan.capability);
-        this.coverTilts.set(entry.endpointId, plan.supportsTilt === true);
-        this.coverPositions.set(entry.endpointId, {});
-        this.energyPower.set(entry.endpointId, plan.supportsPower === true);
-        this.energyCumulative.set(entry.endpointId, plan.supportsEnergy === true);
-        this.colorValues.set(entry.endpointId, {});
+        if (plan.rootButton !== undefined) buttons.set(plan.rootButton, {instance: endpoint, longActive: false});
+        const runtime: EndpointRuntime = {
+            instance: endpoint,
+            buttons,
+            buttonQueue: Promise.resolve(),
+            plan,
+            source,
+            coverPositions: {},
+            colorValues: {},
+        };
+        this.bindCommands(endpoint, entry.endpointId, source.send, runtime);
+        this.runtimes.set(entry.endpointId, runtime);
 
-        return {endpoint};
+        return {endpoint, unsupported: plan.unsupported};
+    }
+
+    /** 생성된 endpoint에서 Matter로 노출하지 못한 expose 목록(2차 통합에서 API/UI에 연결). */
+    unsupportedFor(endpointId: string): readonly FeatureDecision[] {
+        return this.runtimes.get(endpointId)?.plan.unsupported ?? [];
+    }
+
+    /** 마지막 lock 명령 결과. 장치 상태가 관측되기 전에는 unknown이다. */
+    lockOutcomeFor(endpointId: string): LockOutcome | undefined {
+        return this.runtimes.get(endpointId)?.lockOutcome;
     }
 
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number {
@@ -151,394 +264,557 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     }
 
     async remove(entry: EndpointRegistryEntry): Promise<{permanent: boolean}> {
-        const endpoint = this.endpoints.get(entry.endpointId);
-        if (endpoint === undefined) return {permanent: true};
+        const runtime = this.runtimes.get(entry.endpointId);
+        if (runtime === undefined) return {permanent: true};
 
         try {
-            if (endpoint.delete !== undefined) {
-                await endpoint.delete();
+            if (runtime.instance.delete !== undefined) {
+                await runtime.instance.delete();
                 return {permanent: true};
             }
 
-            await endpoint.close();
+            await runtime.instance.close();
             return {permanent: false};
         } finally {
-            this.endpoints.delete(entry.endpointId);
+            this.runtimes.delete(entry.endpointId);
             this.stateUpdates.delete(entry.endpointId);
-            this.capabilities.delete(entry.endpointId);
-            this.coverTilts.delete(entry.endpointId);
-            this.coverPositions.delete(entry.endpointId);
-            this.energyPower.delete(entry.endpointId);
-            this.energyCumulative.delete(entry.endpointId);
-            this.colorValues.delete(entry.endpointId);
         }
     }
 
     async updateState(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void> {
-        const endpoint = this.endpoints.get(entry.endpointId);
-        if (endpoint === undefined) return;
+        const runtime = this.runtimes.get(entry.endpointId);
+        if (runtime === undefined) return;
 
-        const capability = this.capabilities.get(entry.endpointId);
-        if (!capability) return;
-
-        const patch: Record<string, unknown> = {};
-        if (typeof state.available === "boolean") {
-            patch.bridgedDeviceBasicInformation = {reachable: state.available};
+        const report = (error: unknown): void => this.options.onCommandError?.(entry.endpointId, error);
+        // 버튼 action은 순간 이벤트다. 속성 patch와 병합하지 않고, patch 계산보다 먼저 별도로 발생시킨다.
+        if (runtime.buttons.size > 0 && typeof state.action === "string" && state.action !== "") {
+            await this.emitButtonEvent(runtime, state, report);
         }
-        if (capability === "light" || capability === "color" || capability === "colorTemperature") {
-            if (state.state === "ON" || state.state === "OFF") patch.onOff = {onOff: state.state === "ON"};
-            if (typeof state.brightness === "number") patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
-            if (capability === "colorTemperature" && typeof state.color_temp === "number") {
-                patch.colorControl = {colorTemperatureMireds: validateColorTemperatureMireds(state.color_temp)};
-            }
-            if (capability === "color") {
-                const color = state.color;
-                if (isRecord(color) && typeof color.hue === "number" && typeof color.saturation === "number") {
-                    const mapped = zigbeeColorToMatter(color.hue, color.saturation);
-                    patch.colorControl = {currentHue: mapped.hue, currentSaturation: mapped.saturation};
-                } else if (isRecord(color) && typeof color.x === "number" && typeof color.y === "number") {
-                    const mapped = zigbeeColorXyToMatter(color.x, color.y);
-                    patch.colorControl = {currentX: mapped.x, currentY: mapped.y};
-                }
-            }
-        } else if (capability === "cover") {
-            const windowCovering: Record<string, unknown> = {};
-            const positions = this.coverPositions.get(entry.endpointId) ?? {};
-            if (typeof state.position === "number") {
-                positions.lift = Math.round(mapCoverPosition(state.position) * 100);
-                windowCovering.currentPositionLiftPercent100ths = positions.lift;
-            }
-            if (this.coverTilts.get(entry.endpointId) && typeof state.tilt === "number") {
-                positions.tilt = Math.round(mapCoverPosition(state.tilt) * 100);
-                windowCovering.currentPositionTiltPercent100ths = positions.tilt;
-            }
-            this.coverPositions.set(entry.endpointId, positions);
-            if (Object.keys(windowCovering).length > 0) patch.windowCovering = windowCovering;
-        } else if (capability === "energy") {
-            if (this.energyPower.get(entry.endpointId) && typeof state.power === "number") {
-                patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
-            }
-            if (this.energyCumulative.get(entry.endpointId) && typeof state.energy === "number") {
-                patch.electricalEnergyMeasurement = {cumulativeEnergyImported: {energy: Math.round(toWattHours(state.energy, "Wh") * 1000)}};
-            }
-        } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
-            const value = celsiusToMatter(state.temperature);
-            if (value.known) patch.temperatureMeasurement = {measuredValue: value.value};
-        } else if (capability === "humidity" && (typeof state.humidity === "number" || state.humidity === null)) {
-            const value = humidityPercentToMatter(state.humidity);
-            if (value.known) patch.relativeHumidityMeasurement = {measuredValue: value.value};
-        } else if (capability === "contact" && typeof state.contact === "boolean") {
-            patch.booleanState = {booleanStateValue: state.contact};
-        } else if (capability === "occupancy" && typeof state.occupancy === "boolean") {
-            patch.occupancySensing = {occupancy: state.occupancy ? 1 : 0};
-        } else if (capability === "lock") {
-            const lockState = matterLockState(state.state ?? state.lock_state);
-            if (lockState !== undefined) patch.doorLock = {lockState};
-        } else if (capability === "thermostat") {
-            const thermostat: Record<string, unknown> = {};
-            const localTemperature = celsiusToMatterValue(state.local_temperature);
-            if (localTemperature !== undefined) thermostat.localTemperature = localTemperature;
-            const heatingSetpoint = celsiusToMatterValue(state.occupied_heating_setpoint);
-            if (heatingSetpoint !== undefined) thermostat.occupiedHeatingSetpoint = heatingSetpoint;
-            const coolingSetpoint = celsiusToMatterValue(state.occupied_cooling_setpoint);
-            if (coolingSetpoint !== undefined) thermostat.occupiedCoolingSetpoint = coolingSetpoint;
-            const unoccupiedHeatingSetpoint = celsiusToMatterValue(state.unoccupied_heating_setpoint);
-            if (unoccupiedHeatingSetpoint !== undefined) thermostat.unoccupiedHeatingSetpoint = unoccupiedHeatingSetpoint;
-            const unoccupiedCoolingSetpoint = celsiusToMatterValue(state.unoccupied_cooling_setpoint);
-            if (unoccupiedCoolingSetpoint !== undefined) thermostat.unoccupiedCoolingSetpoint = unoccupiedCoolingSetpoint;
-            const systemMode = matterSystemMode(state.system_mode);
-            if (systemMode !== undefined) thermostat.systemMode = systemMode;
-            if (Object.keys(thermostat).length > 0) patch.thermostat = thermostat;
-        }
+        const patch = this.buildPatch(runtime, state, report);
         if (Object.keys(patch).length === 0) return;
 
         this.stateUpdates.add(entry.endpointId);
         try {
-            await endpoint.set(patch);
+            try {
+                await runtime.instance.set(patch);
+            } catch (error) {
+                // 한 cluster 값이 거부돼도 나머지는 반영한다.
+                report(error);
+                for (const [cluster, values] of Object.entries(patch)) {
+                    try {
+                        await runtime.instance.set({[cluster]: values});
+                    } catch (clusterError) {
+                        report(
+                            new Error(
+                                `state update failed for ${cluster}: ` +
+                                    `${clusterError instanceof Error ? clusterError.message : String(clusterError)}`,
+                            ),
+                        );
+                    }
+                }
+            }
         } finally {
             this.stateUpdates.delete(entry.endpointId);
         }
     }
 
-    private async definitionFor(
-        _sdk: MatterMainModule,
-        exposes: readonly MappingExpose[],
-        send: ZigbeeMatterEndpointSource["send"],
-    ): Promise<EndpointDefinitionPlan> {
-        const flattened = flatten(exposes);
-        const light = flatten(exposes).find((expose) => expose.type === "light");
-        const temperature = flattened.find((expose) => expose.type === "numeric" && expose.name === "temperature");
-        const humidity = flattened.find((expose) => expose.type === "numeric" && expose.name === "humidity");
-        const contact = flattened.find((expose) => expose.type === "binary" && expose.name === "contact");
-        const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
-        const cover = flattened.find((expose) => expose.type === "cover");
-        const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
-        const power = flattened.find((expose) => expose.type === "numeric" && expose.name === "power");
-        const cumulativeEnergy = flattened.find((expose) => expose.type === "numeric" && expose.name === "energy");
-        const energy = power ?? cumulativeEnergy;
-        const lock = flattened.find((expose) => expose.type === "lock");
-        const thermostat = flattened.find((expose) => expose.type === "climate");
-        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy, lock, thermostat].filter((value) => value !== undefined);
-        if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
-
-        if (light) {
-            const hasColor = light.features?.some((feature) => feature.name === "color") ?? false;
-            const hasColorTemperature = light.features?.some((feature) => feature.type === "numeric" && feature.name === "color_temp") ?? false;
-            if (hasColor) {
-                const {ExtendedColorLightDevice} = await import("@matter/main/devices/extended-color-light");
-                return {definition: ExtendedColorLightDevice as unknown as EndpointDefinition, capability: "color"};
+    /** 필드(그룹)별로 격리한다: 하나가 throw 해도 나머지 patch와 버튼 이벤트는 유지된다. */
+    private buildPatch(runtime: EndpointRuntime, state: Record<string, unknown>, report: (error: unknown) => void): Record<string, unknown> {
+        const {plan} = runtime;
+        const caps = plan.capabilities;
+        const patch: Record<string, unknown> = {};
+        const guard: Guard = (label, fn) => {
+            try {
+                fn();
+            } catch (error) {
+                report(new Error(`state field '${label}' skipped: ${error instanceof Error ? error.message : String(error)}`));
             }
-            if (hasColorTemperature) {
-                const {ColorTemperatureLightDevice} = await import("@matter/main/devices/color-temperature-light");
-                return {definition: ColorTemperatureLightDevice as unknown as EndpointDefinition, capability: "colorTemperature"};
+        };
+
+        if (typeof state.available === "boolean") patch.bridgedDeviceBasicInformation = {reachable: state.available};
+        if ((caps.light !== undefined || caps.switch !== undefined) && (state.state === "ON" || state.state === "OFF")) {
+            patch.onOff = {onOff: state.state === "ON"};
+        }
+        if (caps.light !== undefined) lightPatch(plan, state, patch, guard);
+        if (caps.cover !== undefined) coverPatch(runtime, state, patch, guard);
+        electricalPatch(caps, state, patch, guard);
+        // null 정책: 값을 알 수 없고(null) Matter 속성이 nullable이면 null로 설정, nullable이 아니면 이전 값을 유지한다.
+        // nullable: measuredValue(온도/습도), activePower/rmsVoltage/rmsCurrent/cumulativeEnergyImported, localTemperature, 커튼 위치.
+        if (caps.temperature !== undefined && (typeof state.temperature === "number" || state.temperature === null)) {
+            guard("temperature", () => {
+                const value = celsiusToMatter(state.temperature as number | null);
+                patch.temperatureMeasurement = {measuredValue: value.known ? value.value : null};
+            });
+        }
+        if (caps.humidity !== undefined && (typeof state.humidity === "number" || state.humidity === null)) {
+            guard("humidity", () => {
+                const value = humidityPercentToMatter(state.humidity as number | null);
+                patch.relativeHumidityMeasurement = {measuredValue: value.known ? value.value : null};
+            });
+        }
+        if (caps.contact !== undefined && typeof state.contact === "boolean") patch.booleanState = {stateValue: state.contact};
+        if (caps.occupancy !== undefined && typeof state.occupancy === "boolean") {
+            patch.occupancySensing = {occupancy: occupancyToMatter(state.occupancy)};
+        }
+        if (caps.lock !== undefined) guard("lock", () => lockPatch(runtime, state, patch));
+        if (caps.thermostat !== undefined) thermostatPatch(plan, state, patch, guard);
+
+        return patch;
+    }
+
+    private emitButtonEvent(runtime: EndpointRuntime, state: Record<string, unknown>, report: (error: unknown) => void): Promise<void> {
+        const run = async (): Promise<void> => {
+            const pressCount = typeof state.action_press_count === "number" ? state.action_press_count : undefined;
+            const action = String(state.action);
+            // longActive는 버튼별 상태이므로 버튼을 먼저 식별한 뒤 해당 버튼의 상태로 다시 해석한다.
+            const probe = mapButtonActionSequence(action, false, pressCount);
+            if (!probe.supported) {
+                report(new Error(probe.reason));
+                return;
+            }
+            const key = probe.button ?? DEFAULT_BUTTON;
+            const target = runtime.buttons.get(key);
+            const behavior = runtime.plan.switchBehavior;
+            if (target === undefined || target.instance.act === undefined || behavior === undefined) {
+                report(new Error(`no Matter Switch endpoint for button '${key}' (action '${action}')`));
+                return;
+            }
+            const result = mapButtonActionSequence(action, target.longActive, pressCount);
+            if (!result.supported) {
+                report(new Error(result.reason));
+                return;
             }
 
-            const hasBrightness = light.features?.some((feature) => feature.type === "numeric" && feature.name === "brightness") ?? false;
-            if (hasBrightness) {
-                const {DimmableLightDevice} = await import("@matter/main/devices/dimmable-light");
-                return {definition: DimmableLightDevice as unknown as EndpointDefinition, capability: "light"};
+            target.longActive = result.longActive;
+            try {
+                for (const event of result.events) {
+                    const {name, payload} = toSwitchEmission(event);
+                    await target.instance.act((agent) => {
+                        agent.get(behavior).events[name]?.emit(payload, agent.context);
+                    });
+                }
+            } catch (error) {
+                report(error);
             }
+        };
+        const next = runtime.buttonQueue.then(run, run);
+        runtime.buttonQueue = next.catch(() => undefined);
 
-            const {OnOffLightDevice} = await import("@matter/main/devices/on-off-light");
-            return {definition: OnOffLightDevice as unknown as EndpointDefinition, capability: "light"};
-        }
-        if (cover) {
-            const [{WindowCoveringDevice}, {WindowCoveringServer}] = await Promise.all([
-                import("@matter/main/devices/window-covering"),
-                import("@matter/main/behaviors/window-covering"),
-            ]);
-            const supportsTilt = cover.features?.some((feature) => feature.type === "numeric" && feature.name === "tilt") ?? false;
-            const features = supportsTilt ? ["Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt"] : ["Lift", "PositionAwareLift"];
-            return {
-                definition: WindowCoveringDevice.with(WindowCoveringServer.with(...features)) as unknown as EndpointDefinition,
-                capability: "cover",
-                supportsTilt,
-            };
-        }
-        if (button) {
-            const [{GenericSwitchDevice}, {SwitchServer}] = await Promise.all([
-                import("@matter/main/devices/generic-switch"),
-                import("@matter/main/behaviors/switch"),
-            ]);
-            return {
-                definition: GenericSwitchDevice.with(
-                    SwitchServer.with("MomentarySwitch", "MomentarySwitchRelease", "MomentarySwitchLongPress", "MomentarySwitchMultiPress"),
-                ) as unknown as EndpointDefinition,
-                capability: "button",
-            };
-        }
-        if (energy) {
-            const [{ElectricalMeterDevice}, {ElectricalPowerMeasurementServer}, {ElectricalEnergyMeasurementServer}] = await Promise.all([
-                import("@matter/main/devices/electrical-meter"),
-                import("@matter/main/behaviors/electrical-power-measurement"),
-                import("@matter/main/behaviors/electrical-energy-measurement"),
-            ]);
-            return {
-                definition: ElectricalMeterDevice.with(
-                    ...(power ? [ElectricalPowerMeasurementServer] : []),
-                    ...(cumulativeEnergy ? [ElectricalEnergyMeasurementServer.with("ImportedEnergy", "CumulativeEnergy")] : []),
-                ) as unknown as EndpointDefinition,
-                capability: "energy",
-                supportsPower: power !== undefined,
-                supportsEnergy: cumulativeEnergy !== undefined,
-            };
-        }
-        if (temperature) {
-            const {TemperatureSensorDevice} = await import("@matter/main/devices/temperature-sensor");
-            return {definition: TemperatureSensorDevice as unknown as EndpointDefinition, capability: "temperature"};
-        }
-        if (humidity) {
-            const {HumiditySensorDevice} = await import("@matter/main/devices/humidity-sensor");
-            return {definition: HumiditySensorDevice as unknown as EndpointDefinition, capability: "humidity"};
-        }
-        if (contact) {
-            const {ContactSensorDevice} = await import("@matter/main/devices/contact-sensor");
-            return {definition: ContactSensorDevice as unknown as EndpointDefinition, capability: "contact"};
+        return next;
+    }
+
+    private async definitionFor(source: ZigbeeMatterEndpointSource, report: (error: unknown) => void): Promise<EndpointDefinitionPlan> {
+        const mapping = planEndpointMapping(source.exposes, {isPrimaryEndpoint: source.isPrimaryEndpoint});
+        const caps = mapping.capabilities;
+        const base: PlanBase = {
+            capabilities: caps,
+            unsupported: mapping.unsupported,
+            supportsTilt: false,
+            setpointRanges: {},
+            supportedModes: [],
+            buttons: mapping.buttons,
+        };
+        const primary = await this.primaryDefinition(base, source, report);
+        if (caps.button === undefined) {
+            if (primary === undefined) throw unsupportedError(mapping.unsupported);
+            return primary;
         }
 
-        if (occupancy) {
-            const {OccupancySensorDevice} = await import("@matter/main/devices/occupancy-sensor");
-            return {definition: OccupancySensorDevice as unknown as EndpointDefinition, capability: "occupancy"};
+        // 버튼은 항상 자체 GenericSwitch endpoint에서만 이벤트를 낸다. 다른 primary가 있으면 모든 버튼이 child part,
+        // 없으면 첫 버튼이 root endpoint, 나머지가 child part다.
+        const [{GenericSwitchDevice}, {SwitchServer}] = await Promise.all([
+            import("@matter/main/devices/generic-switch"),
+            import("@matter/main/behaviors/switch"),
+        ]);
+        const switchBehavior = SwitchServer.with(
+            "MomentarySwitch",
+            "MomentarySwitchRelease",
+            "MomentarySwitchLongPress",
+            "MomentarySwitchMultiPress",
+        );
+        const switchDefinition = GenericSwitchDevice.with(switchBehavior) as EndpointDefinition;
+        if (primary !== undefined) return {...primary, switchBehavior, switchDefinition};
+
+        return {...base, definition: switchDefinition, switchBehavior, switchDefinition, rootButton: base.buttons[0] ?? DEFAULT_BUTTON};
+    }
+
+    /** button 이외의 primary device type. 없으면 undefined. */
+    private async primaryDefinition(
+        base: PlanBase,
+        source: ZigbeeMatterEndpointSource,
+        report: (error: unknown) => void,
+    ): Promise<EndpointDefinitionPlan | undefined> {
+        const caps = base.capabilities;
+
+        if (caps.light) return lightDefinition(base, caps.light, await loadExtraBehaviors(caps));
+        if (caps.switch) {
+            const device = await loadDevice("on-off-plug-in-unit");
+            return {...base, definition: device.with(...(await loadExtraBehaviors(caps))) as EndpointDefinition};
         }
-        if (lock) {
-            const [{DoorLockDevice}, {DoorLockServer}] = await Promise.all([
-                import("@matter/main/devices/door-lock"),
-                import("@matter/main/behaviors/door-lock"),
-            ]);
-            class ZigbeeDoorLockServer extends DoorLockServer {
-                async handleLockOperation(operation: {actuation: string}): Promise<void> {
-                    if (operation.actuation === "lock") await send({state: "LOCK"});
-                    else if (operation.actuation === "unlock" || operation.actuation === "unbolt") await send({state: "UNLOCK"});
+        if (caps.cover) return coverDefinition(base, caps.cover, source, await loadExtraBehaviors(caps), report);
+        if (caps.lock) return this.lockDefinition(base, source, await loadExtraBehaviors(caps));
+        if (caps.thermostat) return thermostatDefinition(base, caps.thermostat, await loadExtraBehaviors(caps));
+
+        const sensor = (["temperature", "humidity", "contact", "occupancy"] as const).find((id) => caps[id] !== undefined);
+        if (sensor !== undefined) {
+            const device = await loadDevice(SENSOR_DEVICES[sensor]);
+            return {...base, definition: device.with(...(await loadExtraBehaviors(caps, sensor))) as EndpointDefinition};
+        }
+        if (caps.power || caps.energy || caps.voltage || caps.current) {
+            // 근거: @matter/node@0.18.0 devices/index.d.ts에는 electrical-sensor가 없고 electrical-meter만 있다
+            // (매핑 규칙 matterDeviceType도 ElectricalMeter로 통일).
+            const {ElectricalMeterDevice} = await import("@matter/main/devices/electrical-meter");
+            return {...base, definition: ElectricalMeterDevice.with(...(await loadExtraBehaviors(caps))) as EndpointDefinition};
+        }
+
+        return undefined;
+    }
+
+    private async lockDefinition(base: PlanBase, source: ZigbeeMatterEndpointSource, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+        const [{DoorLockDevice}, {DoorLockServer}] = await Promise.all([
+            import("@matter/main/devices/door-lock"),
+            import("@matter/main/behaviors/door-lock"),
+        ]);
+        const allowed = source.lockCommandsAllowed ?? true;
+        const {send} = source;
+        const record = (value: LockOutcome): void => {
+            for (const runtime of this.runtimes.values()) if (runtime.source === source) runtime.lockOutcome = value;
+        };
+        class ZigbeeDoorLockServer extends DoorLockServer {
+            async handleLockOperation(operation: {actuation: string}): Promise<void> {
+                const command = operation.actuation === "lock" ? "lock" : "unlock";
+                try {
+                    authorizeLockCommand(command, allowed);
+                } catch (error) {
+                    record(resolveLockOutcome(undefined, true));
+                    throw error;
+                }
+                // 비멱등 명령: 자동 재시도하지 않고, 장치 상태가 관측되기 전에는 결과를 unknown으로 둔다.
+                try {
+                    await send({state: command === "lock" ? "LOCK" : "UNLOCK"});
+                    record(resolveLockOutcome(undefined));
+                } catch (error) {
+                    record(resolveLockOutcome(undefined, false, true));
+                    throw error;
                 }
             }
-            return {
-                definition: DoorLockDevice.with(ZigbeeDoorLockServer) as unknown as EndpointDefinition,
-                capability: "lock",
-            };
-        }
-        if (thermostat) {
-            const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
-                import("@matter/main/devices/thermostat"),
-                import("@matter/main/behaviors/thermostat"),
-            ]);
-            const systemMode = thermostat.features?.find((feature) => feature.type === "enum" && feature.name === "system_mode");
-            const modes = systemMode?.values ?? [];
-            const supportsHeating = modes.includes("heat") || modes.includes("emergency_heating") || thermostat.features?.some((feature) => feature.name === "occupied_heating_setpoint") === true;
-            const supportsCooling = modes.includes("cool") || thermostat.features?.some((feature) => feature.name === "occupied_cooling_setpoint") === true;
-            const supportsOccupancy = thermostat.features?.some((feature) => feature.name?.startsWith("unoccupied_")) === true;
-            const features: string[] = [];
-            if (supportsHeating) features.push("Heating");
-            if (supportsCooling) features.push("Cooling");
-            if (supportsOccupancy) features.push("Occupancy");
-            if (modes.includes("auto") && supportsHeating && supportsCooling) features.push("AutoMode");
-            if (features.length === 0) throw new Error("Matter thermostat mapping requires heating or cooling support");
-            return {
-                definition: ThermostatDevice.with(ThermostatServer.with(...features)) as unknown as EndpointDefinition,
-                capability: "thermostat",
-            };
         }
 
-        throw new Error("Matter mapping is unsupported");
+        return {...base, definition: DoorLockDevice.with(ZigbeeDoorLockServer, ...extras) as EndpointDefinition};
     }
 
-    private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: ZigbeeMatterEndpointSource["send"]): void {
-        endpoint.events?.onOff?.onOff$Changed?.on((value) => {
+    private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: SendFn, runtime: EndpointRuntime): void {
+        const {plan} = runtime;
+        const command = (build: CommandBuilder): void => {
             if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {state: value ? "ON" : "OFF"});
-        });
-        endpoint.events?.levelControl?.currentLevel$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {brightness: matterLevelToZigbee(value)});
-        });
-        endpoint.events?.colorControl?.colorTemperatureMireds$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {color_temp: validateColorTemperatureMireds(value)});
-        });
-        endpoint.events?.colorControl?.currentHue$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const colors = this.colorValues.get(endpointId) ?? {};
-            colors.hue = value;
-            this.colorValues.set(endpointId, colors);
-            if (colors.saturation !== undefined) this.sendCommand(endpointId, send, {color: matterColorToZigbee(value, colors.saturation)});
-        });
-        endpoint.events?.colorControl?.currentSaturation$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const colors = this.colorValues.get(endpointId) ?? {};
-            colors.saturation = value;
-            this.colorValues.set(endpointId, colors);
-            if (colors.hue !== undefined) this.sendCommand(endpointId, send, {color: matterColorToZigbee(colors.hue, value)});
-        });
-        endpoint.events?.colorControl?.currentX$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const colors = this.colorValues.get(endpointId) ?? {};
-            colors.x = value;
-            this.colorValues.set(endpointId, colors);
-            if (colors.y !== undefined) this.sendCommand(endpointId, send, {color: matterColorXyToZigbee(value, colors.y)});
-        });
-        endpoint.events?.colorControl?.currentY$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const colors = this.colorValues.get(endpointId) ?? {};
-            colors.y = value;
-            this.colorValues.set(endpointId, colors);
-            if (colors.x !== undefined) this.sendCommand(endpointId, send, {color: matterColorXyToZigbee(colors.x, value)});
-        });
-        endpoint.events?.windowCovering?.targetPositionLiftPercent100ths$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId) || value === null) return;
-            const current = this.coverPositions.get(endpointId)?.lift;
-            this.sendCommand(endpointId, send, current === value ? {state: "STOP"} : {position: mapCoverPosition(value / 100)});
-        });
-        endpoint.events?.windowCovering?.targetPositionTiltPercent100ths$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId) || value === null || !this.coverTilts.get(endpointId)) return;
-            const current = this.coverPositions.get(endpointId)?.tilt;
-            this.sendCommand(endpointId, send, current === value ? {state: "STOP"} : {tilt: mapCoverPosition(value / 100)});
-        });
-        endpoint.events?.thermostat?.systemMode$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const mode = zigbeeSystemMode(value);
-            if (mode !== undefined) this.sendCommand(endpointId, send, {system_mode: mode});
-        });
-        endpoint.events?.thermostat?.occupiedHeatingSetpoint$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {occupied_heating_setpoint: value / 100});
-        });
-        endpoint.events?.thermostat?.occupiedCoolingSetpoint$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {occupied_cooling_setpoint: value / 100});
-        });
-        endpoint.events?.thermostat?.unoccupiedHeatingSetpoint$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {unoccupied_heating_setpoint: value / 100});
-        });
-        endpoint.events?.thermostat?.unoccupiedCoolingSetpoint$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            this.sendCommand(endpointId, send, {unoccupied_cooling_setpoint: value / 100});
-        });
-        endpoint.events?.switch?.initialPress?.on(() => this.sendButtonAction(endpointId, send, "initial_press"));
-        endpoint.events?.switch?.shortRelease?.on(() => this.sendButtonAction(endpointId, send, "short_release"));
-        endpoint.events?.switch?.longPress?.on(() => this.sendButtonAction(endpointId, send, "long_press"));
-        endpoint.events?.switch?.multiPressComplete?.on((value) => {
-            const pressCount = value.totalNumberOfPressesCounted;
-            if (pressCount === undefined) return;
-            this.sendButtonAction(endpointId, send, "multi_press_complete", pressCount);
-        });
-    }
+            try {
+                const payload = build();
+                if (payload !== undefined) void send(payload).catch((error) => this.options.onCommandError?.(endpointId, error));
+            } catch (error) {
+                this.options.onCommandError?.(endpointId, error);
+            }
+        };
+        const color = (patch: ColorValues, build: (colors: ColorValues) => Record<string, unknown> | undefined): void =>
+            command(() => build(Object.assign(runtime.colorValues, patch)));
+        const events = endpoint.events;
 
-    private sendButtonAction(
-        endpointId: string,
-        send: ZigbeeMatterEndpointSource["send"],
-        action: string,
-        pressCount?: number,
-    ): void {
-        if (this.stateUpdates.has(endpointId)) return;
-        const result = mapButtonAction(action, pressCount);
-        if (!result.supported) return;
-        this.sendCommand(endpointId, send, pressCount === undefined ? {action} : {action, pressCount});
-    }
+        events?.onOff?.onOff$Changed?.on((value) => command(() => ({state: value ? "ON" : "OFF"})));
+        events?.levelControl?.currentLevel$Changed?.on((value) => command(() => ({brightness: matterLevelToZigbee(value)})));
+        events?.colorControl?.colorTemperatureMireds$Changed?.on((value) =>
+            command(() => ({color_temp: validateColorTemperatureMireds(value)})),
+        );
+        events?.colorControl?.currentHue$Changed?.on((hue) =>
+            color({hue}, (c) => (c.saturation === undefined ? undefined : {color: matterColorToZigbee(hue, c.saturation)})),
+        );
+        events?.colorControl?.currentSaturation$Changed?.on((saturation) =>
+            color({saturation}, (c) => (c.hue === undefined ? undefined : {color: matterColorToZigbee(c.hue, saturation)})),
+        );
+        events?.colorControl?.currentX$Changed?.on((x) =>
+            color({x}, (c) => (c.y === undefined ? undefined : {color: matterColorXyToZigbee(x, c.y)})),
+        );
+        events?.colorControl?.currentY$Changed?.on((y) =>
+            color({y}, (c) => (c.x === undefined ? undefined : {color: matterColorXyToZigbee(c.x, y)})),
+        );
+        events?.thermostat?.systemMode$Changed?.on((value) =>
+            command(() => {
+                const mode = matterSystemModeToZigbee(value);
 
-    private sendCommand(endpointId: string, send: ZigbeeMatterEndpointSource["send"], payload: Record<string, unknown>): void {
-        void send(payload).catch((error) => this.options.onCommandError?.(endpointId, error));
+                return mode === undefined ? undefined : {system_mode: validateThermostatMode(mode, plan.supportedModes)};
+            }),
+        );
+        for (const [attribute, field] of Object.entries(SETPOINT_FIELDS)) {
+            events?.thermostat?.[`${attribute}$Changed`]?.on((value) =>
+                command(() => ({[field]: matterSetpointToCelsius(value, plan.setpointRanges[field])})),
+            );
+        }
     }
 }
 
-function flatten(exposes: readonly MappingExpose[]): MappingExpose[] {
-    const result: MappingExpose[] = [];
-    for (const expose of exposes) {
-        result.push(expose);
-        if (expose.features !== undefined) result.push(...flatten(expose.features));
+async function loadDevice(path: string): Promise<EndpointDefinition> {
+    const module = (await import(`@matter/main/devices/${path}`)) as Record<string, unknown>;
+
+    return module[DEVICE_EXPORTS[path] as string] as EndpointDefinition;
+}
+
+/** primary device type에 없는 센서/전력 cluster를 같은 endpoint에 추가할 behavior로 로드한다. */
+async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): Promise<unknown[]> {
+    const behaviors: unknown[] = [];
+    if (caps.temperature && primarySensor !== "temperature") {
+        behaviors.push((await import("@matter/main/behaviors/temperature-measurement")).TemperatureMeasurementServer);
     }
-    return result;
+    if (caps.humidity && primarySensor !== "humidity") {
+        behaviors.push((await import("@matter/main/behaviors/relative-humidity-measurement")).RelativeHumidityMeasurementServer);
+    }
+    if (caps.contact && primarySensor !== "contact") behaviors.push((await import("@matter/main/behaviors/boolean-state")).BooleanStateServer);
+    if (caps.occupancy && primarySensor !== "occupancy") {
+        behaviors.push((await import("@matter/main/behaviors/occupancy-sensing")).OccupancySensingServer.with("PassiveInfrared"));
+    }
+    if (caps.power || caps.voltage || caps.current) {
+        const {ElectricalPowerMeasurementServer} = await import("@matter/main/behaviors/electrical-power-measurement");
+        const ac = caps.voltage || caps.current;
+        behaviors.push(ac ? ElectricalPowerMeasurementServer.with("AlternatingCurrent") : ElectricalPowerMeasurementServer);
+    }
+    if (caps.energy) {
+        const {ElectricalEnergyMeasurementServer} = await import("@matter/main/behaviors/electrical-energy-measurement");
+        behaviors.push(ElectricalEnergyMeasurementServer.with("ImportedEnergy", "CumulativeEnergy"));
+    }
+
+    return behaviors;
+}
+
+async function lightDefinition(base: PlanBase, light: MappingExpose, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+    const features = light.features ?? [];
+    const hasColor = features.some((f) => f.name === "color_xy" || f.name === "color_hs" || f.name === "color");
+    const hasColorTemperature = features.some((f) => f.type === "numeric" && f.name === "color_temp");
+    const dimmable = features.some((f) => f.type === "numeric" && f.name === "brightness");
+    let path = dimmable ? "dimmable-light" : "on-off-light";
+    let lightKind: "light" | "colorTemperature" | "color" = "light";
+    if (hasColor) {
+        path = "extended-color-light";
+        lightKind = "color";
+    } else if (hasColorTemperature) {
+        path = "color-temperature-light";
+        lightKind = "colorTemperature";
+    }
+    const device = await loadDevice(path);
+
+    return {...base, definition: device.with(...extras) as EndpointDefinition, lightKind};
+}
+
+async function coverDefinition(
+    base: PlanBase,
+    cover: MappingExpose,
+    source: ZigbeeMatterEndpointSource,
+    extras: readonly unknown[],
+    report: (error: unknown) => void,
+): Promise<EndpointDefinitionPlan> {
+    const [{WindowCoveringDevice}, {WindowCoveringServer, MovementDirection, MovementType}] = await Promise.all([
+        import("@matter/main/devices/window-covering"),
+        import("@matter/main/behaviors/window-covering"),
+    ]);
+    const supportsTilt = cover.features?.some((feature) => feature.type === "numeric" && feature.name === "tilt") ?? false;
+    const features = supportsTilt ? ["Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt"] : ["Lift", "PositionAwareLift"];
+    const invert = source.invertCover === true;
+    const {send} = source;
+    const dispatch = (payload: Record<string, unknown>): void => {
+        void send(payload).catch(report);
+    };
+    // 이동/정지 명령은 StopMotion 포함 Matter command를 서버 핸들러에서 받아 Zigbee로 보낸다.
+    class ZigbeeWindowCoveringServer extends WindowCoveringServer.with(...features) {
+        protected override handleMovement(type: number, _reversed: boolean, direction: number, target?: number): void {
+            const key = type === MovementType.Tilt ? "tilt" : "position";
+            if (target !== undefined) dispatch({[key]: matterPercent100thsToZigbee(target, invert)});
+            else if (type === MovementType.Lift && direction !== MovementDirection.DefinedByPosition) {
+                dispatch({state: direction === MovementDirection.Open ? "OPEN" : "CLOSE"});
+            }
+        }
+
+        protected override handleStopMovement(): void {
+            dispatch({state: "STOP"});
+        }
+    }
+
+    return {...base, definition: WindowCoveringDevice.with(ZigbeeWindowCoveringServer, ...extras) as EndpointDefinition, supportsTilt};
+}
+
+async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+    const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
+        import("@matter/main/devices/thermostat"),
+        import("@matter/main/behaviors/thermostat"),
+    ]);
+    const featureList = thermostat.features ?? [];
+    const modes = featureList.find((feature) => feature.type === "enum" && feature.name === "system_mode")?.values ?? [];
+    const has = (name: string): boolean => featureList.some((feature) => feature.name === name);
+    const supportsHeating = modes.includes("heat") || modes.includes("emergency_heating") || has("occupied_heating_setpoint");
+    const supportsCooling = modes.includes("cool") || has("occupied_cooling_setpoint");
+    const features: string[] = [];
+    if (supportsHeating) features.push("Heating");
+    if (supportsCooling) features.push("Cooling");
+    if (featureList.some((feature) => feature.name?.startsWith("unoccupied_"))) features.push("Occupancy");
+    if (modes.includes("auto") && supportsHeating && supportsCooling) features.push("AutoMode");
+    if (!supportsHeating && !supportsCooling) throw new Error("Matter thermostat mapping requires heating or cooling support");
+
+    const setpointRanges: Record<string, SetpointRange> = {};
+    for (const feature of featureList) {
+        const {name, value_min: min, value_max: max} = feature;
+        if (name !== undefined && min !== undefined && max !== undefined && Number.isFinite(min) && Number.isFinite(max)) {
+            setpointRanges[name] = {min, max};
+        }
+    }
+
+    return {
+        ...base,
+        definition: ThermostatDevice.with(ThermostatServer.with(...features), ...extras) as EndpointDefinition,
+        setpointRanges,
+        supportedModes: modes,
+    };
+}
+
+function lightPatch(plan: EndpointDefinitionPlan, state: Record<string, unknown>, patch: Record<string, unknown>, guard: Guard): void {
+    if (typeof state.brightness === "number") {
+        const {brightness} = state;
+        guard("brightness", () => {
+            patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(brightness).level};
+        });
+    }
+    if (plan.lightKind === "colorTemperature" && typeof state.color_temp === "number") {
+        const mireds = state.color_temp;
+        guard("color_temp", () => {
+            patch.colorControl = {colorTemperatureMireds: validateColorTemperatureMireds(mireds)};
+        });
+    }
+    if (plan.lightKind !== "color") return;
+
+    const color = state.color;
+    guard("color", () => {
+        if (isRecord(color) && typeof color.hue === "number" && typeof color.saturation === "number") {
+            const mapped = zigbeeColorToMatter(color.hue, color.saturation);
+            patch.colorControl = {currentHue: mapped.hue, currentSaturation: mapped.saturation};
+        } else if (isRecord(color) && typeof color.x === "number" && typeof color.y === "number") {
+            const mapped = zigbeeColorXyToMatter(color.x, color.y);
+            patch.colorControl = {currentX: mapped.x, currentY: mapped.y};
+        }
+    });
+}
+
+function coverPatch(runtime: EndpointRuntime, state: Record<string, unknown>, patch: Record<string, unknown>, guard: Guard): void {
+    const invert = runtime.source.invertCover === true;
+    const windowCovering: Record<string, unknown> = {};
+    // null(위치 미상) -> Matter currentPosition*Percent100ths는 nullable이므로 null.
+    if (typeof state.position === "number" || state.position === null) {
+        const {position} = state;
+        guard("position", () => {
+            runtime.coverPositions.lift = position === null ? undefined : zigbeeToMatterPercent100ths(position, invert);
+            windowCovering.currentPositionLiftPercent100ths = runtime.coverPositions.lift ?? null;
+        });
+    }
+    if (runtime.plan.supportsTilt && (typeof state.tilt === "number" || state.tilt === null)) {
+        const {tilt} = state;
+        guard("tilt", () => {
+            runtime.coverPositions.tilt = tilt === null ? undefined : zigbeeToMatterPercent100ths(tilt, invert);
+            windowCovering.currentPositionTiltPercent100ths = runtime.coverPositions.tilt ?? null;
+        });
+    }
+    if (Object.keys(windowCovering).length > 0) patch.windowCovering = windowCovering;
+}
+
+/** expose unit을 읽어 Matter 단위(mW, mWh, mV, mA)로 환산한다. null은 nullable 속성이므로 null로 둔다. */
+function electricalPatch(caps: Capabilities, state: Record<string, unknown>, patch: Record<string, unknown>, guard: Guard): void {
+    const power: Record<string, unknown> = {};
+    const convert = (quantity: "power" | "voltage" | "current", expose: MappingExpose | undefined, attribute: string): void => {
+        const value = state[quantity];
+        if (expose === undefined || (typeof value !== "number" && value !== null)) return;
+        guard(quantity, () => {
+            power[attribute] = value === null ? null : toMatterElectrical(quantity, value, expose.unit);
+        });
+    };
+    convert("power", caps.power, "activePower");
+    convert("voltage", caps.voltage, "rmsVoltage");
+    convert("current", caps.current, "rmsCurrent");
+    if (Object.keys(power).length > 0) patch.electricalPowerMeasurement = power;
+    const energy = state.energy;
+    if (caps.energy !== undefined && (typeof energy === "number" || energy === null)) {
+        guard("energy", () => {
+            patch.electricalEnergyMeasurement = {
+                cumulativeEnergyImported: energy === null ? null : {energy: toMatterElectrical("energy", energy, caps.energy?.unit)},
+            };
+        });
+    }
+}
+
+function lockPatch(runtime: EndpointRuntime, state: Record<string, unknown>, patch: Record<string, unknown>): void {
+    const lockState = zigbeeLockStateToMatter(state.lock_state ?? state.state);
+    if (lockState === undefined) return;
+
+    patch.doorLock = {lockState};
+    if (lockState === 1 || lockState === 2) runtime.lockOutcome = resolveLockOutcome(lockState === 1);
+}
+
+function thermostatPatch(plan: EndpointDefinitionPlan, state: Record<string, unknown>, patch: Record<string, unknown>, guard: Guard): void {
+    const thermostat: Record<string, unknown> = {};
+    // localTemperature만 nullable: null이면 null, 나머지 setpoint/mode는 null이면 이전 값을 유지한다.
+    if (typeof state.local_temperature === "number" || state.local_temperature === null) {
+        const local = state.local_temperature;
+        guard("local_temperature", () => {
+            const mapped = celsiusToMatter(local);
+            thermostat.localTemperature = mapped.known ? mapped.value : null;
+        });
+    }
+    for (const [attribute, field] of Object.entries(SETPOINT_FIELDS)) {
+        const value = state[field];
+        if (typeof value !== "number") continue;
+
+        guard(field, () => {
+            const range = plan.setpointRanges[field];
+            const mapped = range === undefined ? celsiusToMatter(value) : celsiusSetpointToMatter(value, range.min, range.max);
+            if (mapped.known) thermostat[attribute] = mapped.value;
+        });
+    }
+    guard("system_mode", () => {
+        const systemMode = zigbeeSystemModeToMatter(state.system_mode);
+        if (systemMode !== undefined) thermostat.systemMode = systemMode;
+    });
+    if (Object.keys(thermostat).length > 0) patch.thermostat = thermostat;
+}
+
+/**
+ * 필수 속성 초기값. 근거(@matter/*@0.18.0 .d.ts): types/clusters/switch.d.ts(numberOfPositions, currentPosition, multiPressMax 필수),
+ * node/behaviors/switch/SwitchServer.d.ts(longPressDelay/multiPressDelay는 MSL/MSM에서 REQUIRED, Duration은 ms 숫자),
+ * types/clusters/electrical-power-measurement.d.ts(powerMode, numberOfMeasurementTypes, accuracy),
+ * types/globals/MeasurementAccuracy.d.ts, MeasurementType.d.ts, electrical-energy-measurement.d.ts(accuracy).
+ */
+function initialClusterState(caps: Capabilities, rootIsSwitch: boolean): Record<string, unknown> {
+    const init: Record<string, unknown> = {};
+    // Switch 상태는 Switch behavior가 실제로 붙은 endpoint(버튼 전용 root)에만 넣는다. child part는 SWITCH_INITIAL_STATE를 쓴다.
+    if (rootIsSwitch) init.switch = SWITCH_INITIAL_STATE;
+    const types: number[] = [];
+    if (caps.power !== undefined || caps.voltage !== undefined || caps.current !== undefined) types.push(5); // ActivePower(필수 속성)
+    if (caps.voltage !== undefined) types.push(8); // RmsVoltage
+    if (caps.current !== undefined) types.push(9); // RmsCurrent
+    if (types.length > 0) {
+        init.electricalPowerMeasurement = {
+            powerMode: 0, // Unknown
+            numberOfMeasurementTypes: types.length,
+            accuracy: types.map((measurementType) => measurementAccuracy(measurementType)),
+        };
+    }
+    if (caps.energy !== undefined) init.electricalEnergyMeasurement = {accuracy: measurementAccuracy(14)}; // ElectricalEnergy
+
+    return init;
+}
+
+function measurementAccuracy(measurementType: number): Record<string, unknown> {
+    const max = Number.MAX_SAFE_INTEGER;
+
+    return {
+        measurementType,
+        measured: true,
+        minMeasuredValue: 0,
+        maxMeasuredValue: max,
+        accuracyRanges: [{rangeMin: 0, rangeMax: max}],
+    };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function matterLockState(value: unknown): number | undefined {
-    if (value === "LOCK" || value === "LOCKED" || value === true) return 1;
-    if (value === "UNLOCK" || value === "UNLOCKED" || value === false) return 2;
-    return undefined;
-}
-
-function celsiusToMatterValue(value: unknown): number | undefined {
-    if (typeof value !== "number") return undefined;
-    const mapped = celsiusToMatter(value);
-    return mapped.known ? mapped.value : undefined;
-}
-
-function matterSystemMode(value: unknown): number | undefined {
-    if (value === "off") return 0;
-    if (value === "auto") return 1;
-    if (value === "cool") return 3;
-    if (value === "heat") return 4;
-    if (value === "emergency_heating") return 5;
-    return undefined;
-}
-
-function zigbeeSystemMode(value: number): "off" | "auto" | "cool" | "heat" | "emergency_heating" | undefined {
-    if (value === 0) return "off";
-    if (value === 1) return "auto";
-    if (value === 3) return "cool";
-    if (value === 4) return "heat";
-    if (value === 5) return "emergency_heating";
-    return undefined;
 }

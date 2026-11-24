@@ -13,6 +13,7 @@ export interface DeviceCommandQueueOptions {
 
 interface Entry {
     command: Command;
+    keys: ReadonlyArray<string>;
     run: () => void;
 }
 
@@ -30,14 +31,13 @@ export default class DeviceCommandQueue {
     private pendingCount = 0;
     private readonly pendingIds = new Set<string>();
     private stopped = false;
+    private pumping = false;
 
     constructor(options: DeviceCommandQueueOptions = {}) {
         this.maxPending = validateLimit(options.maxPending ?? Infinity, "maxPending");
         this.maxConcurrent = validateLimit(options.maxConcurrent ?? Infinity, "maxConcurrent");
         this.onRunError = options.onRunError;
-        this.keyResolver =
-            options.keyResolver ??
-            ((command) => [command.operation === "request" ? `bridge:${command.target.request}` : command.target.key ?? command.target.entity ?? ""]);
+        this.keyResolver = options.keyResolver ?? defaultKeys;
     }
 
     start(): void {
@@ -51,13 +51,13 @@ export default class DeviceCommandQueue {
         }
 
         const keys = this.keys(command);
-        if (keys.length === 0) {
+        if (keys.length === 0 || this.pendingIds.has(command.requestId)) {
             return false;
         }
 
         this.pendingCount += 1;
         this.pendingIds.add(command.requestId);
-        const entry = {command, run};
+        const entry: Entry = {command, keys, run};
         const blocked = keys.some((key) => this.queues.has(key) || this.hasRunningKey(key));
 
         if (blocked || this.running.size >= this.maxConcurrent) {
@@ -75,13 +75,16 @@ export default class DeviceCommandQueue {
 
     /** Hook-compatible completion callback. Non-terminal results leave the entry running. */
     onResult = (result: CommandResult): void => {
-        if (!result.terminal || !this.pendingIds.has(result.requestId)) {
+        // CONFLICT is emitted by the router for a duplicate of an in-flight requestId; it must not end the original entry.
+        if (!result.terminal || result.errorCode === "CONFLICT" || !this.pendingIds.has(result.requestId)) {
             return;
         }
 
-        const keys = this.running.get(result.requestId);
+        // Every terminal path releases the entry. A queued command that ended (deadline, stop) must also leave the
+        // queues, otherwise pump() would start a dead entry and leave it in `running` forever.
         this.pendingIds.delete(result.requestId);
-        if (keys) this.running.delete(result.requestId);
+        this.running.delete(result.requestId);
+        this.dropQueued(result.requestId);
         this.pendingCount = Math.max(0, this.pendingCount - 1);
 
         if (!this.stopped) {
@@ -126,37 +129,61 @@ export default class DeviceCommandQueue {
         }
     }
 
+    /** Starts every runnable head entry. Re-entrant calls (synchronous terminal results) are absorbed by the running loop. */
     private pump(): void {
-        if (this.running.size >= this.maxConcurrent) {
+        if (this.pumping) {
             return;
         }
 
-        const candidates = new Set<Entry>();
-        for (const queue of this.queues.values()) {
-            const entry = queue[0];
-            if (entry) {
-                candidates.add(entry);
+        this.pumping = true;
+        try {
+            for (let entry = this.nextRunnable(); entry && !this.stopped; entry = this.nextRunnable()) {
+                this.removeQueued(entry);
+                this.start(entry, entry.keys);
             }
-        }
-
-        for (const entry of candidates) {
-            const keys = this.keys(entry.command);
-            if (
-                keys.some((key) => this.hasRunningKey(key)) ||
-                keys.some((key) => this.queues.get(key)?.[0] !== entry) ||
-                this.running.size >= this.maxConcurrent
-            ) {
-                continue;
-            }
-
-            this.removeQueued(entry, keys);
-            this.start(entry, keys);
-            return;
+        } finally {
+            this.pumping = false;
         }
     }
 
-    private removeQueued(entry: Entry, keys: ReadonlyArray<string>): void {
-        for (const key of keys) {
+    private nextRunnable(): Entry | undefined {
+        if (this.running.size >= this.maxConcurrent) {
+            return undefined;
+        }
+
+        for (const queue of this.queues.values()) {
+            const entry = queue[0];
+            if (!entry) {
+                continue;
+            }
+
+            if (!this.pendingIds.has(entry.command.requestId)) {
+                // Defensive: a finished command must never be started.
+                this.removeQueued(entry);
+                return this.nextRunnable();
+            }
+
+            const {keys} = entry;
+            if (!keys.some((key) => this.hasRunningKey(key)) && keys.every((key) => this.queues.get(key)?.[0] === entry)) {
+                return entry;
+            }
+        }
+
+        return undefined;
+    }
+
+    private dropQueued(requestId: string): void {
+        for (const queue of [...this.queues.values()]) {
+            const entry = queue.find((candidate) => candidate.command.requestId === requestId);
+            if (entry) {
+                this.removeQueued(entry);
+                return;
+            }
+        }
+    }
+
+    private removeQueued(entry: Entry): void {
+        for (const key of entry.keys) {
             const queue = this.queues.get(key);
             if (!queue) {
                 continue;
@@ -170,6 +197,14 @@ export default class DeviceCommandQueue {
             }
         }
     }
+}
+
+function defaultKeys(command: Command): ReadonlyArray<string> {
+    if (command.operation === "request") {
+        return [`bridge:${command.target.request}`];
+    }
+
+    return [command.target.key ?? command.target.entity ?? ""];
 }
 
 function validateLimit(value: number, name: string): number {

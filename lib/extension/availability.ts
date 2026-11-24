@@ -2,6 +2,7 @@ import assert from "node:assert";
 import bind from "bind-decorator";
 import debounce from "debounce";
 import type * as zhc from "zigbee-herdsman-converters";
+import {evaluateAvailability} from "../availabilityPolicy"; // z2m-fork: T029
 import type {Zigbee2MQTTAPI} from "../types/api";
 
 import logger from "../util/logger";
@@ -79,16 +80,18 @@ export default class Availability extends Extension {
         if (entity.isDevice()) {
             const lastSeen = /* v8 ignore next */ entity.zh.lastSeen ?? 0;
 
-            return Date.now() - lastSeen < this.getTimeout(entity);
+            // z2m-fork: T029 판정은 evaluateAvailability 정책 함수가 한다(동작은 기존 `now - lastSeen < timeout`과 동일).
+            return evaluateAvailability({scope: "device", lastSeen, timeoutMs: this.getTimeout(entity)}).status === "online";
         }
 
-        for (const memberDevice of entity.membersDevices()) {
-            if (this.lastPublishedAvailabilities.get(memberDevice.ieeeAddr) === true) {
-                return true;
-            }
-        }
+        // z2m-fork: T029
+        const memberStates = entity
+            .membersDevices()
+            .map((memberDevice) =>
+                this.lastPublishedAvailabilities.get(memberDevice.ieeeAddr) === true ? ("online" as const) : ("offline" as const),
+            );
 
-        return false;
+        return evaluateAvailability({scope: "group", memberStates}).status === "online";
     }
 
     private resetTimer(device: Device, resetBackoff = false): void {

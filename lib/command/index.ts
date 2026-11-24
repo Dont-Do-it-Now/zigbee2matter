@@ -1,4 +1,5 @@
 export * from "./mapping";
+export * from "./permissions";
 export {default as CommandRouter, type CommandRouterDeps} from "./router";
 export {default as DeviceCommandQueue, type DeviceCommandQueueOptions} from "./queue";
 export {default as CommandDeduplicator, type CommandDeduplicatorOptions} from "./deduplication";

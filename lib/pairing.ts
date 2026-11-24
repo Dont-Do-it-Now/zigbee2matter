@@ -13,6 +13,15 @@ export interface PairingPolicyOptions {
     eventBus?: EventBus;
 }
 
+/** Zigbee permit join 상한(초). 255(무기한)는 허용하지 않는다. */
+export const MAX_PERMIT_JOIN_SECONDS = 254;
+
+export function assertPermitJoinTime(time: number): void {
+    if (!Number.isInteger(time) || time < 0 || time > MAX_PERMIT_JOIN_SECONDS) {
+        throw new Error(`permit join time must be an integer between 0 and ${MAX_PERMIT_JOIN_SECONDS} seconds`);
+    }
+}
+
 /** T027 pairing/interview policy. Upstream remains the owner of interview/configure operations. */
 export default class PairingPolicy {
     private readonly devices = new Map<string, PairingDeviceState>();
