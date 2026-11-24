@@ -6,6 +6,7 @@ import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
 import {MatterSdkRuntime, type MatterNodeOptions} from "../matter/sdkRuntime";
+import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
 import {EndpointRegistry, type EndpointRegistryOptions} from "../matter/endpointRegistry";
@@ -77,6 +78,14 @@ export class BridgeRuntime {
 
     get currentEndpointRegistry(): EndpointRegistry | undefined {
         return this.endpointRegistry;
+    }
+
+    createDynamicEndpointRuntime(adapter: DynamicEndpointAdapter): DynamicEndpointRuntime {
+        if (!this.endpointRegistry) {
+            throw new Error("endpoint registry must be opened before creating dynamic endpoint runtime");
+        }
+
+        return new DynamicEndpointRuntime(new DynamicEndpointCoordinator(this.endpointRegistry), adapter);
     }
 
     async stop(): Promise<void> {
