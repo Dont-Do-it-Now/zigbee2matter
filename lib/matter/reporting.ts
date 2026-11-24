@@ -41,6 +41,7 @@ export class ReportingRegistry {
         if (!input.id || !input.fabricId) throw new Error("subscription identity is required");
         if (!Number.isSafeInteger(input.minIntervalMs) || input.minIntervalMs < 0) throw new Error("invalid minIntervalMs");
         if (!Number.isSafeInteger(input.maxIntervalMs) || input.maxIntervalMs < input.minIntervalMs) throw new Error("invalid maxIntervalMs");
+        if (!Number.isSafeInteger(now) || !Number.isSafeInteger(now + input.minIntervalMs)) throw new Error("invalid report clock");
         const value = {...input, nextDueAt: now + input.minIntervalMs};
         this.pending.delete(input.id);
         this.subscriptions.set(input.id, value);
@@ -53,6 +54,7 @@ export class ReportingRegistry {
     }
 
     publish(id: string, value: unknown, now = Date.now()): boolean {
+        if (!Number.isSafeInteger(now)) throw new Error("invalid report clock");
         const subscription = this.subscriptions.get(id);
         if (!subscription) return false;
         this.pending.set(id, {subscriptionId: id, fabricId: subscription.fabricId, value});
@@ -63,6 +65,10 @@ export class ReportingRegistry {
     }
 
     drainDue(now = Date.now()): ReportUpdate[] {
+        if (!Number.isSafeInteger(now)) throw new Error("invalid report clock");
+        for (const subscription of this.subscriptions.values()) {
+            if (!Number.isSafeInteger(now + subscription.maxIntervalMs)) throw new Error("invalid report clock");
+        }
         const due: ReportUpdate[] = [];
         for (const [id, subscription] of this.subscriptions) {
             if (subscription.nextDueAt > now) continue;
