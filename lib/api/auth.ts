@@ -135,8 +135,8 @@ export class ApiAuth {
                 typeof r.hash === "string" &&
                 HASH_RE.test(r.hash) &&
                 (r.label === undefined || typeof r.label === "string") &&
-                (r.expiresAt === undefined || (Number.isFinite(r.expiresAt) && r.expiresAt >= 0)) &&
-                (r.revokedAt === undefined || (Number.isFinite(r.revokedAt) && r.revokedAt >= 0))
+                (r.expiresAt === undefined || (Number.isSafeInteger(r.expiresAt) && r.expiresAt >= 0)) &&
+                (r.revokedAt === undefined || (Number.isSafeInteger(r.revokedAt) && r.revokedAt >= 0))
             ) {
                 this.records.set(r.id, {...r});
             } else {
@@ -151,7 +151,7 @@ export class ApiAuth {
         if (opts.label !== undefined && typeof opts.label !== "string") {
             throw new ApiError("INVALID_ARGUMENT", "Invalid label");
         }
-        if (opts.ttlMs !== undefined && !(Number.isFinite(opts.ttlMs) && opts.ttlMs > 0 && Number.isFinite(this.now() + opts.ttlMs))) {
+        if (opts.ttlMs !== undefined && !(Number.isSafeInteger(opts.ttlMs) && opts.ttlMs > 0 && Number.isSafeInteger(this.now() + opts.ttlMs))) {
             throw new ApiError("INVALID_ARGUMENT", "Invalid ttl");
         }
         const secret = randomBytes(32).toString("base64url");
