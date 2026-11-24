@@ -21,6 +21,7 @@ import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
 import type {EndpointRegistryDocument} from "./matter/endpointRegistry";
+import type {MatterEndpointFactory, MatterFabricStore} from "./matter/sdkRuntime";
 import {diagnoseMatterNetwork} from "./matter/networkConfig";
 import {resolveAttestation} from "./matter/attestation";
 import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
@@ -59,6 +60,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export interface ControllerOptions {
+    readonly matterEndpointFactory?: MatterEndpointFactory;
+    readonly matterFabricStore?: MatterFabricStore;
+}
+
 export class Controller {
     /** Allows canceling in-progress startup sequence if necessary. Signal can be passed to long-running ops as necessary for finer control. */
     #startAbortController: AbortController | undefined;
@@ -81,7 +87,11 @@ export class Controller {
     public readonly extensionArgs: ConstructorParameters<typeof Extension>;
     private sdNotify: Awaited<ReturnType<typeof initSdNotify>>;
 
-    constructor(restartCallback: () => Promise<void>, exitCallback: (code: number, restart: boolean) => Promise<void>) {
+    constructor(
+        restartCallback: () => Promise<void>,
+        exitCallback: (code: number, restart: boolean) => Promise<void>,
+        options: ControllerOptions = {},
+    ) {
         logger.init();
         zhSetLogger(logger);
         zhcSetLogger(logger);
@@ -91,6 +101,8 @@ export class Controller {
         this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
         this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
         this.runtime = new BridgeRuntime({
+            matterEndpointFactory: options.matterEndpointFactory,
+            matterFabricStore: options.matterFabricStore,
             backup: {
                 snapshotProvider: {
                     identity: () => ({...this.networkIdentity, bridgeId: this.bridgeIdentity}),
