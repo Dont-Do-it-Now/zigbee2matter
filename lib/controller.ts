@@ -233,6 +233,7 @@ export class Controller {
                 onResult: (result) => {
                     this.commandDeduplicator.onResult(result);
                     this.commandQueue.onResult(result);
+                    this.runtime.events.publish("commandResult", `command/${result.requestId}`, result, {correlationId: result.correlationId});
                 },
             },
         });
