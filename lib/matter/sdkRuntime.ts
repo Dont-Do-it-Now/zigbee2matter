@@ -1,5 +1,7 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
+import {readFile} from "node:fs/promises";
 import {toMatterEnvVars, toServerNodeNetworkState, type MatterNetworkConfig} from "./networkConfig";
+import type {ResolvedAttestation} from "./attestation";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
 
@@ -27,6 +29,7 @@ export interface MatterNodeOptions {
     readonly vendorId?: number;
     readonly productId?: number;
     readonly productName?: string;
+    readonly attestation?: ResolvedAttestation;
     readonly environment?: MatterEnvironment;
 }
 
@@ -119,6 +122,24 @@ export class MatterSdkRuntime {
                       nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
                       serialNumber: options.id,
                   };
+            const customCertification = options.attestation?.useSdkGeneratedTestCertification === false
+                ? {
+                      certification: async () => {
+                          const files = options.attestation?.files;
+                          if (!files) throw new Error("Matter custom attestation files are missing");
+                          try {
+                              return {
+                                  privateKey: await readFile(files.dacPrivateKey),
+                                  certificate: await readFile(files.dac),
+                                  intermediateCertificate: await readFile(files.pai),
+                                  declaration: await readFile(files.cd),
+                              };
+                          } catch {
+                              throw new Error("Matter custom attestation files could not be loaded");
+                          }
+                      },
+                  }
+                : undefined;
             const rootEndpoint = sdk.ServerNode.RootEndpoint ?? sdk.ServerNode.RootEndpointWithoutGroupcast;
             if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
             const node = await sdk.ServerNode.create(rootEndpoint, {
@@ -126,6 +147,7 @@ export class MatterSdkRuntime {
                 ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
                 ...(commissioning ? {commissioning} : {}),
                 ...(basicInformation ? {basicInformation} : {}),
+                ...(customCertification ? {operationalCredentials: customCertification} : {}),
             });
             this.node = node;
             this.nodeId = options.id;

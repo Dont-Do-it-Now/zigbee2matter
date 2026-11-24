@@ -72,6 +72,26 @@
                     "maximum": 4095,
                     "requiresRestart": true
                   },
+                  "attestation": {
+                      "type": "object",
+                      "title": "Matter attestation",
+                      "properties": {
+                          "mode": {
+                              "type": "string",
+                              "enum": ["development", "custom"],
+                              "default": "development",
+                              "requiresRestart": true
+                          },
+                          "vendorId": {"type": "integer", "minimum": 1, "maximum": 65535, "requiresRestart": true},
+                          "productId": {"type": "integer", "minimum": 1, "maximum": 65535, "requiresRestart": true},
+                          "dacPath": {"type": "string", "minLength": 1, "requiresRestart": true},
+                          "paiPath": {"type": "string", "minLength": 1, "requiresRestart": true},
+                          "cdPath": {"type": "string", "minLength": 1, "requiresRestart": true},
+                          "dacPrivateKeyPath": {"type": "string", "minLength": 1, "requiresRestart": true},
+                          "vendorIdOwnershipAcknowledged": {"type": "boolean", "requiresRestart": true}
+                      },
+                      "additionalProperties": false
+                  },
                   "network": {
                       "type": "object",
                       "title": "Matter network",

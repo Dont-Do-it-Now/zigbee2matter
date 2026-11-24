@@ -5,6 +5,7 @@ import type {Cluster, ClusterName, CustomClusters} from "zigbee-herdsman/dist/zs
 import type {GenericZdoResponse, RoutingTableEntry} from "zigbee-herdsman/dist/zspec/zdo/definition/tstypes";
 import type * as zigbeeHerdsmanConverter from "zigbee-herdsman-converters";
 import type {Base} from "zigbee-herdsman-converters/lib/exposes";
+import type {AttestationSettings} from "../matter/attestation";
 
 export type * as ZSpec from "zigbee-herdsman/dist/zspec";
 export type * as Zcl from "zigbee-herdsman/dist/zspec/zcl";
@@ -110,6 +111,7 @@ export type Zigbee2MQTTSettings = {
         enabled: boolean;
         passcode?: number;
         discriminator?: number;
+        attestation?: AttestationSettings;
         network?: {
             port?: number;
             mdnsInterface?: string;

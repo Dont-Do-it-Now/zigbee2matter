@@ -21,6 +21,7 @@ import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
 import {diagnoseMatterNetwork} from "./matter/networkConfig";
+import {resolveAttestation} from "./matter/attestation";
 import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {FileApiTokenStore} from "./api/tokenStore";
@@ -359,8 +360,14 @@ export class Controller {
                 const networkError = networkDiagnostics.find((diagnostic) => diagnostic.level === "error");
                 if (networkError) throw new Error(`Matter network preflight failed: ${networkError.message}`);
 
+                const attestation = resolveAttestation(settings.get().matter.attestation, data.joinPath("matter"));
+                for (const warning of attestation.warnings) logger.warning(warning);
+
                 await this.runtime.startMatter({
                     id: this.bridgeIdentity,
+                    attestation,
+                    vendorId: attestation.vendorId,
+                    productId: attestation.productId,
                     ...(settings.get().matter.network ? {network: settings.get().matter.network} : {}),
                     ...(settings.get().matter.passcode !== undefined ? {passcode: settings.get().matter.passcode} : {}),
                     ...(settings.get().matter.discriminator !== undefined ? {discriminator: settings.get().matter.discriminator} : {}),

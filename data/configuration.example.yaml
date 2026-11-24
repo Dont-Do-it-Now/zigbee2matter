@@ -13,6 +13,19 @@ matter:
     enabled: false
     # passcode: 20202021
     # discriminator: 3840
+    # attestation:
+    #     mode: development
+    #     vendorId: 65521
+    #     productId: 32768
+    # custom mode requires four user-owned certificate files and an acknowledged VID:
+    #     mode: custom
+    #     vendorId: 1234
+    #     productId: 1
+    #     vendorIdOwnershipAcknowledged: true
+    #     dacPath: device.dac
+    #     paiPath: product.pai
+    #     cdPath: certification-declaration.der
+    #     dacPrivateKeyPath: device.key
     # network:
     #     port: 5540
     #     mdnsInterface: eth0
