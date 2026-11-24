@@ -374,6 +374,7 @@ export class Controller {
             } catch (stopError) {
                 logger.error(`Failed to clean up bridge runtime startup (${(stopError as Error).message})`);
             }
+            this.commandQueue.stop();
             this.commandRouter.stop();
             await this.bridgeBus.disconnect();
             await this.zigbee.stop();
@@ -561,8 +562,8 @@ export class Controller {
         }
 
         this.eventBus.removeListeners(this);
-        this.commandRouter.stop();
         this.commandQueue.stop();
+        this.commandRouter.stop();
         try {
             await this.runtime.stop();
         } catch (error) {

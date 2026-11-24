@@ -28,6 +28,7 @@ export default class DeviceCommandQueue {
     private readonly maxConcurrent: number;
     private readonly onRunError?: DeviceCommandQueueOptions["onRunError"];
     private pendingCount = 0;
+    private readonly pendingIds = new Set<string>();
     private stopped = false;
 
     constructor(options: DeviceCommandQueueOptions = {}) {
@@ -55,6 +56,7 @@ export default class DeviceCommandQueue {
         }
 
         this.pendingCount += 1;
+        this.pendingIds.add(command.requestId);
         const entry = {command, run};
         const blocked = keys.some((key) => this.queues.has(key) || this.hasRunningKey(key));
 
@@ -73,15 +75,16 @@ export default class DeviceCommandQueue {
 
     /** Hook-compatible completion callback. Non-terminal results leave the entry running. */
     onResult = (result: CommandResult): void => {
-        if (!result.terminal || !this.running.has(result.requestId)) {
+        if (!result.terminal || !this.pendingIds.has(result.requestId)) {
             return;
         }
 
         const keys = this.running.get(result.requestId);
-        this.running.delete(result.requestId);
+        this.pendingIds.delete(result.requestId);
+        if (keys) this.running.delete(result.requestId);
         this.pendingCount = Math.max(0, this.pendingCount - 1);
 
-        if (!this.stopped && keys) {
+        if (!this.stopped) {
             this.pump();
         }
     };
@@ -89,6 +92,9 @@ export default class DeviceCommandQueue {
     stop(): void {
         this.stopped = true;
         this.queues.clear();
+        this.pendingIds.clear();
+        this.running.clear();
+        this.pendingCount = 0;
     }
 
     private keys(command: Command): ReadonlyArray<string> {
@@ -107,6 +113,7 @@ export default class DeviceCommandQueue {
             // A runner is an adapter boundary. Its synchronous failure must not leave
             // the request in `running`, otherwise every command sharing its keys stalls.
             this.running.delete(entry.command.requestId);
+            this.pendingIds.delete(entry.command.requestId);
             this.pendingCount = Math.max(0, this.pendingCount - 1);
             try {
                 this.onRunError?.(entry.command, error);
