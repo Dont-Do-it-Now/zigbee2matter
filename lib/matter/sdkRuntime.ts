@@ -1,5 +1,7 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
 import type {MatterNetworkConfig} from "./networkConfig";
+import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
+import type {EndpointRegistryEntry} from "./endpointRegistry";
 
 export interface MatterServerNode {
     start(): Promise<void>;
@@ -25,6 +27,29 @@ export interface MatterNodeOptions {
     readonly vendorId?: number;
     readonly productId?: number;
     readonly productName?: string;
+}
+
+export interface MatterEndpointFactory {
+    create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; number: number}>;
+    remove(entry: EndpointRegistryEntry): Promise<void>;
+}
+
+export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
+    constructor(
+        private readonly runtime: MatterSdkRuntime,
+        private readonly factory: MatterEndpointFactory,
+    ) {}
+
+    async create(entry: EndpointRegistryEntry): Promise<{number: number}> {
+        const created = await this.factory.create(entry);
+        await this.runtime.addEndpoint(created.endpoint);
+
+        return {number: created.number};
+    }
+
+    async remove(entry: EndpointRegistryEntry): Promise<void> {
+        await this.factory.remove(entry);
+    }
 }
 
 export class MatterSdkRuntime {

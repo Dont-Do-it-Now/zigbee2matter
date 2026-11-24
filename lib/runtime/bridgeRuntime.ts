@@ -5,7 +5,7 @@ import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../ap
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
-import {MatterSdkRuntime, type MatterNodeOptions} from "../matter/sdkRuntime";
+import {MatterSdkEndpointAdapter, MatterSdkRuntime, type MatterEndpointFactory, type MatterNodeOptions} from "../matter/sdkRuntime";
 import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
@@ -86,6 +86,10 @@ export class BridgeRuntime {
         }
 
         return new DynamicEndpointRuntime(new DynamicEndpointCoordinator(this.endpointRegistry), adapter);
+    }
+
+    createSdkDynamicEndpointRuntime(factory: MatterEndpointFactory): DynamicEndpointRuntime {
+        return this.createDynamicEndpointRuntime(new MatterSdkEndpointAdapter(this.matter, factory));
     }
 
     async stop(): Promise<void> {
