@@ -49,9 +49,18 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
 
     async create(entry: EndpointRegistryEntry): Promise<{number: number}> {
         const created = await this.factory.create(entry);
-        const added = await this.runtime.addEndpoint(created.endpoint);
+        try {
+            const added = await this.runtime.addEndpoint(created.endpoint);
 
-        return {number: this.factory.readAssignedNumber(entry, created.endpoint, added)};
+            return {number: this.factory.readAssignedNumber(entry, created.endpoint, added)};
+        } catch (error) {
+            try {
+                await this.factory.remove(entry);
+            } catch {
+                // Preserve the original SDK/addition error; diagnostics own cleanup reporting.
+            }
+            throw error;
+        }
     }
 
     async remove(entry: EndpointRegistryEntry): Promise<void> {
