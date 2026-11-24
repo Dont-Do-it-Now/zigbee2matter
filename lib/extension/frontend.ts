@@ -4,7 +4,7 @@ import type {IncomingMessage, Server, ServerResponse} from "node:http";
 import {createServer} from "node:http";
 import {createServer as createSecureServer} from "node:https";
 import type {Socket} from "node:net";
-import {posix} from "node:path";
+import {join, posix} from "node:path";
 import bind from "bind-decorator";
 import WebSocket from "ws";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
@@ -15,6 +15,70 @@ import {createStaticFileServer, sendNotFound} from "../util/staticFileServer";
 import {stringify} from "../util/stringify";
 import utils from "../util/utils";
 import Extension from "./extension";
+
+const FRONTEND_LANGUAGE_BOOTSTRAP = `<script>
+(() => {
+    const languageStorageKey = "i18nextLng";
+    const supportedLanguages = new Set([
+        "bg",
+        "ca",
+        "cs",
+        "da",
+        "de",
+        "en",
+        "es",
+        "eu",
+        "fi",
+        "fr",
+        "hu",
+        "it",
+        "ja",
+        "ko",
+        "nl",
+        "no",
+        "pl",
+        "ptbr",
+        "ru",
+        "sk",
+        "sv",
+        "tr",
+        "ua",
+        "vi",
+        "zh",
+        "zh-CN",
+    ]);
+    const languageAliases = new Map([["pt", "ptbr"], ["uk", "ua"]]);
+
+    const getBrowserLanguage = () => {
+        for (const language of navigator.languages ?? [navigator.language]) {
+            const normalized = language.replace("_", "-");
+            const exact = [...supportedLanguages].find((supported) => supported.toLowerCase() === normalized.toLowerCase());
+            if (exact) return exact;
+
+            const base = normalized.split("-")[0].toLowerCase();
+            const baseLanguage = [...supportedLanguages].find((supported) => supported.toLowerCase() === base);
+            if (baseLanguage) return baseLanguage;
+            const aliasedLanguage = languageAliases.get(base);
+            if (aliasedLanguage) return aliasedLanguage;
+        }
+
+        return "en";
+    };
+
+    try {
+        const storedLanguage = window.localStorage.getItem(languageStorageKey);
+        if (!storedLanguage) {
+            window.localStorage.setItem(languageStorageKey, getBrowserLanguage());
+        }
+    } catch {
+        // Ignore unavailable browser storage and keep the frontend fallback language.
+    }
+})();
+</script>`;
+
+function prepareFrontendIndex(index: string): string {
+    return index.replace("</head>", `${FRONTEND_LANGUAGE_BOOTSTRAP}</head>`);
+}
 
 // z2m-fork: T006 windfront compat (Q1): the existing UI reads `mqtt.*` keys of `bridge/info` and `bridge/health`.
 // WS adapter output only (Core responses use `bridgeBus`); never mutates the original payload.
@@ -89,6 +153,7 @@ export class Frontend extends Extension {
             const frontend = (await import(settings.get().frontend.package)) as typeof import("zigbee2mqtt-frontend");
             const logError = logger.error.bind(logger);
             const fileServer = createStaticFileServer(frontend.default.getPath(), logError);
+            const frontendIndex = prepareFrontendIndex(readFileSync(join(frontend.default.getPath(), "index.html"), "utf8"));
             const deviceIconsFileServer = createStaticFileServer(data.joinPath("device_icons"), logError);
             const onRequest = (request: IncomingMessage, response: ServerResponse): void => {
                 // biome-ignore lint/style/noNonNullAssertion: `Only valid for request obtained from Server`
@@ -112,6 +177,16 @@ export class Frontend extends Extension {
                 }
 
                 request.url = `/${newUrl}`;
+
+                if (newUrl === "" || newUrl === "index.html") {
+                    response.setHeader("Cache-Control", "no-store");
+                    response.setHeader("Content-Type", "text/html; charset=utf-8");
+                    response.setHeader("Content-Length", Buffer.byteLength(frontendIndex));
+                    response.writeHead(200);
+                    response.end(frontendIndex);
+
+                    return;
+                }
 
                 if (newUrl.startsWith("device_icons/")) {
                     request.url = request.url.replace("/device_icons", "");
