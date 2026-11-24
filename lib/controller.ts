@@ -129,6 +129,13 @@ export class Controller {
                       listBridges: () => this.listRestBridges(),
                       executeCommand: (input, principal) => this.executeRestCommand(input, principal),
                       runMigration: (input) => this.runMigration(input),
+                      matterManagement: {
+                          commissioningWindow: () => this.runtime.commissioning.getActiveWindow(),
+                          openCommissioningWindow: (input) => this.openCommissioningWindow(input),
+                          closeCommissioningWindow: () => this.runtime.commissioning.closeWindow(),
+                          listFabrics: () => this.runtime.commissioning.listFabrics(),
+                          listEndpoints: () => this.runtime.currentEndpointRegistry?.list() ?? [],
+                      },
                       snapshot: () => ({
                           epoch: this.runtime.events.epoch,
                           sequence: this.runtime.events.lastSequence,
@@ -370,6 +377,13 @@ export class Controller {
             if (!isRecord(input[key])) throw new ApiError("INVALID_ARGUMENT", `migration ${key} input is required`);
         }
         return await runMigrationOperations(input as unknown as MigrationOperationsInput);
+    }
+
+    private openCommissioningWindow(input: unknown): unknown {
+        if (!isRecord(input) || typeof input.administratorId !== "string" || typeof input.durationMs !== "number") {
+            throw new ApiError("INVALID_ARGUMENT", "administratorId and durationMs are required");
+        }
+        return this.runtime.commissioning.openWindow(input.administratorId, input.durationMs);
     }
 
     private async executeHaCommand(command: HaCommand): Promise<void> {

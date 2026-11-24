@@ -33,6 +33,13 @@ export interface RestRouterDeps {
     readonly listDiagnostics?: () => unknown;
     readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
     readonly runMigration?: (input: unknown, principal: Principal) => Promise<unknown>;
+    readonly matterManagement?: {
+        readonly commissioningWindow?: () => unknown;
+        readonly openCommissioningWindow?: (input: unknown) => unknown;
+        readonly closeCommissioningWindow?: () => boolean;
+        readonly listFabrics?: () => readonly unknown[];
+        readonly listEndpoints?: () => readonly unknown[];
+    };
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
     readonly maxBodyBytes?: number;
     readonly authFailureRateLimiter?: AuthFailureRateLimiter;
@@ -96,6 +103,36 @@ export class RestApiRouter {
         if (req.method === "GET" && pathname === "/diagnostics") {
             if (!this.deps.listDiagnostics) throw new ApiError("NOT_FOUND", "Diagnostics unavailable");
             this.writeJson(res, 200, redactSecrets(this.deps.listDiagnostics()));
+            return;
+        }
+        if (pathname === "/matter/commissioning") {
+            const matter = this.deps.matterManagement;
+            if (!matter) throw new ApiError("NOT_FOUND", "Matter management unavailable");
+            if (req.method === "GET") {
+                if (!matter.commissioningWindow) throw new ApiError("NOT_FOUND", "Commissioning unavailable");
+                this.writeJson(res, 200, {window: redactSecrets(matter.commissioningWindow())});
+                return;
+            }
+            if (req.method === "POST") {
+                if (!matter.openCommissioningWindow) throw new ApiError("NOT_FOUND", "Commissioning unavailable");
+                const body = await readJson(req, this.maxBodyBytes);
+                this.writeJson(res, 201, redactSecrets(matter.openCommissioningWindow(body)));
+                return;
+            }
+            if (req.method === "DELETE") {
+                if (!matter.closeCommissioningWindow) throw new ApiError("NOT_FOUND", "Commissioning unavailable");
+                this.writeJson(res, 200, {closed: matter.closeCommissioningWindow()});
+                return;
+            }
+        }
+        if (req.method === "GET" && pathname === "/matter/fabrics") {
+            if (!this.deps.matterManagement?.listFabrics) throw new ApiError("NOT_FOUND", "Matter fabrics unavailable");
+            this.writeJson(res, 200, {fabrics: redactSecrets(this.deps.matterManagement.listFabrics())});
+            return;
+        }
+        if (req.method === "GET" && pathname === "/matter/endpoints") {
+            if (!this.deps.matterManagement?.listEndpoints) throw new ApiError("NOT_FOUND", "Matter endpoints unavailable");
+            this.writeJson(res, 200, {endpoints: redactSecrets(this.deps.matterManagement.listEndpoints())});
             return;
         }
         if (req.method === "GET" && pathname === "/tokens") {
