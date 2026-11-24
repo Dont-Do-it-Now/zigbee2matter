@@ -60,10 +60,10 @@ export class EventStream {
     /**
      * 다른 Core 모듈(명령 결과, availability 등)이 C4 이벤트를 직접 발행한다.
      * 구독자 안에서 재진입 publish 하면 sequence는 즉시 부여되지만 전달은 현재 디스패치 완료 후 순차 처리된다.
-     * 저장·전달되는 이벤트와 payload 얕은 복사본(호출자 객체는 건드리지 않음)이 freeze 된다(깊은 복제는 비용 때문에 생략; 중첩 객체는 소비자가 변경하지 않는다고 가정).
+     * 저장·전달되는 이벤트와 payload는 호출자 객체를 건드리지 않는 깊은 복사본으로 freeze 된다.
      */
     publish<T>(type: BridgeEventType, key: string, payload: T, options: PublishOptions = {}): BridgeEvent<T> {
-        const frozen = (typeof payload === "object" && payload !== null ? Object.freeze(Array.isArray(payload) ? [...payload] : {...payload}) : payload) as T;
+        const frozen = cloneAndFreeze(payload);
         const event: BridgeEvent<T> = {epoch: this.epochId, sequence: ++this.seq, type, key, payload: frozen};
 
         if (options.revision !== undefined) {
@@ -171,6 +171,26 @@ export class EventStream {
     private inventory(key: string, change: string, extra?: Record<string, unknown>): void {
         this.publish("inventory", key, {change, ...extra});
     }
+}
+
+function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
+    if (typeof value !== "object" || value === null) return value;
+
+    const existing = seen.get(value);
+    if (existing !== undefined) return existing as T;
+
+    if (Array.isArray(value)) {
+        const clone: unknown[] = [];
+        seen.set(value, clone);
+        for (const item of value) clone.push(cloneAndFreeze(item, seen));
+        return Object.freeze(clone) as T;
+    }
+
+    const clone: Record<string, unknown> = {};
+    seen.set(value, clone);
+    for (const [key, item] of Object.entries(value)) clone[key] = cloneAndFreeze(item, seen);
+
+    return Object.freeze(clone) as T;
 }
 
 function entityKey(entity: Device | Group): string {
