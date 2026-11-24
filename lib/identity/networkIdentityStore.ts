@@ -63,6 +63,7 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
             linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));
+            unlinkSync(temporary);
         } catch (error) {
             try {
                 unlinkSync(temporary);
@@ -123,6 +124,7 @@ export class FileBridgeIdentityStore {
             linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));
+            unlinkSync(temporary);
         } catch (error) {
             try {
                 unlinkSync(temporary);
