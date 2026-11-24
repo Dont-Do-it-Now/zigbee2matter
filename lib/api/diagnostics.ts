@@ -18,6 +18,10 @@ export class DiagnosticRegistry {
 
     record(id: string, platform: string, stats: PlatformConsumerStats, latencyMs?: number, error?: unknown): void {
         if (!id) throw new Error("diagnostic id is required");
+        if (![stats.queued, stats.dropped, stats.errors].every((value) => Number.isSafeInteger(value) && value >= 0)) {
+            throw new Error("diagnostic counters must be non-negative safe integers");
+        }
+        if (latencyMs !== undefined && (!Number.isFinite(latencyMs) || latencyMs < 0)) throw new Error("diagnostic latency must be non-negative");
         this.consumers.set(id, {
             id,
             platform,
@@ -28,6 +32,7 @@ export class DiagnosticRegistry {
     }
 
     snapshot(now = Date.now()): DiagnosticSnapshot {
+        if (!Number.isSafeInteger(now) || now < 0) throw new Error("diagnostic clock must be a non-negative safe integer");
         return {generatedAt: now, consumers: [...this.consumers.values()].map((consumer) => ({...consumer}))};
     }
 }
