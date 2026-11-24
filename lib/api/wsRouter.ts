@@ -48,10 +48,14 @@ export class WsApiRouter {
             const onMessage = (raw: WebSocket.RawData): void => {
                 try {
                     const message = JSON.parse(raw.toString()) as Record<string, unknown>;
-                    if (message.type === "replay" && typeof message.afterSequence === "number") {
+                    if (message.type === "replay") {
+                        if (!isSequence(message.afterSequence)) throw new Error("invalid replay sequence");
                         session.acceptReplay(this.options.stream.replay(message.afterSequence, typeof message.epoch === "string" ? message.epoch : undefined));
                         this.flush(socket, session);
-                    } else if (message.type === "snapshot-applied" && typeof message.epoch === "string" && typeof message.sequence === "number") {
+                    } else if (message.type === "snapshot-applied") {
+                        if (typeof message.epoch !== "string" || message.epoch.length === 0 || !isSequence(message.sequence)) {
+                            throw new Error("invalid snapshot sequence");
+                        }
                         session.resetAfterSnapshot(message.epoch, message.sequence);
                     }
                 } catch {
@@ -78,4 +82,8 @@ export class WsApiRouter {
         if (socket.readyState !== WebSocket.OPEN) return;
         for (const frame of session.drain()) socket.send(JSON.stringify(frame));
     }
+}
+
+function isSequence(value: unknown): value is number {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
