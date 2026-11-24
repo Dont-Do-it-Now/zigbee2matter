@@ -1,6 +1,6 @@
 /** HA Direct/Matter 중복 노출 및 모드 전환 정책(T051). */
 import type {HaCommand, HaIntegrationMode} from "./haIntegration";
-import {formatDeviceKey, formatGroupKey} from "../identity";
+import {formatDeviceKey, formatGroupKey, parseEntityKey} from "../identity";
 
 export interface HybridEntityBinding {
     readonly key: string;
@@ -18,6 +18,7 @@ export class HaHybridPolicy {
     private callbacks?: HaHybridCallbacks;
 
     setMode(mode: HaIntegrationMode): void {
+        if (mode !== "direct" && mode !== "matter" && mode !== "hybrid") throw new Error(`unsupported HA hybrid mode: ${mode}`);
         this.mode = mode;
     }
 
@@ -40,7 +41,11 @@ export class HaHybridPolicy {
     }
 
     bind(binding: HybridEntityBinding): void {
-        if (!binding.key) throw new Error("hybrid entity key is required");
+        if (!binding.key || parseEntityKey(binding.key) === undefined) throw new Error("hybrid entity key must be canonical");
+        if (binding.directUniqueId !== undefined && binding.directUniqueId.length === 0) throw new Error("direct unique id is invalid");
+        if (binding.matterEndpoint !== undefined && (!Number.isSafeInteger(binding.matterEndpoint) || binding.matterEndpoint < 1 || binding.matterEndpoint > 0xfffe)) {
+            throw new Error("Matter endpoint must be an integer in 1..65534");
+        }
         if (this.bindings.has(binding.key)) throw new Error(`duplicate hybrid entity key: ${binding.key}`);
         this.bindings.set(binding.key, {...binding});
     }
