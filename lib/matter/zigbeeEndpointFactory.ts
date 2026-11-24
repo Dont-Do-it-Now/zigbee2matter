@@ -7,7 +7,15 @@
 import type {MappingExpose} from "./mappingRegistry";
 import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
-import {matterLevelToZigbee, validateColorTemperatureMireds, zigbeeBrightnessToMatter} from "./lightingMapping";
+import {
+    matterColorToZigbee,
+    matterColorXyToZigbee,
+    matterLevelToZigbee,
+    validateColorTemperatureMireds,
+    zigbeeBrightnessToMatter,
+    zigbeeColorToMatter,
+    zigbeeColorXyToMatter,
+} from "./lightingMapping";
 import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
 
 interface EndpointDefinition {
@@ -17,7 +25,13 @@ interface EndpointDefinition {
 interface EndpointEvents {
     onOff?: {onOff$Changed?: {on(listener: (value: boolean) => void): void}};
     levelControl?: {currentLevel$Changed?: {on(listener: (value: number) => void): void}};
-    colorControl?: {colorTemperatureMireds$Changed?: {on(listener: (value: number) => void): void}};
+    colorControl?: {
+        colorTemperatureMireds$Changed?: {on(listener: (value: number) => void): void};
+        currentHue$Changed?: {on(listener: (value: number) => void): void};
+        currentSaturation$Changed?: {on(listener: (value: number) => void): void};
+        currentX$Changed?: {on(listener: (value: number) => void): void};
+        currentY$Changed?: {on(listener: (value: number) => void): void};
+    };
 }
 
 interface MatterEndpointInstance {
@@ -37,7 +51,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "colorTemperature" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "color" | "colorTemperature" | "temperature" | "humidity" | "contact" | "occupancy";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -53,6 +67,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly endpoints = new Map<string, MatterEndpointInstance>();
     private readonly capabilities = new Map<string, MatterCapability>();
     private readonly stateUpdates = new Set<string>();
+    private readonly colorValues = new Map<string, {hue?: number; saturation?: number; x?: number; y?: number}>();
 
     constructor(private readonly options: FactoryOptions) {}
 
@@ -80,6 +95,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         this.bindCommands(endpoint, entry.endpointId, source.send);
         this.endpoints.set(entry.endpointId, endpoint);
         this.capabilities.set(entry.endpointId, plan.capability);
+        this.colorValues.set(entry.endpointId, {});
 
         return {endpoint};
     }
@@ -105,6 +121,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             this.endpoints.delete(entry.endpointId);
             this.stateUpdates.delete(entry.endpointId);
             this.capabilities.delete(entry.endpointId);
+            this.colorValues.delete(entry.endpointId);
         }
     }
 
@@ -119,11 +136,21 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (typeof state.available === "boolean") {
             patch.bridgedDeviceBasicInformation = {reachable: state.available};
         }
-        if (capability === "light" || capability === "colorTemperature") {
+        if (capability === "light" || capability === "color" || capability === "colorTemperature") {
             if (state.state === "ON" || state.state === "OFF") patch.onOff = {onOff: state.state === "ON"};
             if (typeof state.brightness === "number") patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
             if (capability === "colorTemperature" && typeof state.color_temp === "number") {
                 patch.colorControl = {colorTemperatureMireds: validateColorTemperatureMireds(state.color_temp)};
+            }
+            if (capability === "color") {
+                const color = state.color;
+                if (isRecord(color) && typeof color.hue === "number" && typeof color.saturation === "number") {
+                    const mapped = zigbeeColorToMatter(color.hue, color.saturation);
+                    patch.colorControl = {currentHue: mapped.hue, currentSaturation: mapped.saturation};
+                } else if (isRecord(color) && typeof color.x === "number" && typeof color.y === "number") {
+                    const mapped = zigbeeColorXyToMatter(color.x, color.y);
+                    patch.colorControl = {currentX: mapped.x, currentY: mapped.y};
+                }
             }
         } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
             const value = celsiusToMatter(state.temperature);
@@ -159,7 +186,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (light) {
             const hasColor = light.features?.some((feature) => feature.name === "color") ?? false;
             const hasColorTemperature = light.features?.some((feature) => feature.type === "numeric" && feature.name === "color_temp") ?? false;
-            if (hasColor) throw new Error("Matter mapping is unsupported: full color light requires an approved ColorControl mapping");
+            if (hasColor) {
+                const {ExtendedColorLightDevice} = await import("@matter/main/devices/extended-color-light");
+                return {definition: ExtendedColorLightDevice as unknown as EndpointDefinition, capability: "color"};
+            }
             if (hasColorTemperature) {
                 const {ColorTemperatureLightDevice} = await import("@matter/main/devices/color-temperature-light");
                 return {definition: ColorTemperatureLightDevice as unknown as EndpointDefinition, capability: "colorTemperature"};
@@ -208,6 +238,34 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             if (this.stateUpdates.has(endpointId)) return;
             void send({color_temp: validateColorTemperatureMireds(value)});
         });
+        endpoint.events?.colorControl?.currentHue$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const colors = this.colorValues.get(endpointId) ?? {};
+            colors.hue = value;
+            this.colorValues.set(endpointId, colors);
+            if (colors.saturation !== undefined) void send({color: matterColorToZigbee(value, colors.saturation)});
+        });
+        endpoint.events?.colorControl?.currentSaturation$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const colors = this.colorValues.get(endpointId) ?? {};
+            colors.saturation = value;
+            this.colorValues.set(endpointId, colors);
+            if (colors.hue !== undefined) void send({color: matterColorToZigbee(colors.hue, value)});
+        });
+        endpoint.events?.colorControl?.currentX$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const colors = this.colorValues.get(endpointId) ?? {};
+            colors.x = value;
+            this.colorValues.set(endpointId, colors);
+            if (colors.y !== undefined) void send({color: matterColorXyToZigbee(value, colors.y)});
+        });
+        endpoint.events?.colorControl?.currentY$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const colors = this.colorValues.get(endpointId) ?? {};
+            colors.y = value;
+            this.colorValues.set(endpointId, colors);
+            if (colors.x !== undefined) void send({color: matterColorXyToZigbee(colors.x, value)});
+        });
     }
 }
 
@@ -218,4 +276,8 @@ function flatten(exposes: readonly MappingExpose[]): MappingExpose[] {
         if (expose.features !== undefined) result.push(...flatten(expose.features));
     }
     return result;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
