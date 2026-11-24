@@ -2,7 +2,7 @@
   <img src="images/logo.png" width="150" height="150" alt="Zigbee2Matter 로고">
   <h1>Zigbee2Matter</h1>
   <p>Zigbee2MQTT 코드베이스를 기반으로 만든 Zigbee-to-Matter 브리지입니다.</p>
-  <p><a href="README.md">English README</a> · <a href="docs/README.md">설계 문서</a> · <a href="LICENSE">라이선스</a></p>
+  <p><a href="README.md">English README</a> · <a href="LICENSE">라이선스</a></p>
 </div>
 
 Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이터·인터뷰 경로를 유지하면서 Zigbee 네트워크를 Matter 생태계에 연결합니다. 브로커에 의존하는 실행 경계를 in-process bridge bus로 교체하고 Matter, REST, WebSocket adapter를 추가합니다.
@@ -11,7 +11,7 @@ Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이
 
 ### 원본 기준점
 
-독립 `main` 이력은 원본 스냅샷 하나에서 시작합니다. 기준은 Zigbee2MQTT `2.14.3`, upstream 커밋 `3c841fdfd66c92239921ef84fde8f039c64e1662`, 원본 릴리스일 `2026-11-01`입니다. Zigbee2Matter 독립 이력으로 전환한 날짜는 `2026-11-24`입니다. 원본의 긴 커밋 이력은 의도적으로 `main`에 포함하지 않았으며, 정확한 기준과 재현 방법은 [`docs/evidence/T003.md`](docs/evidence/T003.md)에서 확인할 수 있습니다.
+독립 `main` 이력은 원본 스냅샷 하나에서 시작합니다. 기준은 Zigbee2MQTT `2.14.3`, upstream 커밋 `3c841fdfd66c92239921ef84fde8f039c64e1662`, 원본 릴리스일 `2026-11-01`입니다. Zigbee2Matter 독립 이력으로 전환한 날짜는 `2026-11-24`입니다. 원본의 긴 커밋 이력은 의도적으로 `main`에 포함하지 않았습니다.
 
 ## 제공 기능
 
@@ -51,7 +51,7 @@ Zigbee2Matter Core
 Matter fabric · Home Assistant · 기존 frontend · 기타 Matter controller
 ```
 
-공통 계약은 [`docs/CONTRACTS.md`](docs/CONTRACTS.md)에 정리되어 있습니다.
+공통 계약은 안정적인 identity, revision state, 명시적 command result, replay/resync 이벤트, adapter 경계, 비밀값을 제거한 API 오류를 중심으로 구성됩니다.
 
 - 장치·그룹·브리지·endpoint의 안정적인 identity
 - revision 상태와 재시작 epoch
@@ -62,7 +62,7 @@ Matter fabric · Home Assistant · 기존 frontend · 기타 Matter controller
 
 ## 현재 구현 상태
 
-구현은 [`docs/TASK_INDEX.md`](docs/TASK_INDEX.md)의 작업 카드를 기준으로 진행하며, 각 작업의 실제 상태는 [`docs/evidence/`](docs/evidence/)에 기록합니다.
+상세 작업 카드와 검증 기록은 로컬 `docs/`에 보관하며 저장소 이력에는 포함하지 않습니다.
 
 현재 구현된 주요 영역:
 
@@ -97,7 +97,7 @@ pnpm run build
 pnpm start
 ```
 
-코디네이터와 Zigbee 설정은 기존 Zigbee2MQTT 설정 흐름을 사용합니다. Matter 설정은 [`docs/04-matter/`](docs/04-matter/)의 문서를 따릅니다.
+코디네이터와 Zigbee 설정은 기존 Zigbee2MQTT 설정 흐름을 사용합니다. Matter 런타임 연결은 `lib/matter/` 아래 adapter 경계를 사용합니다.
 
 ### Docker
 
@@ -133,7 +133,7 @@ Matter commissioning은 브리지 등록 흐름이며 Zigbee 장치별 QR 흐름
 - **Matter mode:** Home Assistant 공식 Matter integration과 Matter Server가 controller 역할을 합니다.
 - **Hybrid mode:** Direct와 Matter binding을 분리하고 중복 entity key를 거부합니다.
 
-자세한 내용은 [`docs/04-matter/`](docs/04-matter/)와 [`docs/05-platform/`](docs/05-platform/)를 확인하세요.
+관련 구현 경계는 `lib/matter/`와 `lib/api/` 아래에 있습니다.
 
 ## 이관과 복구
 
@@ -145,7 +145,7 @@ Matter commissioning은 브리지 등록 흐름이며 Zigbee 장치별 QR 흐름
 4. 검사 완료 후 staging directory를 원자적으로 승격합니다.
 5. target backup을 유지해 rollback하며, 실패 시 원본 data는 변경하지 않습니다.
 
-독립 브리지 사이에서 data directory를 공유하지 마세요. 전환 전 [`docs/06-migration/`](docs/06-migration/)을 읽고 backup을 생성하세요.
+독립 브리지 사이에서 data directory를 공유하지 마세요. 전환 전에 backup을 생성하세요.
 
 ## 개발
 
@@ -166,25 +166,13 @@ pnpm run test:fork
 
 현재 작업 지시가 위 명령 실행을 금지하는 경우에는 `NOT RUN`으로 기록하고 승인된 검증 단계에서 실행하세요.
 
-구현 근거와 미실행 검증 항목은 [`docs/evidence/`](docs/evidence/)에서 작업 ID별로 확인할 수 있습니다.
-
-## 문서 지도
-
-- [`docs/README.md`](docs/README.md) — 설계 규칙과 챕터 지도
-- [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — 공통 계약
-- [`docs/TASK_INDEX.md`](docs/TASK_INDEX.md) — 구현 작업 큐
-- [`docs/01-product/`](docs/01-product/) — 범위·라이선스·제품 결정
-- [`docs/02-core/`](docs/02-core/) — Core·transport·state·upstream 경계
-- [`docs/03-zigbee/`](docs/03-zigbee/) — 코디네이터·pairing·converter·OTA
-- [`docs/04-matter/`](docs/04-matter/) — SDK·commissioning·fabric·endpoint·mapping
-- [`docs/05-platform/`](docs/05-platform/) — API·Home Assistant·frontend·배포
-- [`docs/06-migration/`](docs/06-migration/) — import·cutover·자동화 이관
-- [`docs/07-quality/`](docs/07-quality/) — hardware·동시성·성능·장애·보안·soak gate
-- [`docs/08-roadmap/`](docs/08-roadmap/) — 릴리스·자동화 pipeline
+구현 근거와 미실행 검증 항목은 로컬 `docs/`에 보관하며 저장소 이력에는 포함하지 않습니다.
 
 ## Upstream 관계
 
-Zigbee2Matter는 독립 포크로 유지됩니다. 개발자 작업공간에 형제 폴더 `Zigbee2Matter-upstream`이 있더라도 참조용이며 작업 트리가 아닙니다. Upstream 동기화는 [`docs/02-core/upstream/`](docs/02-core/upstream/)의 ledger와 patch 분류를 사용하고, MQTT 시대의 변경을 Matter transport 경계에 무분별하게 병합하지 않습니다.
+Zigbee2Matter는 독립 포크로 유지됩니다. 개발자 작업공간에 형제 폴더 `Zigbee2Matter-upstream`이 있더라도 참조용이며 작업 트리가 아닙니다.
+
+Upstream 동기화는 로컬 설계 ledger와 patch 분류를 사용하고, MQTT 시대의 변경을 Matter transport 경계에 무분별하게 병합하지 않습니다.
 
 Upstream 프로젝트: [Koenkk/zigbee2mqtt](https://github.com/Koenkk/zigbee2mqtt). 원 프로젝트와 기여자의 저작권 및 해당 라이선스를 보존합니다.
 

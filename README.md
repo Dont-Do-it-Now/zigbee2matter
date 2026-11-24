@@ -2,7 +2,7 @@
   <img src="images/logo.png" width="150" height="150" alt="Zigbee2Matter logo">
   <h1>Zigbee2Matter</h1>
   <p>A Zigbee-to-Matter bridge built from the Zigbee2MQTT codebase.</p>
-  <p><a href="README.ko.md">한국어 README</a> · <a href="docs/README.md">Design documentation</a> · <a href="LICENSE">License</a></p>
+  <p><a href="README.ko.md">한국어 README</a> · <a href="LICENSE">License</a></p>
 </div>
 
 Zigbee2Matter connects a Zigbee network to Matter ecosystems while keeping the proven Zigbee device, converter, coordinator, and interview paths from Zigbee2MQTT. It replaces the broker-dependent runtime boundary with an in-process bridge bus and adds Matter, REST, and WebSocket adapters.
@@ -11,7 +11,7 @@ This repository is a fork and an independent project. It is not an official Zigb
 
 ### Upstream baseline
 
-The independent `main` history starts from one source snapshot: Zigbee2MQTT `2.14.3`, upstream commit `3c841fdfd66c92239921ef84fde8f039c64e1662`, released on 2026-11-01. The independent Zigbee2Matter history was created on 2026-11-24. The original upstream commit history is intentionally not part of `main`; see [`docs/evidence/T003.md`](docs/evidence/T003.md) for the exact source boundary and reproduction details.
+The independent `main` history starts from one source snapshot: Zigbee2MQTT `2.14.3`, upstream commit `3c841fdfd66c92239921ef84fde8f039c64e1662`, released on 2026-11-01. The independent Zigbee2Matter history was created on 2026-11-24. The original upstream commit history is intentionally not part of `main`.
 
 ## What it does
 
@@ -51,11 +51,11 @@ Zigbee2Matter Core
 Matter fabrics · Home Assistant · existing frontend · other Matter controllers
 ```
 
-The main contracts are documented in [`docs/CONTRACTS.md`](docs/CONTRACTS.md): stable identities, revisioned state, explicit command results, ordered events with replay/resync, adapter boundaries, and redacted scoped API errors.
+The main contracts cover stable identities, revisioned state, explicit command results, ordered events with replay/resync, adapter boundaries, and redacted scoped API errors.
 
 ## Current implementation
 
-The implementation is being developed from the task cards in [`docs/TASK_INDEX.md`](docs/TASK_INDEX.md). The corresponding files in [`docs/evidence/`](docs/evidence/) record what is implemented and what has not been executed yet.
+Detailed task cards and verification records are maintained locally under `docs/` and are excluded from repository history.
 
 Implemented areas include:
 
@@ -90,7 +90,7 @@ pnpm run build
 pnpm start
 ```
 
-Use the existing Zigbee2MQTT configuration flow for coordinator and Zigbee settings. Matter-specific configuration belongs under [`docs/04-matter/`](docs/04-matter/).
+Use the existing Zigbee2MQTT configuration flow for coordinator and Zigbee settings. Matter runtime integration is exposed through the adapter boundaries under `lib/matter/`.
 
 ### Docker
 
@@ -98,7 +98,7 @@ The deployment skeleton is in [`docker/`](docker/). It supports persistent data,
 
 ## API
 
-The standalone API server exposes the versioned REST and WebSocket boundaries described in [`docs/CONTRACTS.md`](docs/CONTRACTS.md):
+The standalone API server exposes these versioned REST and WebSocket boundaries:
 
 ```text
 GET  /api/v1/devices
@@ -128,7 +128,7 @@ Home Assistant can be connected through:
 - **Matter mode:** Home Assistant's official Matter integration and Matter Server act as the controller.
 - **Hybrid mode:** Direct and Matter bindings are kept distinct and duplicate entity keys are rejected.
 
-See [`docs/04-matter/`](docs/04-matter/) and [`docs/05-platform/`](docs/05-platform/) for the detailed contracts.
+The corresponding implementation boundaries are under `lib/matter/` and `lib/api/`.
 
 ## Migration and recovery
 
@@ -140,7 +140,7 @@ Migration is staged and source-preserving:
 4. The staged directory is promoted atomically after validation.
 5. A target backup remains available for rollback; source data is not modified by failure handling.
 
-Do not reuse a data directory between independent bridge instances. Read [`docs/06-migration/`](docs/06-migration/) and create a backup before any cutover.
+Do not reuse a data directory between independent bridge instances. Create a backup before any cutover.
 
 ## Development
 
@@ -161,24 +161,15 @@ pnpm run test:fork
 
 The current working task instructions may deliberately prohibit these commands during an implementation pass. In that case, record them as `NOT RUN` and perform them in the authorized verification pass.
 
-## Documentation map
+## Local design notes
 
-- [`docs/README.md`](docs/README.md) — design rules and chapter map.
-- [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — cross-module contracts.
-- [`docs/TASK_INDEX.md`](docs/TASK_INDEX.md) — implementation queue.
-- [`docs/evidence/`](docs/evidence/) — implementation evidence and explicit `NOT RUN` verification records.
-- [`docs/01-product/`](docs/01-product/) — scope, licensing, and product decisions.
-- [`docs/02-core/`](docs/02-core/) — Core, transport, state, and upstream boundaries.
-- [`docs/03-zigbee/`](docs/03-zigbee/) — coordinator, pairing, converter, and OTA behavior.
-- [`docs/04-matter/`](docs/04-matter/) — SDK, commissioning, fabrics, endpoints, networking, and mappings.
-- [`docs/05-platform/`](docs/05-platform/) — APIs, Home Assistant, frontend, and deployment.
-- [`docs/06-migration/`](docs/06-migration/) — import, cutover, and automation migration.
-- [`docs/07-quality/`](docs/07-quality/) — hardware, concurrency, performance, fault, security, and soak gates.
-- [`docs/08-roadmap/`](docs/08-roadmap/) — release and automation pipeline.
+Detailed design notes and verification records are maintained locally under `docs/` and are intentionally excluded from repository history.
 
 ## Upstream relationship
 
-Zigbee2Matter is maintained as an independent fork. The sibling `Zigbee2Matter-upstream` checkout, when present in a developer workspace, is reference-only and is not the working tree. Upstream synchronization must use the ledger and patch classification in [`docs/02-core/upstream/`](docs/02-core/upstream/); do not blindly merge MQTT-era changes into the Matter transport boundary.
+Zigbee2Matter is maintained as an independent fork. The sibling `Zigbee2Matter-upstream` checkout, when present in a developer workspace, is reference-only and is not the working tree.
+
+Upstream synchronization must use the local design ledger and patch classification; do not blindly merge MQTT-era changes into the Matter transport boundary.
 
 Upstream project: [Koenkk/zigbee2mqtt](https://github.com/Koenkk/zigbee2mqtt). The original project and its contributors retain their applicable copyrights and licenses.
 
