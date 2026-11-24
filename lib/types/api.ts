@@ -171,6 +171,8 @@ export type Zigbee2MQTTSettings = {
         host?: string;
         port: number;
         auth_token?: string;
+        ssl_cert?: string;
+        ssl_key?: string;
     };
     devices: {[s: string]: Zigbee2MQTTDeviceOptions};
     groups: {[s: string]: Omit<Zigbee2MQTTGroupOptions, "ID">};

@@ -399,6 +399,18 @@
                     "title": "Auth token",
                     "description": "Bearer token for management API requests",
                     "requiresRestart": true
+                },
+                "ssl_cert": {
+                    "type": ["string", "null"],
+                    "title": "TLS certificate",
+                    "description": "Path to the TLS certificate for the management API",
+                    "requiresRestart": true
+                },
+                "ssl_key": {
+                    "type": ["string", "null"],
+                    "title": "TLS private key",
+                    "description": "Path to the TLS private key for the management API",
+                    "requiresRestart": true
                 }
             },
             "required": []

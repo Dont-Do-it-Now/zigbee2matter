@@ -70,6 +70,9 @@ export class Controller {
                 ? {
                       host: apiSettings.host,
                       port: apiSettings.port,
+                      ...(apiSettings.ssl_cert || apiSettings.ssl_key
+                          ? {tls: {cert: apiSettings.ssl_cert ?? "", key: apiSettings.ssl_key ?? ""}}
+                          : {}),
                       listDevices: () => this.listRestDevices(),
                       executeCommand: (input, principal) => this.executeRestCommand(input, principal),
                       snapshot: () => ({
