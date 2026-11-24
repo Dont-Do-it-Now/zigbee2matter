@@ -93,19 +93,20 @@ export class Controller {
         this.runtime = new BridgeRuntime({
             backup: {
                 snapshotProvider: {
-                    identity: () => this.networkIdentity,
-                    fabric: () => ({bridgeId: this.bridgeIdentity}),
+                    identity: () => ({...this.networkIdentity, bridgeId: this.bridgeIdentity}),
+                    fabric: () => this.runtime.matter.snapshotFabric(),
                 },
                 snapshotAdapter: {
                     restore: async (snapshot) => {
                         if (!isRecord(snapshot.identity) || snapshot.identity.networkId !== this.networkIdentity.networkId) {
                             return {applied: false, reason: "backup network identity does not match this bridge"};
                         }
-                        if (!isRecord(snapshot.fabric) || snapshot.fabric.bridgeId !== this.bridgeIdentity) {
+                        if (snapshot.identity.bridgeId !== this.bridgeIdentity) {
                             return {applied: false, reason: "backup bridge identity does not match this bridge"};
                         }
                         const registry = this.runtime.currentEndpointRegistry;
                         if (!registry) return {applied: false, reason: "endpoint registry is not open"};
+                        await this.runtime.matter.restoreFabric(snapshot.fabric);
                         await registry.restore(snapshot.endpointRegistry as EndpointRegistryDocument);
                         return {applied: true};
                     },

@@ -19,6 +19,7 @@ export {
     MatterSdkRuntime,
     type MatterEndpointFactory,
     type MatterEnvironment,
+    type MatterFabricStore,
     type MatterMainModule,
     type MatterNodeOptions,
     type MatterServerNode,

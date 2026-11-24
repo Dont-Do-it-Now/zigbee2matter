@@ -44,6 +44,12 @@ export interface MatterEndpointFactory {
     remove(entry: EndpointRegistryEntry): Promise<void>;
 }
 
+/** SDK-owned fabric/key-store persistence boundary. The runtime never serializes SDK internals itself. */
+export interface MatterFabricStore {
+    snapshot(): unknown | Promise<unknown>;
+    restore(snapshot: unknown): void | Promise<void>;
+}
+
 export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
     constructor(
         private readonly runtime: MatterSdkRuntime,
@@ -79,7 +85,22 @@ export class MatterSdkRuntime {
     private appliedEnvironment?: MatterEnvironment;
     private appliedEnvironmentNames: string[] = [];
 
-    constructor(private readonly environment: MatterEnvironment = processMatterEnvironment) {}
+    constructor(
+        private readonly environment: MatterEnvironment = processMatterEnvironment,
+        private readonly fabricStore?: MatterFabricStore,
+    ) {}
+
+    async snapshotFabric(): Promise<unknown> {
+        if (!this.fabricStore) throw new Error("Matter fabric store is not configured");
+
+        return await this.fabricStore.snapshot();
+    }
+
+    async restoreFabric(snapshot: unknown): Promise<void> {
+        if (!this.fabricStore) throw new Error("Matter fabric store is not configured");
+
+        await this.fabricStore.restore(snapshot);
+    }
 
     async load(): Promise<MatterMainModule> {
         if (this.module) return this.module;

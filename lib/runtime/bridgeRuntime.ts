@@ -6,7 +6,7 @@ import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../ap
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
-import {MatterSdkEndpointAdapter, MatterSdkRuntime, type MatterEndpointFactory, type MatterNodeOptions} from "../matter/sdkRuntime";
+import {MatterSdkEndpointAdapter, MatterSdkRuntime, type MatterEndpointFactory, type MatterFabricStore, type MatterNodeOptions} from "../matter/sdkRuntime";
 import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
@@ -33,6 +33,7 @@ export type {BackupSnapshotAdapter, BackupSnapshotProvider} from "./backupRestor
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly matterEndpointFactory?: MatterEndpointFactory;
+    readonly matterFabricStore?: MatterFabricStore;
     readonly commissioning?: CommissioningManager;
     readonly multiBridge?: {
         readonly registry?: MultiBridgeRegistry;
@@ -78,7 +79,7 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.fanout = new PlatformFanout(this.events);
-        this.matter = new MatterSdkRuntime();
+        this.matter = new MatterSdkRuntime(undefined, options.matterFabricStore);
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
         this.lifecycle = new ServiceLifecycle();
@@ -185,8 +186,8 @@ export class BridgeRuntime {
         const snapshot: PersistentSnapshot = {
             schema: "zigbee2matter.snapshot",
             version: 1,
-            identity: provider.identity(),
-            fabric: provider.fabric(),
+            identity: await provider.identity(),
+            fabric: await provider.fabric(),
             endpointRegistry: this.endpointRegistry.serialize(),
         };
         validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);

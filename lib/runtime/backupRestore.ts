@@ -1,8 +1,8 @@
 import type {PersistentSnapshot} from "../storage/backup";
 
 export interface BackupSnapshotProvider {
-    identity(): unknown;
-    fabric(): unknown;
+    identity(): unknown | Promise<unknown>;
+    fabric(): unknown | Promise<unknown>;
 }
 
 export interface BackupRestoreResult {
