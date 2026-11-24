@@ -174,10 +174,20 @@ export class MatterSdkRuntime {
                 ...(basicInformation ? {basicInformation} : {}),
                 ...(customCertification ? {operationalCredentials: customCertification} : {}),
             });
-            if (!sdk.Endpoint) throw new Error("Matter SDK does not expose Endpoint");
-            const {AggregatorEndpoint} = await import("@matter/main/endpoints/aggregator");
-            this.endpointContainer = new sdk.Endpoint(AggregatorEndpoint, {id: "aggregator"}) as MatterEndpointContainer;
-            await node.add(this.endpointContainer);
+            try {
+                if (!sdk.Endpoint) throw new Error("Matter SDK does not expose Endpoint");
+                const {AggregatorEndpoint} = await import("@matter/main/endpoints/aggregator");
+                this.endpointContainer = new sdk.Endpoint(AggregatorEndpoint, {id: "aggregator"}) as MatterEndpointContainer;
+                await node.add(this.endpointContainer);
+            } catch (error) {
+                this.endpointContainer = undefined;
+                try {
+                    await node.close();
+                } catch {
+                    // Preserve the original endpoint setup error.
+                }
+                throw error;
+            }
             this.node = node;
             this.nodeId = options.id;
             this.started = false;
