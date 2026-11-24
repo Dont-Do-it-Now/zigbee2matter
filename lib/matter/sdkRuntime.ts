@@ -1,5 +1,5 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
-import type {MatterNetworkConfig} from "./networkConfig";
+import {toMatterEnvVars, toServerNodeNetworkState, type MatterNetworkConfig} from "./networkConfig";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
 
@@ -27,6 +27,11 @@ export interface MatterNodeOptions {
     readonly vendorId?: number;
     readonly productId?: number;
     readonly productName?: string;
+    readonly environment?: MatterEnvironment;
+}
+
+export interface MatterEnvironment {
+    set(name: string, value: string | boolean): void;
 }
 
 export interface MatterEndpointFactory {
@@ -59,6 +64,8 @@ export class MatterSdkRuntime {
     private nodeId?: string;
     private started = false;
 
+    constructor(private readonly environment: MatterEnvironment = processMatterEnvironment) {}
+
     async load(): Promise<MatterMainModule> {
         if (this.module) return this.module;
         const moduleName: string = "@matter/main";
@@ -77,6 +84,10 @@ export class MatterSdkRuntime {
         if ((options.passcode === undefined) !== (options.discriminator === undefined)) {
             throw new Error("Matter passcode and discriminator must be provided together");
         }
+        for (const [name, value] of Object.entries(toMatterEnvVars(options.network ?? {}))) {
+            (options.environment ?? this.environment).set(name, value);
+        }
+
         const sdk = await this.load();
         const commissioning = options.passcode === undefined || options.discriminator === undefined
             ? undefined
@@ -94,7 +105,7 @@ export class MatterSdkRuntime {
         if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
         const node = await sdk.ServerNode.create(rootEndpoint, {
             id: options.id,
-            ...(options.network ? {network: options.network} : {}),
+            ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
             ...(commissioning ? {commissioning} : {}),
             ...(basicInformation ? {basicInformation} : {}),
         });
@@ -128,3 +139,10 @@ export class MatterSdkRuntime {
         return this.node;
     }
 }
+
+const processMatterEnvironment: MatterEnvironment = {
+    set(name, value): void {
+        const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
+        process.env[processName] = String(value);
+    },
+};
