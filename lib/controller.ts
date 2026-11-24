@@ -184,11 +184,14 @@ export class Controller {
                           listFabrics: () => this.runtime.commissioning.listFabrics(),
                           listEndpoints: () => this.runtime.currentEndpointRegistry?.list() ?? [],
                       },
-                      snapshot: () => ({
-                          epoch: this.runtime.events.epoch,
-                          sequence: this.runtime.events.lastSequence,
-                          payload: {devices: this.listRestDevices()},
-                      }),
+                      snapshot: () => {
+                          const snapshot = this.runtime.stateSnapshots.snapshot();
+                          return {
+                              epoch: snapshot.epoch,
+                              sequence: snapshot.watermark,
+                              payload: {records: snapshot.records, revision: snapshot.revision},
+                          };
+                      },
                   }
                 : undefined,
         });
