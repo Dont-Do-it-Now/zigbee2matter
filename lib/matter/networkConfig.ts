@@ -61,7 +61,10 @@ export function toServerNodeNetworkState(config: MatterNetworkConfig): {
     listeningAddressIpv6?: string;
 } {
     const state: ReturnType<typeof toServerNodeNetworkState> = {};
-    if (config.port !== undefined) state.port = config.port;
+    if (config.port !== undefined) {
+        assertMatterPort(config.port);
+        state.port = config.port;
+    }
     if (config.ipv4 !== undefined) state.ipv4 = config.ipv4;
     if (config.listeningAddressIpv4) state.listeningAddressIpv4 = config.listeningAddressIpv4;
     if (config.listeningAddressIpv6) state.listeningAddressIpv6 = config.listeningAddressIpv6;
@@ -82,7 +85,7 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
         out.push({level, code, message});
     };
 
-    if (config.port !== undefined && (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535)) {
+    if (config.port !== undefined && !isMatterPort(config.port)) {
         add("error", "PORT_INVALID", `Matter port ${config.port} is not an integer in 1..65535`);
     } else if (config.port !== undefined && config.port < 1024 && env.platform() !== "win32") {
         add("warn", "PORT_PRIVILEGED", `Matter port ${config.port} is < 1024; requires root/CAP_NET_BIND_SERVICE`);
@@ -170,6 +173,8 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
 
 /** UDP 포트 선점 여부 사전 확인(udp6). 점유 중이면 에러 문자열, 가능하면 undefined. 확인 직후 소켓을 닫는다. */
 export function probeUdpPortFree(port: number, address = "::"): Promise<string | undefined> {
+    if (!isMatterPort(port)) return Promise.resolve(`UDP port ${port} is not an integer in 1..65535`);
+
     return new Promise((resolve) => {
         const socket = dgram.createSocket({type: "udp6", ipv6Only: true});
         socket.once("error", (error: NodeJS.ErrnoException) => {
@@ -182,6 +187,14 @@ export function probeUdpPortFree(port: number, address = "::"): Promise<string |
         });
         socket.bind(port, address, () => socket.close(() => resolve(undefined)));
     });
+}
+
+function isMatterPort(value: number): value is number {
+    return Number.isSafeInteger(value) && value >= 1 && value <= 65535;
+}
+
+function assertMatterPort(value: number): asserts value is number {
+    if (!isMatterPort(value)) throw new Error(`Matter port ${value} is not an integer in 1..65535`);
 }
 
 /** mDNS 5353 점유 참고: SDK는 reuseAddress로 5353을 공유 바인딩한다(avahi/mDNSResponder와 공존 가능). 별도 프로브 불필요. */
