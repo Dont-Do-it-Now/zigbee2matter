@@ -33,6 +33,10 @@ export function classifyExposes(
     const mappedKeys = new Set(mapped.map(featureKey));
     const directOnlyKeys = new Set(directOnly.map(featureKey));
 
+    for (const key of mappedKeys) {
+        if (directOnlyKeys.has(key)) throw new Error(`feature cannot be both mapped and direct-only: ${key}`);
+    }
+
     return flatten(exposes).map((expose) => {
         const key = featureKey(expose);
         if (mappedKeys.has(key)) {

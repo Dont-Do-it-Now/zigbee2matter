@@ -87,6 +87,7 @@ export class CommissioningManager {
     addFabric(fabric: FabricRecord): void {
         if (!fabric.fabricId || !fabric.administratorId) throw new Error("fabric identity is required");
         if (!Number.isSafeInteger(fabric.addedAt) || fabric.addedAt < 0) throw new Error("fabric addedAt must be a non-negative safe integer");
+        if (this.fabrics.has(fabric.fabricId)) throw new Error(`fabric already registered: ${fabric.fabricId}`);
         this.fabrics.set(fabric.fabricId, {...fabric});
     }
 
