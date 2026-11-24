@@ -7,6 +7,8 @@ export interface DeviceCommandQueueOptions {
     maxConcurrent?: number;
     /** Returns all device keys affected by a command. The default uses the target entity. */
     keyResolver?: (command: Command) => ReadonlyArray<string>;
+    /** Called when a scheduled runner throws synchronously. The queue still advances. */
+    onRunError?: (command: Command, error: unknown) => void;
 }
 
 interface Entry {
@@ -24,12 +26,14 @@ export default class DeviceCommandQueue {
     private readonly keyResolver: (command: Command) => ReadonlyArray<string>;
     private readonly maxPending: number;
     private readonly maxConcurrent: number;
+    private readonly onRunError?: DeviceCommandQueueOptions["onRunError"];
     private pendingCount = 0;
     private stopped = false;
 
     constructor(options: DeviceCommandQueueOptions = {}) {
         this.maxPending = options.maxPending ?? Infinity;
         this.maxConcurrent = options.maxConcurrent ?? Infinity;
+        this.onRunError = options.onRunError;
         this.keyResolver =
             options.keyResolver ??
             ((command) => [command.operation === "request" ? `bridge:${command.target.request}` : command.target.entity]);
@@ -93,7 +97,22 @@ export default class DeviceCommandQueue {
 
     private start(entry: Entry, keys: ReadonlyArray<string>): void {
         this.running.set(entry.command.requestId, keys);
-        entry.run();
+        try {
+            entry.run();
+        } catch (error) {
+            // A runner is an adapter boundary. Its synchronous failure must not leave
+            // the request in `running`, otherwise every command sharing its keys stalls.
+            this.running.delete(entry.command.requestId);
+            this.pendingCount = Math.max(0, this.pendingCount - 1);
+            try {
+                this.onRunError?.(entry.command, error);
+            } catch {
+                // Error reporting must not prevent the scheduler from advancing.
+            }
+            if (!this.stopped) {
+                this.pump();
+            }
+        }
     }
 
     private pump(): void {

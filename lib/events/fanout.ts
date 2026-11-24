@@ -106,9 +106,12 @@ export default class PlatformFanout {
                 : registration.queue.findIndex((queued) => queued.type === event.type && queued.key === event.key);
 
             if (matchingStateIndex >= 0) {
-                registration.queue[matchingStateIndex] = event;
+                // Keep the replacement at the tail so queued sequence numbers stay monotonic.
+                // Replacing in place could deliver a newer event before an older queued event.
+                const [dropped] = registration.queue.splice(matchingStateIndex, 1);
+                registration.queue.push(event);
                 registration.stats.dropped += 1;
-                this.reportDrop(registration, event, "state");
+                this.reportDrop(registration, dropped, "state");
             } else if (stateIndex >= 0) {
                 const [dropped] = registration.queue.splice(stateIndex, 1);
                 registration.queue.push(event);
