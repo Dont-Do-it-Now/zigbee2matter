@@ -311,6 +311,7 @@ export class Controller {
     }
 
     private async executeRestCommand(input: unknown, principal: Principal): Promise<unknown> {
+        this.runtime.lifecycle.assertCommandsAllowed();
         if (!isRecord(input) || typeof input.requestId !== "string" || typeof input.correlationId !== "string" || typeof input.deadline !== "number") {
             throw new ApiError("INVALID_ARGUMENT", "requestId, correlationId and deadline are required");
         }
