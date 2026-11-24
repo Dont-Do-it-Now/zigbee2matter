@@ -19,7 +19,6 @@
         {"file": "lib/types/dom.shim.d.ts", "pattern": "sub-deps in mqtt", "category": "shim-comment", "max": 1, "reason": "파일은 srvx용으로 유지(T006). 주석만 잔존"},
         {"file": "package.json", "pattern": "Zigbee to MQTT bridge", "category": "branding", "max": 1, "reason": "description 브랜딩 작업 대상"},
         {"file": "docker/Dockerfile", "pattern": "Zigbee to MQTT bridge", "category": "branding", "max": 1, "reason": "LABEL description 브랜딩 작업 대상"},
-        {"file": "data/configuration.example.yaml", "pattern": "MQTT discovery", "category": "wording", "max": 1, "reason": "Home Assistant 항목 주석"},
         {"file": "scripts/upstream-ledger.mjs", "pattern": "MQTT|mqtt", "category": "gate-rule", "max": 6, "reason": "T007 분류기가 MQTT/MIXED 경계를 판정하는 코드"},
         {"file": "scripts/lockfile-recovery.mjs", "pattern": "MQTT|mqtt", "category": "gate-rule", "max": 10, "reason": "T007/T076 lockfile 금지 패키지 복구 gate 자체"},
         {"file": ".github/workflows/quality.yml", "pattern": "MQTT|mqtt", "category": "gate-invocation", "max": 3, "reason": "T072 gate 호출만 허용하며 생산 의존성은 별도 검사"}
