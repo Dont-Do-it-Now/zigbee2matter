@@ -60,6 +60,14 @@ export interface PerformanceSample {
     failed?: boolean;
 }
 
+export interface PerformanceRecordInput {
+    path: PerformancePath;
+    scale: PerformanceScale;
+    samples: ReadonlyArray<PerformanceSample>;
+    environment?: PerformanceEnvironment;
+    notes?: ReadonlyArray<string>;
+}
+
 const METRICS = ["latency", "cpu", "ram", "failureRate", "rfTxCount"] as const;
 
 /** 실행자가 채워야 하는 12개(path × scale) 측정 계획을 만든다. */
@@ -123,5 +131,22 @@ export function summarizeResources(samples: ReadonlyArray<PerformanceSample>): R
         attempts: samples.length,
         failures,
         failureRate: failures / samples.length,
+    };
+}
+
+/** 실행자가 수집한 표본을 검증된 RECORDED 측정값으로 변환한다. 장치나 프로세스를 실행하지 않는다. */
+export function recordPerformance(input: PerformanceRecordInput): PerformanceMeasurement {
+    if (!PERFORMANCE_PATHS.includes(input.path) || !PERFORMANCE_SCALES.includes(input.scale)) {
+        throw new Error("unknown performance path or scale");
+    }
+
+    return {
+        path: input.path,
+        scale: input.scale,
+        status: "RECORDED",
+        latency: summarizeLatency(input.samples.map((sample) => sample.latencyMs)),
+        resources: summarizeResources(input.samples),
+        environment: input.environment,
+        notes: input.notes,
     };
 }
