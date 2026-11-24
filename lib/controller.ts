@@ -30,6 +30,7 @@ import {ApiError, type Principal} from "./api/auth";
 import {CallbackHaIntegrationAdapter, HaIntegrationRouter, type HaCommand} from "./api/haIntegration";
 import {HaHybridPolicy} from "./api/haHybrid";
 import {ReportingRegistry} from "./matter/reporting";
+import {CommissioningManager} from "./matter/commissioning";
 import {FileApiTokenStore} from "./api/tokenStore";
 import {runMigrationOperations, type MigrationOperationsInput} from "./migration/operations";
 import CommandRouter from "./command/router";
@@ -64,6 +65,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export interface ControllerOptions {
     readonly matterEndpointFactory?: MatterEndpointFactory;
     readonly matterFabricStore?: MatterFabricStore;
+    readonly commissioning?: CommissioningManager;
 }
 
 export class Controller {
@@ -104,6 +106,7 @@ export class Controller {
         this.runtime = new BridgeRuntime({
             matterEndpointFactory: options.matterEndpointFactory,
             matterFabricStore: options.matterFabricStore,
+            commissioning: options.commissioning,
             backup: {
                 snapshotProvider: {
                     identity: () => ({...this.networkIdentity, bridgeId: this.bridgeIdentity}),
