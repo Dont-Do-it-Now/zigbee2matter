@@ -25,7 +25,11 @@ const AS_JSON = args.includes("--json");
 const STRICT_TEST = args.includes("--strict-test");
 
 // 금지 패키지: mqtt 클라이언트/브로커. 허용 패키지는 allowlist.allowedPackages (브랜드 이름 zigbee2mqtt*).
-const FORBIDDEN_PKG = /^(@[\w.-]+\/)?(mqtt\d*|mqtt[_.-].+|.+[-_.]mqtt\d*|async-mqtt|paho-mqtt|aedes(-.+)?|mosca|mosquitto(-.+)?|emqx(-.+)?|hivemq(-.+)?|vernemq(-.+)?)$/i;
+const FORBIDDEN_PKG = new RegExp(
+    "^(@[\\w.-]+\\/)?(mqtt\\d*|mqtt[_.-].+|.+[-_.]mqtt\\d*|async-mqtt|paho-mqtt|aedes(-.+)?|mosca|" +
+        "mosquitto(-.+)?|emqx(-.+)?|hivemq(-.+)?|vernemq(-.+)?)$",
+    "i",
+);
 const FORBIDDEN_PKG_PREFIX = /^@[^/]*(mqtt|emqx|aedes|hivemq|vernemq)[^/]*\//i;
 // 하드 금지(코드 패턴): 허용 목록으로 풀 수 없다.
 const HARD_BAN = [
@@ -83,7 +87,8 @@ try {
     const pkg = JSON.parse(text);
     const src = text.split(/\r?\n/);
     const names = new Set();
-    for (const f of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) Object.keys(pkg[f] ?? {}).forEach((n) => names.add(n));
+    for (const f of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"])
+        Object.keys(pkg[f] ?? {}).forEach((n) => names.add(n));
     for (const f of [pkg.pnpm?.overrides, pkg.overrides, pkg.resolutions]) Object.keys(f ?? {}).forEach((n) => names.add(n));
     for (const n of names) {
         if (!isForbiddenPkg(n)) continue;
@@ -112,7 +117,11 @@ for (const f of ["pnpm-workspace.yaml", "pnpm-lock.yaml"]) {
 // 파일 전체 텍스트 매칭(줄 나뉨 허용): from "x", import("x"), require("x"), import "x", createRequire(...)("x"), 백틱 리터럴
 const IMPORT_RE = /(?:\b(?:from|import)\s*["']([^"'\n]+)["'])|(?:(?:\bimport\s*\(|\brequire\s*\(|\)\s*\()\s*["'`]([^"'`$\n]+)["'`])/g;
 const pkgOf = (spec) => (spec.startsWith(".") || spec.startsWith("node:") ? null : spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/"));
-const importFiles = [...walk(join(ROOT, "lib")), ...["index.js", "cli.js"].map((f) => join(ROOT, f)).filter(existsSync), ...walk(join(ROOT, "scripts")).filter((p) => !SELF.test(rel(p)))];
+const importFiles = [
+    ...walk(join(ROOT, "lib")),
+    ...["index.js", "cli.js"].map((f) => join(ROOT, f)).filter(existsSync),
+    ...walk(join(ROOT, "scripts")).filter((p) => !SELF.test(rel(p))),
+];
 const testFiles = walk(join(ROOT, "test"));
 for (const [files, target] of [
     [importFiles, violations],
@@ -142,8 +151,10 @@ for (const p of walk(join(ROOT, "lib"))) if (/mqtt/i.test(p.split(sep).pop().rep
     const visit = (node, path) => {
         if (Array.isArray(node)) return node.forEach((v, i) => visit(v, `${path}[${i}]`));
         if (node === null || typeof node !== "object") return;
-        if (Array.isArray(node.required) && node.required.includes("mqtt")) add("C-schema", "lib/util/settings.schema.json", 0, `${path}.required 에 'mqtt'`);
-        if (typeof node.$ref === "string" && /mqtt/i.test(node.$ref.replace(BRAND, ""))) add("C-schema", "lib/util/settings.schema.json", 0, `${path}.$ref '${node.$ref}'`);
+        if (Array.isArray(node.required) && node.required.includes("mqtt"))
+            add("C-schema", "lib/util/settings.schema.json", 0, `${path}.required 에 'mqtt'`);
+        if (typeof node.$ref === "string" && /mqtt/i.test(node.$ref.replace(BRAND, "")))
+            add("C-schema", "lib/util/settings.schema.json", 0, `${path}.$ref '${node.$ref}'`);
         for (const [k, v] of Object.entries(node)) {
             if ((path.endsWith(".properties") || path.endsWith("$defs") || path.endsWith("definitions")) && k.toLowerCase() === "mqtt") {
                 add("C-schema", "lib/util/settings.schema.json", 0, `${path}.${k} mqtt 섹션/정의 재등장`);
@@ -157,7 +168,10 @@ for (const p of walk(join(ROOT, "lib"))) if (/mqtt/i.test(p.split(sep).pop().rep
         add("C-schema", "lib/util/settings.schema.json", 0, `읽기/파싱 실패: ${e.message}`);
     }
     const ex = join(ROOT, "data/configuration.example.yaml");
-    if (existsSync(ex)) lines(ex).forEach((l, i) => /^mqtt\s*:/.test(l) && add("C-schema", "data/configuration.example.yaml", i + 1, "최상위 'mqtt:' 섹션 재등장"));
+    if (existsSync(ex))
+        lines(ex).forEach(
+            (l, i) => /^mqtt\s*:/.test(l) && add("C-schema", "data/configuration.example.yaml", i + 1, "최상위 'mqtt:' 섹션 재등장"),
+        );
 })();
 
 // (D) 식별자/문자열 잔존: 하드 금지 -> 브랜드 제거 -> 마커 주석 -> allowlist
@@ -198,6 +212,7 @@ if (AS_JSON) console.log(JSON.stringify({violations, warnings}, null, 2));
 else {
     for (const v of violations) console.log(`VIOLATION [${v.rule}] ${v.file}${v.line ? `:${v.line}` : ""} ${v.msg}`);
     for (const w of warnings) console.log(`WARN [${w.rule}] ${w.file}${w.line ? `:${w.line}` : ""} ${w.msg}`);
-    console.log(`mqtt-free-gate: ${violations.length} violation(s), ${warnings.length} warning(s)${STRICT_TEST ? "" : " (test/** 는 경고, --strict-test 로 승격)"}`);
+    const hint = STRICT_TEST ? "" : " (test/** 는 경고, --strict-test 로 승격)";
+    console.log(`mqtt-free-gate: ${violations.length} violation(s), ${warnings.length} warning(s)${hint}`);
 }
 process.exit(violations.length ? 1 : 0);

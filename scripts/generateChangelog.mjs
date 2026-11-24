@@ -115,7 +115,8 @@ for (const changelog of changelogs) {
                     commitUserKey in commitUserLookup
                         ? commitUserLookup[commitUserKey]
                         : execSync(
-                              `curl -s ${githubToken ? `-H "Authorization: Bearer ${githubToken}" ` : ""}https://api.github.com/repos/${changelog.project}/commits/${commit} | jq -r '.author.login'`,
+                              `curl -s ${githubToken ? `-H "Authorization: Bearer ${githubToken}" ` : ""}` +
+                              `https://api.github.com/repos/${changelog.project}/commits/${commit} | jq -r '.author.login'`,
                           )
                               .toString()
                               .trim();

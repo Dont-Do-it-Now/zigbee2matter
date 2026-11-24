@@ -46,7 +46,8 @@ const result = {
     errors,
     warnings,
     lockfileSha256: lockText ? createHash("sha256").update(lockText).digest("hex") : undefined,
-    recovery: "After approval, restore the last known-good lockfile or run 'pnpm install --lockfile-only'; review the diff, then require 'pnpm install --frozen-lockfile'. Never hand-edit the lockfile.",
+    recovery: "After approval, restore the last known-good lockfile or run 'pnpm install --lockfile-only'; review the diff, " +
+        "then require 'pnpm install --frozen-lockfile'. Never hand-edit the lockfile.",
 };
 
 if (jsonOutput) console.log(JSON.stringify(result, null, 2));

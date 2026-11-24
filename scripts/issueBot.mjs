@@ -80,10 +80,12 @@ export async function newDeviceSupport(github, _core, context, zhcDir) {
                     repo: context.repo.repo,
                     issue_number: issue.number,
                     body: `👋 Hi there! The Tuya device with manufacturer name \`${fullName}\` is already supported in the latest dev branch.
-See this [guide](https://www.zigbee2mqtt.io/advanced/more/switch-to-dev-branch.html) on how to update, after updating you can remove your external converter.
+See this [guide](https://www.zigbee2mqtt.io/advanced/more/switch-to-dev-branch.html) on how to update, \
+after updating you can remove your external converter.
 
 In case you created the external converter with the goal to extend or fix an issue with the out-of-the-box support, please submit a pull request.
-For instructions on how to create a pull request see the [docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
+For instructions on how to create a pull request see the \
+[docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
 If you need help with the process, feel free to ask here and we'll be happy to assist.`,
                 });
                 await github.rest.issues.update({
@@ -134,10 +136,12 @@ Let us know if it works so we can support this device out-of-the-box!`,
                         repo: context.repo.repo,
                         issue_number: issue.number,
                         body: `👋 Hi there! The device with zigbee model \`${zigbeeModel}\` is already supported in the latest dev branch.
-See this [guide](https://www.zigbee2mqtt.io/advanced/more/switch-to-dev-branch.html) on how to update, after updating you can remove your external converter.
+See this [guide](https://www.zigbee2mqtt.io/advanced/more/switch-to-dev-branch.html) on how to update, \
+after updating you can remove your external converter.
 
 In case you created the external converter with the goal to extend or fix an issue with the out-of-the-box support, please submit a pull request.
-For instructions on how to create a pull request see the [docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
+For instructions on how to create a pull request see the \
+[docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
 
 If you need help with the process, feel free to ask here and we'll be happy to assist.`,
                     });
@@ -162,12 +166,15 @@ If you need help with the process, feel free to ask here and we'll be happy to a
         body: `🙏 Thank you for creating this issue and sharing your external converter!
 
 In case all features work, please submit a pull request on this repository so the device can be supported out-of-the-box with the next release.
-For instructions on how to create a pull request see the [docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
+For instructions on how to create a pull request see the \
+[docs](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html#_4-create-a-pull-request).
 
-If **NOT** all features work, please follow the [How To Support new devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html).
+If **NOT** all features work, please follow the \
+[How To Support new devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html).
 ${
     tuyaManufacturerNames.length > 0
-        ? "Since this is a Tuya also consider [How To Support new Tuya devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/02_support_new_tuya_devices.html)."
+        ? "Since this is a Tuya also consider " +
+            "[How To Support new Tuya devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/02_support_new_tuya_devices.html)."
         : ""
 }
 
