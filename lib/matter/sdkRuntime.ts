@@ -11,6 +11,10 @@ export interface MatterServerNode {
     add(endpoint: unknown): Promise<unknown>;
 }
 
+interface MatterEndpointContainer {
+    add(endpoint: unknown): Promise<unknown>;
+}
+
 export interface MatterMainModule {
     ServerNode: {
         create(options: Record<string, unknown>): Promise<MatterServerNode>;
@@ -78,6 +82,7 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
 export class MatterSdkRuntime {
     private module?: MatterMainModule;
     private node?: MatterServerNode;
+    private endpointContainer?: MatterEndpointContainer;
     private nodeId?: string;
     private started = false;
     private appliedEnvironment?: MatterEnvironment;
@@ -169,6 +174,10 @@ export class MatterSdkRuntime {
                 ...(basicInformation ? {basicInformation} : {}),
                 ...(customCertification ? {operationalCredentials: customCertification} : {}),
             });
+            if (!sdk.Endpoint) throw new Error("Matter SDK does not expose Endpoint");
+            const {AggregatorEndpoint} = await import("@matter/main/endpoints/aggregator");
+            this.endpointContainer = new sdk.Endpoint(AggregatorEndpoint, {id: "aggregator"}) as MatterEndpointContainer;
+            await node.add(this.endpointContainer);
             this.node = node;
             this.nodeId = options.id;
             this.started = false;
@@ -182,8 +191,8 @@ export class MatterSdkRuntime {
     }
 
     async addEndpoint(endpoint: unknown): Promise<unknown> {
-        if (!this.node) throw new Error("Matter node has not been created");
-        return await this.node.add(endpoint);
+        if (!this.node || !this.endpointContainer) throw new Error("Matter node has not been created");
+        return await this.endpointContainer.add(endpoint);
     }
 
     async start(): Promise<void> {
@@ -200,6 +209,7 @@ export class MatterSdkRuntime {
         } finally {
             this.node = undefined;
             this.nodeId = undefined;
+            this.endpointContainer = undefined;
             this.started = false;
             this.clearAppliedEnvironment();
         }
