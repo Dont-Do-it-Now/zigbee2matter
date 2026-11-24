@@ -115,6 +115,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (!capability) return;
 
         const patch: Record<string, unknown> = {};
+        if (typeof state.available === "boolean") {
+            patch.bridgedDeviceBasicInformation = {reachable: state.available};
+        }
         if (capability === "light") {
             if (state.state === "ON" || state.state === "OFF") patch.onOff = {onOff: state.state === "ON"};
             if (typeof state.brightness === "number") patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
