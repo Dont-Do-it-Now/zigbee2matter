@@ -32,6 +32,7 @@ export interface MatterNodeOptions {
 
 export interface MatterEnvironment {
     set(name: string, value: string | boolean): void;
+    unset(name: string): void;
 }
 
 export interface MatterEndpointFactory {
@@ -63,6 +64,8 @@ export class MatterSdkRuntime {
     private node?: MatterServerNode;
     private nodeId?: string;
     private started = false;
+    private appliedEnvironment?: MatterEnvironment;
+    private appliedEnvironmentNames: string[] = [];
 
     constructor(private readonly environment: MatterEnvironment = processMatterEnvironment) {}
 
@@ -84,35 +87,42 @@ export class MatterSdkRuntime {
         if ((options.passcode === undefined) !== (options.discriminator === undefined)) {
             throw new Error("Matter passcode and discriminator must be provided together");
         }
-        for (const [name, value] of Object.entries(toMatterEnvVars(options.network ?? {}))) {
-            (options.environment ?? this.environment).set(name, value);
-        }
+        const environment = options.environment ?? this.environment;
+        const environmentNames = Object.keys(toMatterEnvVars(options.network ?? {}));
+        for (const [name, value] of Object.entries(toMatterEnvVars(options.network ?? {}))) environment.set(name, value);
 
-        const sdk = await this.load();
-        const commissioning = options.passcode === undefined || options.discriminator === undefined
-            ? undefined
-            : {passcode: options.passcode, discriminator: options.discriminator};
-        const basicInformation = options.vendorId === undefined || options.productId === undefined
-            ? undefined
-            : {
-                  vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId,
-                  productId: options.productId,
-                  productName: options.productName ?? "Zigbee2Matter Bridge",
-                  nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
-                  serialNumber: options.id,
-              };
-        const rootEndpoint = sdk.ServerNode.RootEndpoint ?? sdk.ServerNode.RootEndpointWithoutGroupcast;
-        if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
-        const node = await sdk.ServerNode.create(rootEndpoint, {
-            id: options.id,
-            ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
-            ...(commissioning ? {commissioning} : {}),
-            ...(basicInformation ? {basicInformation} : {}),
-        });
-        this.node = node;
-        this.nodeId = options.id;
-        this.started = false;
-        return node;
+        try {
+            const sdk = await this.load();
+            const commissioning = options.passcode === undefined || options.discriminator === undefined
+                ? undefined
+                : {passcode: options.passcode, discriminator: options.discriminator};
+            const basicInformation = options.vendorId === undefined || options.productId === undefined
+                ? undefined
+                : {
+                      vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId,
+                      productId: options.productId,
+                      productName: options.productName ?? "Zigbee2Matter Bridge",
+                      nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
+                      serialNumber: options.id,
+                  };
+            const rootEndpoint = sdk.ServerNode.RootEndpoint ?? sdk.ServerNode.RootEndpointWithoutGroupcast;
+            if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
+            const node = await sdk.ServerNode.create(rootEndpoint, {
+                id: options.id,
+                ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
+                ...(commissioning ? {commissioning} : {}),
+                ...(basicInformation ? {basicInformation} : {}),
+            });
+            this.node = node;
+            this.nodeId = options.id;
+            this.started = false;
+            this.appliedEnvironment = environment;
+            this.appliedEnvironmentNames = environmentNames;
+            return node;
+        } catch (error) {
+            for (const name of environmentNames) environment.unset(name);
+            throw error;
+        }
     }
 
     async addEndpoint(endpoint: unknown): Promise<unknown> {
@@ -129,20 +139,40 @@ export class MatterSdkRuntime {
 
     async stop(): Promise<void> {
         if (!this.node) return;
-        await this.node.close();
-        this.node = undefined;
-        this.nodeId = undefined;
-        this.started = false;
+        try {
+            await this.node.close();
+        } finally {
+            this.node = undefined;
+            this.nodeId = undefined;
+            this.started = false;
+            this.clearAppliedEnvironment();
+        }
     }
 
     get currentNode(): MatterServerNode | undefined {
         return this.node;
     }
+
+    private clearAppliedEnvironment(): void {
+        if (!this.appliedEnvironment) return;
+        for (const name of this.appliedEnvironmentNames) this.appliedEnvironment.unset(name);
+        this.appliedEnvironment = undefined;
+        this.appliedEnvironmentNames = [];
+    }
 }
 
+const previousProcessEnvironment = new Map<string, string | undefined>();
 const processMatterEnvironment: MatterEnvironment = {
     set(name, value): void {
         const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
+        if (!previousProcessEnvironment.has(processName)) previousProcessEnvironment.set(processName, process.env[processName]);
         process.env[processName] = String(value);
+    },
+    unset(name): void {
+        const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
+        const previous = previousProcessEnvironment.get(processName);
+        if (previous === undefined) delete process.env[processName];
+        else process.env[processName] = previous;
+        previousProcessEnvironment.delete(processName);
     },
 };

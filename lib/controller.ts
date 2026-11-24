@@ -362,6 +362,11 @@ export class Controller {
             await this.runtime.start();
         } catch (error) {
             logger.error(`Bridge runtime failed to start, exiting... (${(error as Error).message})`);
+            try {
+                await this.runtime.stop();
+            } catch (stopError) {
+                logger.error(`Failed to clean up bridge runtime startup (${(stopError as Error).message})`);
+            }
             this.commandRouter.stop();
             await this.bridgeBus.disconnect();
             await this.zigbee.stop();
