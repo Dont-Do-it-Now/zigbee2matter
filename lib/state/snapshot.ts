@@ -46,9 +46,10 @@ export default class StateSnapshotCoordinator {
 
     snapshot(): StateSnapshot {
         const records = this.state.list();
-        const event = this.stream.publish("snapshot", "bridge", {records}, {revision: this.state.lastRevision});
+        const revision = this.state.lastRevision;
+        const event = this.stream.publish("snapshot", "bridge", {records}, {revision});
 
-        return {epoch: event.epoch, watermark: event.sequence, revision: this.state.lastRevision, records};
+        return {epoch: event.epoch, watermark: event.sequence, revision, records};
     }
 
     resetEpoch(): StateSnapshot {

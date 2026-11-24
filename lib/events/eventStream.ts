@@ -168,6 +168,7 @@ export class EventStream {
         this.epochId = randomUUID();
         this.seq = 0;
         this.buffer = [];
+        this.pending.length = 0;
         this.publish("snapshot", "bridge", {reason: "epochReset"});
 
         return this.epochId;
