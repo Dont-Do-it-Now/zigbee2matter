@@ -1,8 +1,8 @@
 /**
  * Command router contracts (T012, CONTRACTS C3/C5/C6). No Matter/HTTP import (C5): adapters build `Command` and call the router.
  *
- * `target` uses the existing upstream entity interface (friendly name or IEEE string) until T019 `DeviceKey` is wired in
- * (see docs/evidence/T012.md OPEN QUESTION): a `TargetResolver` port converts whatever the adapter has into the canonical name.
+ * `target` accepts the existing upstream entity interface (friendly name or IEEE string) or a stable T019 entity key.
+ * A `TargetResolver` converts either form into the canonical upstream name and endpoint.
  */
 
 export type CommandSource = "matter" | "http" | "ws" | "internal";
@@ -35,7 +35,9 @@ export interface CommandIdentity {
 
 /** Device/group target: friendly name or IEEE string as known to upstream (`Zigbee.resolveEntity`). */
 export interface EntityTarget {
-    entity: string;
+    entity?: string;
+    /** Canonical `dev:`/`grp:` entity key. When supplied, endpoint comes from the key. */
+    key?: string;
     /** Z2M endpoint label or numeric string (upstream `<name>/<endpoint>/set`). */
     endpoint?: string;
 }
@@ -91,10 +93,10 @@ export interface CommandResult {
 }
 
 export type ResolvedTarget =
-    | {ok: true; name: string; kind: "device" | "group"; supported: boolean; endpointNames: ReadonlyArray<string>}
+    | {ok: true; name: string; kind: "device" | "group"; supported: boolean; endpointNames: ReadonlyArray<string>; endpoint?: string}
     | {ok: false; errorCode: "NOT_FOUND" | "UNAVAILABLE"; message: string};
 
-/** Port: entity lookup (adapter over `Zigbee.resolveEntity`, later T019 DeviceKey). Must not send RF. */
+/** Port: entity lookup (adapter over `Zigbee.resolveEntity` and T019 keys). Must not send RF. */
 export interface TargetResolver {
     resolve(target: EntityTarget): ResolvedTarget;
 }

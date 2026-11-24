@@ -31,7 +31,7 @@ import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
-import {FileBridgeIdentityStore, FileNetworkIdentityStore, type BridgeId, type NetworkIdentity} from "./identity";
+import {FileBridgeIdentityStore, FileNetworkIdentityStore, parseEntityKey, toHerdsmanIeee, type BridgeId, type NetworkIdentity} from "./identity";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
 import data from "./util/data";
@@ -103,7 +103,7 @@ export class Controller {
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
         this.state = new State(this.eventBus, this.zigbee);
         const resolver: TargetResolver = {
-            resolve: (target) => this.resolveCommandTarget(target.entity, target.endpoint),
+            resolve: (target) => this.resolveCommandTarget(target),
         };
         const authorizer: CommandAuthorizer = {
             authorize: (command) => this.authorizeCommand(command),
@@ -201,19 +201,45 @@ export class Controller {
         ];
     }
 
-    private resolveCommandTarget(entityName: string, endpoint?: string): ResolvedTarget {
+    private resolveCommandTarget(target: {entity?: string; key?: string; endpoint?: string}): ResolvedTarget {
+        let entityName = target.entity;
+        let endpoint = target.endpoint;
+        let endpointFromKey = false;
+        if (target.key !== undefined) {
+            const key = parseEntityKey(target.key);
+            if (key === undefined || key.networkId !== this.networkIdentity.networkId) {
+                return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
+            }
+            if (key.kind === "device") {
+                const device = this.zigbee.resolveEntity(toHerdsmanIeee(key.ieee));
+                if (!device || !device.isDevice()) return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
+                entityName = device.name;
+                endpoint = String(key.endpoint);
+                endpointFromKey = true;
+            } else {
+                const group = this.zigbee.groupByID(key.groupId);
+                if (!group) return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
+                entityName = group.name;
+                endpoint = undefined;
+            }
+        }
+        if (entityName === undefined) return {ok: false, errorCode: "NOT_FOUND", message: "target not found"};
         const entity = this.zigbee.resolveEntity(entityName);
         if (!entity) return {ok: false, errorCode: "NOT_FOUND", message: "target not found"};
 
         if (entity.isDevice()) {
             const endpointNames = entity.zh.endpoints.map((item) => String(item.ID));
             if (entity.definition?.endpoint) endpointNames.push(...Object.keys(entity.definition.endpoint(entity.zh)));
+            if (endpoint !== undefined && !endpointNames.includes(endpoint) && (endpointFromKey || !/^\d+$/.test(endpoint))) {
+                return {ok: false, errorCode: "NOT_FOUND", message: "endpoint not found"};
+            }
             return {
                 ok: true,
                 name: entity.name,
                 kind: "device",
                 supported: entity.isSupported,
                 endpointNames: [...new Set(endpointNames)],
+                ...(endpoint === undefined ? {} : {endpoint}),
             };
         }
 
@@ -250,7 +276,8 @@ export class Controller {
             target: input.operation === "request"
                 ? {request: typeof input.target.request === "string" ? input.target.request : ""}
                 : {
-                      entity: typeof input.target.entity === "string" ? input.target.entity : "",
+                      ...(typeof input.target.entity === "string" ? {entity: input.target.entity} : {}),
+                      ...(typeof input.target.key === "string" ? {key: input.target.key} : {}),
                       ...(typeof input.target.endpoint === "string" ? {endpoint: input.target.endpoint} : {}),
                   },
             value: input.value,

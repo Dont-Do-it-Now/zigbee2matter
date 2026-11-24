@@ -37,7 +37,7 @@ export default class DeviceCommandQueue {
         this.onRunError = options.onRunError;
         this.keyResolver =
             options.keyResolver ??
-            ((command) => [command.operation === "request" ? `bridge:${command.target.request}` : command.target.entity]);
+            ((command) => [command.operation === "request" ? `bridge:${command.target.request}` : command.target.key ?? command.target.entity ?? ""]);
     }
 
     start(): void {

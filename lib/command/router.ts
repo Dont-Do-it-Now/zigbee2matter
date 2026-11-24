@@ -61,6 +61,7 @@ interface Pending {
     dispatched: boolean;
     /** Canonical entity name from the single `resolver.resolve` call in validate (entity commands). */
     name?: string;
+    endpoint?: string;
     /** `request`: transaction echoed by upstream `utils.getResponse`. */
     transaction?: string;
     /** `set`/`get`: state topic and observation expectations. */
@@ -77,6 +78,7 @@ interface Rejection {
 interface Validation {
     rejection?: Rejection;
     name?: string;
+    endpoint?: string;
 }
 
 function reject(errorCode: CommandErrorCode, errorMessage: string, status?: CommandStatus): Validation {
@@ -161,7 +163,7 @@ export default class CommandRouter {
                 let registered: Pending | undefined;
 
                 try {
-                    registered = this.register(command, validation.name, resolve);
+                    registered = this.register(command, validation.name, validation.endpoint, resolve);
                     this.emit(this.build(command, "accepted", {terminal: false, dispatched: false}));
 
                     const pending = registered;
@@ -296,7 +298,7 @@ export default class CommandRouter {
             return reject("UNSUPPORTED", "target has no definition");
         }
 
-        const endpoint = command.target.endpoint;
+        const endpoint = resolved.endpoint ?? command.target.endpoint;
 
         if (endpoint !== undefined) {
             if (resolved.kind === "group") {
@@ -310,10 +312,10 @@ export default class CommandRouter {
 
         const rejection = this.deps.validator?.validate(command, resolved);
 
-        return rejection ? reject(rejection.errorCode, rejection.message) : {name: resolved.name};
+        return rejection ? reject(rejection.errorCode, rejection.message) : {name: resolved.name, ...(endpoint === undefined ? {} : {endpoint})};
     }
 
-    private register(command: Command, name: string | undefined, resolve: (result: CommandResult) => void): Pending {
+    private register(command: Command, name: string | undefined, endpoint: string | undefined, resolve: (result: CommandResult) => void): Pending {
         const pending: Pending = {command, resolve, timer: undefined, dispatched: false};
 
         if (command.operation === "request") {
@@ -321,8 +323,9 @@ export default class CommandRouter {
         } else if (name === undefined) {
             throw new Error("entity command without resolved name");
         } else {
-            const suffix = command.target.endpoint;
             pending.name = name;
+            pending.endpoint = endpoint;
+            const suffix = endpoint;
             pending.stateTopic = entityStateTopic(name);
             pending.expectations = Object.entries(command.value).map(([key, value]) => ({
                 names: suffix === undefined ? [key] : [key, `${key}_${suffix}`],
@@ -353,7 +356,7 @@ export default class CommandRouter {
                 pending.dispatched = true;
                 this.deps.bridgeBus.onMessage(buildBridgeRequestTopic(command.target.request), payload);
             } else if (pending.name !== undefined) {
-                const topic = buildEntityTopic(pending.name, command.target.endpoint, command.operation);
+                const topic = buildEntityTopic(pending.name, pending.endpoint, command.operation);
                 pending.dispatched = true;
                 this.deps.bridgeBus.onMessage(topic, JSON.stringify(command.value));
             }

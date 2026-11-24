@@ -115,6 +115,14 @@ export function entityStateTopic(name: string): string {
 export function isValidEntityName(target: EntityTarget): boolean {
     const bad = (s: string): boolean => s.length === 0 || /[+#]/.test(s) || s.startsWith("/") || s.endsWith("/");
 
+    if (target.key !== undefined) {
+        return !bad(target.key) && target.entity === undefined && target.endpoint === undefined;
+    }
+
+    if (target.entity === undefined) {
+        return false;
+    }
+
     return (
         !bad(target.entity) &&
         !target.entity.startsWith("bridge") &&
