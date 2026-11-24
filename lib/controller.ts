@@ -26,7 +26,7 @@ import type {MatterEndpointFactory, MatterFabricStore} from "./matter/sdkRuntime
 import {diagnoseMatterNetwork} from "./matter/networkConfig";
 import {resolveAttestation} from "./matter/attestation";
 import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
-import {ApiError, type Principal} from "./api/auth";
+import {ApiError, assessTransport, type Principal} from "./api/auth";
 import {CallbackHaIntegrationAdapter, HaIntegrationRouter, type HaCommand} from "./api/haIntegration";
 import {HaHybridPolicy} from "./api/haHybrid";
 import {ReportingRegistry} from "./matter/reporting";
@@ -100,6 +100,9 @@ export class Controller {
         zhcSetLogger(logger);
         this.eventBus = new EventBus();
         const apiSettings = settings.get().api;
+        if (apiSettings.enabled && !assessTransport(apiSettings).secure) {
+            throw new Error("API requires TLS for non-loopback binding");
+        }
         const apiTokenStore = new FileApiTokenStore(data.joinPath("api-tokens.json"));
         this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
         this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
