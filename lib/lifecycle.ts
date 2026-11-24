@@ -53,8 +53,11 @@ export default class ServiceLifecycle {
         }
 
         this.currentPhase = "stopping";
-        await this.stopStarted(true);
-        this.currentPhase = "stopped";
+        try {
+            await this.stopStarted(true);
+        } finally {
+            this.currentPhase = "stopped";
+        }
     }
 
     assertCommandsAllowed(): void {
