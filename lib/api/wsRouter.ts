@@ -10,6 +10,9 @@ export interface WsRouterOptions {
     readonly stream: EventStream;
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
     readonly maxQueue?: number;
+    readonly maxInboundMessages?: number;
+    readonly inboundWindowMs?: number;
+    readonly maxPayloadBytes?: number;
     readonly snapshot?: () => WsSnapshot;
 }
 
@@ -28,6 +31,11 @@ export class WsApiRouter {
             }
 
             const session = new WsEventSession({maxQueue: this.options.maxQueue});
+            const inboundWindowMs = Math.max(1, Math.floor(this.options.inboundWindowMs ?? 1_000));
+            const maxInboundMessages = Math.max(1, Math.floor(this.options.maxInboundMessages ?? 60));
+            const maxPayloadBytes = Math.max(1, Math.floor(this.options.maxPayloadBytes ?? 65_536));
+            let inboundWindowStartedAt = Date.now();
+            let inboundMessages = 0;
             const snapshot = this.options.snapshot?.() ?? {
                 epoch: this.options.stream.epoch,
                 sequence: this.options.stream.lastSequence,
@@ -47,6 +55,20 @@ export class WsApiRouter {
 
             const onMessage = (raw: WebSocket.RawData): void => {
                 try {
+                    const now = Date.now();
+                    if (now - inboundWindowStartedAt >= inboundWindowMs) {
+                        inboundWindowStartedAt = now;
+                        inboundMessages = 0;
+                    }
+                    inboundMessages += 1;
+                    if (inboundMessages > maxInboundMessages) {
+                        socket.close(1008, "WebSocket message rate limit exceeded");
+                        return;
+                    }
+                    if (Buffer.byteLength(raw.toString(), "utf8") > maxPayloadBytes) {
+                        socket.close(1009, "WebSocket message too large");
+                        return;
+                    }
                     const message = JSON.parse(raw.toString()) as Record<string, unknown>;
                     if (message.type === "replay") {
                         if (!isSequence(message.afterSequence)) throw new Error("invalid replay sequence");

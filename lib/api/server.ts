@@ -26,14 +26,23 @@ export class ApiServer {
 
     constructor(private readonly options: ApiServerOptions) {
         this.rest = new RestApiRouter(options);
-        this.ws = new WsApiRouter({auth: options.auth, stream: options.stream, origin: options.origin, maxQueue: 100, snapshot: options.snapshot});
+        this.ws = new WsApiRouter({
+            auth: options.auth,
+            stream: options.stream,
+            origin: options.origin,
+            maxQueue: 100,
+            maxInboundMessages: 60,
+            inboundWindowMs: 1_000,
+            maxPayloadBytes: 65_536,
+            snapshot: options.snapshot,
+        });
         if (options.tls !== undefined && (!options.tls.certPath || !options.tls.keyPath)) {
             throw new Error("API TLS requires both cert and key");
         }
         this.http = options.tls
             ? createSecureServer({cert: readFileSync(options.tls.certPath), key: readFileSync(options.tls.keyPath)}, (req, res) => this.rest.handle(req, res))
             : createServer((req, res) => this.rest.handle(req, res));
-        this.websocket = new WebSocket.Server({noServer: true});
+        this.websocket = new WebSocket.Server({noServer: true, maxPayload: 65_536});
         this.ws.attach(this.websocket);
         this.http.on("upgrade", (request, socket, head) => this.upgrade(request, socket, head));
     }
