@@ -39,7 +39,6 @@ interface EndpointEvents {
         targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
         targetPositionTiltPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
     };
-    doorLock?: {lockState$Changed?: {on(listener: (value: number) => void): void}};
     thermostat?: {
         systemMode$Changed?: {on(listener: (value: number) => void): void};
         occupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
@@ -432,11 +431,6 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             const current = this.coverPositions.get(endpointId)?.tilt;
             this.sendCommand(endpointId, send, current === value ? {state: "STOP"} : {tilt: mapCoverPosition(value / 100)});
         });
-        endpoint.events?.doorLock?.lockState$Changed?.on((value) => {
-            if (this.stateUpdates.has(endpointId)) return;
-            const state = zigbeeLockState(value);
-            if (state !== undefined) this.sendCommand(endpointId, send, {state});
-        });
         endpoint.events?.thermostat?.systemMode$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             const mode = zigbeeSystemMode(value);
@@ -501,12 +495,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function matterLockState(value: unknown): number | undefined {
     if (value === "LOCK" || value === "LOCKED" || value === true) return 1;
     if (value === "UNLOCK" || value === "UNLOCKED" || value === false) return 2;
-    return undefined;
-}
-
-function zigbeeLockState(value: number): "LOCK" | "UNLOCK" | undefined {
-    if (value === 1) return "LOCK";
-    if (value === 2) return "UNLOCK";
     return undefined;
 }
 
