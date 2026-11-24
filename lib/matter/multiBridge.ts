@@ -77,7 +77,13 @@ export class MultiBridgeRuntime {
     ) {}
 
     async start(config: BridgeNodeConfig): Promise<BridgeNodeState> {
-        this.registry.register(config);
+        const existing = this.registry.get(config.bridgeId);
+        if (existing === undefined) {
+            this.registry.register(config);
+        } else {
+            if (existing.status !== "failed") throw new Error(`bridge already registered: ${config.bridgeId}`);
+            if (!sameConfig(existing, config)) throw new Error(`bridge configuration changed after failure: ${config.bridgeId}`);
+        }
         this.registry.transition(config.bridgeId, "starting");
 
         try {
@@ -120,4 +126,8 @@ function isAllowedTransition(from: BridgeNodeStatus, to: BridgeNodeStatus): bool
     if (from === "starting") return to === "running" || to === "failed" || to === "stopped";
     if (from === "running") return to === "failed" || to === "stopped";
     return to === "stopped" || to === "starting";
+}
+
+function sameConfig(a: BridgeNodeConfig, b: BridgeNodeConfig): boolean {
+    return a.bridgeId === b.bridgeId && a.fabricStoreKey === b.fabricStoreKey && a.port === b.port && a.mdnsInstance === b.mdnsInstance && a.discriminator === b.discriminator;
 }
