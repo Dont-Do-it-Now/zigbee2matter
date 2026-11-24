@@ -1,4 +1,4 @@
-export {CommissioningManager, type CommissioningWindow, type CommissioningWindowOptions, type FabricRecord} from "./commissioning";
+export {CommissioningManager, type CommissioningCode, type CommissioningWindow, type CommissioningWindowOptions, type FabricRecord} from "./commissioning";
 export {
     AttestationPolicyError,
     DEFAULT_PRODUCT_ID,

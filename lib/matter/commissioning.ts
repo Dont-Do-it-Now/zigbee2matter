@@ -1,5 +1,5 @@
 /** Matter 등록 창과 Fabric 수명주기의 실행 경계(T033/T034). */
-import {randomInt, randomUUID} from "node:crypto";
+import {randomUUID} from "node:crypto";
 
 export interface CommissioningWindow {
     readonly id: string;
@@ -13,8 +13,13 @@ export interface CommissioningWindow {
 export interface CommissioningWindowOptions {
     readonly now?: () => number;
     readonly idFactory?: () => string;
-    /** SDK가 생성한 유효한 Matter manual pairing code를 공급한다. 임의 숫자는 허용하지 않는다. */
-    readonly codeFactory?: () => string;
+    /** SDK가 생성한 pairing code와 그 code에 포함된 discriminator를 함께 공급한다. */
+    readonly codeFactory?: () => CommissioningCode;
+}
+
+export interface CommissioningCode {
+    readonly setupCode: string;
+    readonly discriminator: number;
 }
 
 export interface FabricRecord {
@@ -26,7 +31,7 @@ export interface FabricRecord {
 export class CommissioningManager {
     private readonly now: () => number;
     private readonly idFactory: () => string;
-    private readonly codeFactory: () => string;
+    private readonly codeFactory: () => CommissioningCode;
     private window?: CommissioningWindow;
     private readonly fabrics = new Map<string, FabricRecord>();
 
@@ -43,10 +48,14 @@ export class CommissioningManager {
         if (!Number.isSafeInteger(durationMs) || durationMs <= 0) throw new Error("durationMs must be positive");
 
         const openedAt = this.now();
+        const code = this.codeFactory();
+        if (!code || typeof code.setupCode !== "string" || code.setupCode.length === 0 || !Number.isSafeInteger(code.discriminator) || code.discriminator < 0 || code.discriminator > 4095) {
+            throw new Error("Matter setup-code provider returned an invalid code");
+        }
         const next: CommissioningWindow = {
             id: this.idFactory(),
-            discriminator: randomDiscriminator(),
-            setupCode: this.codeFactory(),
+            discriminator: code.discriminator,
+            setupCode: code.setupCode,
             openedAt,
             expiresAt: openedAt + durationMs,
             administratorId,
@@ -86,8 +95,4 @@ export class CommissioningManager {
     listFabrics(): FabricRecord[] {
         return [...this.fabrics.values()].map((fabric) => ({...fabric}));
     }
-}
-
-function randomDiscriminator(): number {
-    return randomInt(0, 4096);
 }
