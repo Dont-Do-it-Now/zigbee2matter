@@ -9,7 +9,9 @@ export interface MatterServerNode {
 
 export interface MatterMainModule {
     ServerNode: {
-        create(options: Record<string, unknown>): Promise<MatterServerNode>;
+        create(rootEndpoint: unknown, options: Record<string, unknown>): Promise<MatterServerNode>;
+        RootEndpoint?: unknown;
+        RootEndpointWithoutGroupcast?: unknown;
     };
     Endpoint?: new (definition: unknown, options?: Record<string, unknown>) => unknown;
     VendorId?: (value: number) => unknown;
@@ -56,7 +58,9 @@ export class MatterSdkRuntime {
                   nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
                   serialNumber: options.id,
               };
-        const node = await sdk.ServerNode.create({
+        const rootEndpoint = sdk.ServerNode.RootEndpoint ?? sdk.ServerNode.RootEndpointWithoutGroupcast;
+        if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
+        const node = await sdk.ServerNode.create(rootEndpoint, {
             id: options.id,
             ...(options.network ? {network: options.network} : {}),
             ...(commissioning ? {commissioning} : {}),
