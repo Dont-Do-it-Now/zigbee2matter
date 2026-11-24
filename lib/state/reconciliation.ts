@@ -94,7 +94,10 @@ export default class StateReconciler {
     }
 
     remove(key: string): boolean {
-        return this.records.delete(key);
+        if (!this.records.delete(key)) return false;
+        this.revision += 1;
+
+        return true;
     }
 
     private getOrCreate(key: string): StateRecord {
