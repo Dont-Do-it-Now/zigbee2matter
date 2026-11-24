@@ -69,11 +69,14 @@ export class HaEntityRegistry {
     setState(key: EntityKey, value: unknown, observedAt = Date.now()): HaEntityRecord | undefined {
         const record = this.records.get(stableHaUniqueId(key));
         if (record === undefined) return undefined;
-        if (!Number.isFinite(observedAt)) throw new Error("observedAt must be finite");
+        if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("observedAt must be a non-negative safe integer");
+
+        const revision = record.state?.revision ?? 0;
+        if (revision >= Number.MAX_SAFE_INTEGER) throw new Error("HA entity revision exhausted");
 
         record.state = {
             value,
-            revision: (record.state?.revision ?? 0) + 1,
+            revision: revision + 1,
             observedAt,
         };
 

@@ -42,6 +42,7 @@ export default class StateReconciler {
 
     /** A device report is the only operation that confirms observed state. Late reports are still accepted. */
     observe(key: string, value: unknown, observedAt = this.now()): StateRecord {
+        if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("observedAt must be a non-negative safe integer");
         const record = this.getOrCreate(key);
         record.observedValue = cloneValue(value);
         record.observedAt = observedAt;
@@ -95,7 +96,9 @@ export default class StateReconciler {
     }
 
     remove(key: string): boolean {
-        if (!this.records.delete(key)) return false;
+        if (!this.records.has(key)) return false;
+        if (this.revision >= Number.MAX_SAFE_INTEGER) throw new Error("state revision exhausted");
+        this.records.delete(key);
         this.revision += 1;
 
         return true;
@@ -115,6 +118,7 @@ export default class StateReconciler {
     }
 
     private commit(record: StateRecord): StateRecord {
+        if (this.revision >= Number.MAX_SAFE_INTEGER) throw new Error("state revision exhausted");
         record.revision = ++this.revision;
         this.records.set(record.key, record);
 
