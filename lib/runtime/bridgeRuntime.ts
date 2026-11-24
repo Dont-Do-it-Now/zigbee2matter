@@ -14,6 +14,8 @@ import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
 import type {BridgeId} from "../identity";
 import {BackupFileStore} from "../storage/backupStore";
 import type {PersistentSnapshot} from "../storage/backup";
+import StateReconciler from "../state/reconciliation";
+import StateSnapshotCoordinator from "../state/snapshot";
 import {CommissioningManager} from "../matter/commissioning";
 import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
@@ -54,6 +56,8 @@ export class BridgeRuntime {
     readonly auth: ApiAuth;
     readonly diagnostics: DiagnosticRegistry;
     readonly matter: MatterSdkRuntime;
+    readonly stateReconciler: StateReconciler;
+    readonly stateSnapshots: StateSnapshotCoordinator;
     readonly commissioning: CommissioningManager;
     readonly multiBridge?: MultiBridgeRuntime;
     private readonly api?: ApiServer;
@@ -70,6 +74,8 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.matter = new MatterSdkRuntime();
+        this.stateReconciler = new StateReconciler();
+        this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
         this.commissioning = options.commissioning ?? new CommissioningManager();
         this.multiBridge = options.multiBridge
             ? new MultiBridgeRuntime(options.multiBridge.registry ?? new MultiBridgeRegistry(), options.multiBridge.factory)

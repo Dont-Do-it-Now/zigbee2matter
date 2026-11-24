@@ -152,6 +152,10 @@ export class Controller {
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
         this.state = new State(this.eventBus, this.zigbee);
+        this.eventBus.onStateChange(this, (data) => {
+            const kind = data.entity.isDevice() ? "device" : "group";
+            this.runtime.stateSnapshots.observe(`${kind}:${data.entity.ID}`, data.to);
+        });
         const resolver: TargetResolver = {
             resolve: (target) => this.resolveCommandTarget(target),
         };
