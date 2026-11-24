@@ -1,4 +1,17 @@
 export {CommissioningManager, type CommissioningWindow, type CommissioningWindowOptions, type FabricRecord} from "./commissioning";
+export {
+    AttestationPolicyError,
+    DEFAULT_PRODUCT_ID,
+    DEFAULT_VENDOR_ID,
+    ATTESTATION_DIR_NAME,
+    TEST_VENDOR_ID_MAX,
+    TEST_VENDOR_ID_MIN,
+    isTestVendorId,
+    resolveAttestation,
+    type AttestationMode,
+    type AttestationSettings,
+    type ResolvedAttestation,
+} from "./attestation";
 export {ReportingRegistry, type ReportSubscription, type ReportUpdate} from "./reporting";
 export {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeConfig, type BridgeNodeRuntime, type BridgeNodeRuntimeFactory, type BridgeNodeState, type BridgeNodeStatus} from "./multiBridge";
 export {
