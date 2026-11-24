@@ -16,6 +16,16 @@ on:
         required: false
         default: ""
         type: string
+      platform_gate:
+        description: "Run the manually approved platform verification gate"
+        required: true
+        default: false
+        type: boolean
+      platform_evidence:
+        description: "Path to the platform matrix evidence JSON"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "17 3 * * 1"
 
@@ -125,3 +135,18 @@ jobs:
         with:
           name: release-sbom-${{ github.sha }}
           path: bom.json
+
+  platform-preflight:
+    name: manually approved platform verification
+    if: github.event_name == 'workflow_dispatch' && inputs.platform_gate == true
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: platform-validation
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate platform matrix evidence
+        env:
+          PLATFORM_EVIDENCE: ${{ inputs.platform_evidence }}
+        run: node scripts/platform-matrix-gate.mjs --evidence "$PLATFORM_EVIDENCE"
