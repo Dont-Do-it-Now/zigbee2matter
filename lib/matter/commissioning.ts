@@ -48,6 +48,9 @@ export class CommissioningManager {
         if (!Number.isSafeInteger(durationMs) || durationMs <= 0) throw new Error("durationMs must be positive");
 
         const openedAt = this.now();
+        if (!Number.isSafeInteger(openedAt) || !Number.isSafeInteger(openedAt + durationMs)) {
+            throw new Error("commissioning clock value is invalid");
+        }
         const code = this.codeFactory();
         if (!code || typeof code.setupCode !== "string" || code.setupCode.length === 0 || !Number.isSafeInteger(code.discriminator) || code.discriminator < 0 || code.discriminator > 4095) {
             throw new Error("Matter setup-code provider returned an invalid code");
