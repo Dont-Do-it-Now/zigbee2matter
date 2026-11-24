@@ -14,6 +14,8 @@ import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
 import type {BridgeId} from "../identity";
 import {BackupFileStore} from "../storage/backupStore";
 import type {PersistentSnapshot} from "../storage/backup";
+import {CommissioningManager} from "../matter/commissioning";
+import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
     assertRestoreApplied,
     assertSnapshotProvider,
@@ -27,6 +29,11 @@ export type {BackupSnapshotAdapter, BackupSnapshotProvider} from "./backupRestor
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly matterEndpointFactory?: MatterEndpointFactory;
+    readonly commissioning?: CommissioningManager;
+    readonly multiBridge?: {
+        readonly registry?: MultiBridgeRegistry;
+        readonly factory: BridgeNodeRuntimeFactory;
+    };
     readonly backup?: {
         readonly store?: BackupFileStore;
         readonly snapshotProvider?: BackupSnapshotProvider;
@@ -47,6 +54,8 @@ export class BridgeRuntime {
     readonly auth: ApiAuth;
     readonly diagnostics: DiagnosticRegistry;
     readonly matter: MatterSdkRuntime;
+    readonly commissioning: CommissioningManager;
+    readonly multiBridge?: MultiBridgeRuntime;
     private readonly api?: ApiServer;
     private readonly matterEndpointFactory?: MatterEndpointFactory;
     private dynamicEndpointRuntime?: DynamicEndpointRuntime;
@@ -61,6 +70,10 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.matter = new MatterSdkRuntime();
+        this.commissioning = options.commissioning ?? new CommissioningManager();
+        this.multiBridge = options.multiBridge
+            ? new MultiBridgeRuntime(options.multiBridge.registry ?? new MultiBridgeRegistry(), options.multiBridge.factory)
+            : undefined;
         this.matterEndpointFactory = options.matterEndpointFactory;
         this.backupStore = options.backup?.store ?? new BackupFileStore();
         this.backupSnapshotProvider = options.backup?.snapshotProvider;
