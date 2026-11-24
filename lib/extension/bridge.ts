@@ -250,7 +250,7 @@ export default class Bridge extends Extension {
             this.restartRequired = newRestartRequired;
         }
 
-        // Apply supported settings on-the-fly. Home Assistant MQTT Discovery was removed;
+        // Apply supported settings on-the-fly. Home Assistant discovery was removed;
         // its legacy setting is ignored by Controller and must not re-enable the old extension.
 
         if (newSettings.advanced?.log_level != null) {

@@ -15,6 +15,7 @@
         {"file": "lib/util/utils.ts", "pattern": "MQTT wildcard|MQTT publishes", "category": "wording", "max": 2, "reason": "friendly_name 검증 메시지/주석(동작 무관)"},
         {"file": "lib/util/settingsMigration.ts", "pattern": "MQTT", "category": "migration-note", "max": 3, "reason": "과거 마이그레이션 노트(문서/migration 예외)"},
         {"file": "lib/util/settings.schema.json", "pattern": "MQTT|z2m:mqtt|log_debug_to_mqtt_frontend", "category": "schema-wording", "max": 13, "reason": "schema title/description 문구, 로거 예시, 호환 설정 키. 'mqtt' 속성/required는 JSON 규칙(C)이 별도 차단"},
+        {"file": "lib/migration/importData.ts", "pattern": "MQTT_EXCLUDED|withoutMqtt|configuration.*mqtt|copy\.mqtt", "category": "legacy-config-migration", "max": 8, "reason": "기존 Z2M 설정의 mqtt 섹션을 새 프로젝트 설정으로 복사하지 않는 명시적 이관 경계"},
         {"file": "lib/types/dom.shim.d.ts", "pattern": "sub-deps in mqtt", "category": "shim-comment", "max": 1, "reason": "파일은 srvx용으로 유지(T006). 주석만 잔존"},
         {"file": "package.json", "pattern": "Zigbee to MQTT bridge", "category": "branding", "max": 1, "reason": "description 브랜딩 작업 대상"},
         {"file": "docker/Dockerfile", "pattern": "Zigbee to MQTT bridge", "category": "branding", "max": 1, "reason": "LABEL description 브랜딩 작업 대상"},
