@@ -156,6 +156,12 @@ export class Controller {
             (update) => this.ha.publishReport("matter", update),
             (error) => logger.warning(`Matter report delivery failed: ${error instanceof Error ? error.message : String(error)}`),
         );
+        this.runtime.subscribePlatform("ha-matter", "matter", async (event) => {
+            if (event.type !== "delta" && event.type !== "availability") return;
+            const key = parseEntityKey(event.key);
+            if (!key || !this.ha.entities().some((entity) => entity.key === event.key)) return;
+            this.ha.publishState("matter", key, event.payload, Date.now());
+        });
         this.runtime.attachEventBus(this.eventBus);
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant

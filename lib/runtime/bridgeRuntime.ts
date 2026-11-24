@@ -1,6 +1,7 @@
 /** Core·EventStream·API·Matter adapter를 묶는 composition root(T032/T053/T056/T057). */
 import type EventBus from "../eventBus";
 import {EventStream} from "../events";
+import PlatformFanout, {type Platform, type PlatformFanoutOptions, type PlatformListener} from "../events/fanout";
 import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../api/auth";
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
@@ -56,6 +57,7 @@ export class BridgeRuntime {
     readonly events: EventStream;
     readonly auth: ApiAuth;
     readonly diagnostics: DiagnosticRegistry;
+    readonly fanout: PlatformFanout;
     readonly matter: MatterSdkRuntime;
     readonly stateReconciler: StateReconciler;
     readonly stateSnapshots: StateSnapshotCoordinator;
@@ -75,6 +77,7 @@ export class BridgeRuntime {
         this.events = new EventStream(options.eventCapacity);
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
+        this.fanout = new PlatformFanout(this.events);
         this.matter = new MatterSdkRuntime();
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
@@ -103,6 +106,23 @@ export class BridgeRuntime {
         if (this.attachedEventBus) throw new Error("BridgeRuntime is already attached to an EventBus");
         this.events.attach(eventBus);
         this.attachedEventBus = eventBus;
+    }
+
+    subscribePlatform(id: string, platform: Platform, listener: PlatformListener, options: PlatformFanoutOptions = {}): () => void {
+        this.diagnostics.record(id, platform, {queued: 0, dropped: 0, errors: 0});
+        return this.fanout.subscribe(id, platform, listener, {
+            ...options,
+            onDrop: (drop) => {
+                options.onDrop?.(drop);
+                const stats = this.fanout.stats(id);
+                if (stats) this.diagnostics.record(id, platform, stats, undefined, `dropped ${drop.reason} event`);
+            },
+            onError: (error, consumer) => {
+                options.onError?.(error, consumer);
+                const stats = this.fanout.stats(id);
+                if (stats) this.diagnostics.record(id, platform, stats, undefined, error);
+            },
+        });
     }
 
     async start(): Promise<void> {
