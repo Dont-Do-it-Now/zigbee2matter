@@ -60,10 +60,15 @@ export class BackupFileStore {
     }
 
     async readSnapshot(passphrase: string): Promise<PersistentSnapshot> {
+        return await this.readSnapshotWith(passphrase, (snapshot) => snapshot);
+    }
+
+    async readSnapshotWith<T>(passphrase: string, operation: (snapshot: PersistentSnapshot) => Promise<T> | T): Promise<T> {
         return await this.coordinator.run(async () => {
             const release = await acquireLock(`${this.filePath}.lock`, this.lockTimeoutMs);
             try {
-                return restoreSnapshotBackup(await readFile(this.filePath, "utf8"), passphrase);
+                const snapshot = restoreSnapshotBackup(await readFile(this.filePath, "utf8"), passphrase);
+                return await operation(snapshot);
             } finally {
                 await release();
             }

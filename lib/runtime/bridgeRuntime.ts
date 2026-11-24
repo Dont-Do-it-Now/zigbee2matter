@@ -210,13 +210,14 @@ export class BridgeRuntime {
     }
 
     async restorePersistentBackup(passphrase: string): Promise<PersistentSnapshot> {
-        const snapshot = await this.backupStore.readSnapshot(passphrase);
-        validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);
-        if (!this.backupSnapshotAdapter) throw new Error("backup restore adapter is not configured");
+        return await this.backupStore.readSnapshotWith(passphrase, async (snapshot) => {
+            validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);
+            if (!this.backupSnapshotAdapter) throw new Error("backup restore adapter is not configured");
 
-        const result = await this.backupSnapshotAdapter.restore(snapshot);
-        assertRestoreApplied(result);
-        return snapshot;
+            const result = await this.backupSnapshotAdapter.restore(snapshot);
+            assertRestoreApplied(result);
+            return snapshot;
+        });
     }
 
     async stop(): Promise<void> {
