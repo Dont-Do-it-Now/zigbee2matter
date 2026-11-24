@@ -22,6 +22,13 @@ export interface PartsListChange {
     removed: number[];
 }
 
+export interface DynamicEndpointAdapter {
+    /** SDK endpoint를 생성하고 SDK가 할당한 실제 endpoint number를 반환한다. */
+    create(entry: EndpointRegistryEntry): Promise<{number: number}>;
+    /** SDK endpoint를 닫거나 영구 삭제한다. 성공 전에는 registry tombstone을 확정하지 않는다. */
+    remove(entry: EndpointRegistryEntry): Promise<void>;
+}
+
 /** SDK endpoint를 만들거나 삭제하는 쪽이 registry 반영 시점을 명시하도록 한다. */
 export class DynamicEndpointCoordinator {
     constructor(private readonly registry: EndpointRegistry) {}
@@ -52,6 +59,31 @@ export class DynamicEndpointCoordinator {
     /** 실제 SDK endpoint 삭제와 topology 반영이 성공한 뒤 호출한다. */
     async completeRemove(key: RegistryKey): Promise<boolean> {
         return await this.registry.markRemoved(key);
+    }
+}
+
+/** Registry 순서와 SDK endpoint adapter의 성공 순서를 하나의 실행 경계로 묶는다. */
+export class DynamicEndpointRuntime {
+    constructor(
+        private readonly coordinator: DynamicEndpointCoordinator,
+        private readonly adapter: DynamicEndpointAdapter,
+    ) {}
+
+    async create(key: RegistryKey, interviewSuccessful: boolean): Promise<EndpointCreatePlan> {
+        const plan = await this.coordinator.prepareCreate(key, interviewSuccessful);
+        if (plan.action === "reuse") return plan;
+
+        const created = await this.adapter.create(plan.entry);
+        await this.coordinator.recordCreated(key, created.number);
+        return {action: "create", entry: {...plan.entry, number: created.number}};
+    }
+
+    async remove(key: RegistryKey): Promise<boolean> {
+        const plan = this.coordinator.prepareRemove(key);
+        if (plan === undefined) return false;
+
+        await this.adapter.remove(plan.entry);
+        return await this.coordinator.completeRemove(key);
     }
 }
 
