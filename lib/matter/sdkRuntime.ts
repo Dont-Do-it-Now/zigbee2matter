@@ -4,6 +4,9 @@ import {toMatterEnvVars, toServerNodeNetworkState, type MatterNetworkConfig} fro
 import type {ResolvedAttestation} from "./attestation";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
+import {MatterReportingRuntime, type MatterReportingAdapter} from "./reporting";
+
+export type {MatterReportingAdapter} from "./reporting";
 
 export interface MatterServerNode {
     start(): Promise<void>;
@@ -81,6 +84,7 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
 }
 
 export class MatterSdkRuntime {
+    readonly reporting: MatterReportingRuntime;
     private module?: MatterMainModule;
     private node?: MatterServerNode;
     private endpointContainer?: MatterEndpointContainer;
@@ -92,7 +96,10 @@ export class MatterSdkRuntime {
     constructor(
         private readonly environment: MatterEnvironment = processMatterEnvironment,
         private readonly fabricStore?: MatterFabricStore,
-    ) {}
+        reportingAdapter?: MatterReportingAdapter,
+    ) {
+        this.reporting = new MatterReportingRuntime(reportingAdapter);
+    }
 
     async snapshotFabric(): Promise<unknown> {
         if (!this.fabricStore) throw new Error("Matter fabric store is not configured");

@@ -12,7 +12,7 @@ export {
     type AttestationSettings,
     type ResolvedAttestation,
 } from "./attestation";
-export {ReportingRegistry, type ReportSubscription, type ReportUpdate} from "./reporting";
+export {MatterReportingRuntime, ReportingRegistry, type MatterReportingAdapter, type ReportSubscription, type ReportUpdate} from "./reporting";
 export {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeConfig, type BridgeNodeRuntime, type BridgeNodeRuntimeFactory, type BridgeNodeState, type BridgeNodeStatus} from "./multiBridge";
 export {
     MatterSdkEndpointAdapter,

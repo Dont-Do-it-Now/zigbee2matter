@@ -6,7 +6,14 @@ import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../ap
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
-import {MatterSdkEndpointAdapter, MatterSdkRuntime, type MatterEndpointFactory, type MatterFabricStore, type MatterNodeOptions} from "../matter/sdkRuntime";
+import {
+    MatterSdkEndpointAdapter,
+    MatterSdkRuntime,
+    type MatterEndpointFactory,
+    type MatterFabricStore,
+    type MatterNodeOptions,
+    type MatterReportingAdapter,
+} from "../matter/sdkRuntime";
 import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
@@ -34,6 +41,7 @@ export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly matterEndpointFactory?: MatterEndpointFactory;
     readonly matterFabricStore?: MatterFabricStore;
+    readonly matterReportingAdapter?: MatterReportingAdapter;
     readonly commissioning?: CommissioningManager;
     readonly multiBridge?: {
         readonly registry?: MultiBridgeRegistry;
@@ -79,7 +87,7 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.fanout = new PlatformFanout(this.events);
-        this.matter = new MatterSdkRuntime(undefined, options.matterFabricStore);
+        this.matter = new MatterSdkRuntime(undefined, options.matterFabricStore, options.matterReportingAdapter);
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
         this.lifecycle = new ServiceLifecycle();

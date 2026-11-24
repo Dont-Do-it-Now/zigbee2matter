@@ -18,6 +18,14 @@ export interface ReportUpdate {
 export type ReportDelivery = (update: ReportUpdate) => void;
 export type ReportDeliveryError = (error: unknown, update: ReportUpdate) => void;
 
+/** Matter SDK별 attribute subscription/report 호출을 주입하는 경계. */
+export interface MatterReportingAdapter {
+    subscribe(subscription: ReportSubscription): void;
+    unsubscribe(subscription: ReportSubscription): void;
+    report(update: ReportUpdate): void;
+    onError?(error: unknown, update: ReportUpdate): void;
+}
+
 export class ReportingRegistry {
     private readonly subscriptions = new Map<string, ReportSubscription>();
     private readonly pending = new Map<string, ReportUpdate>();
@@ -51,6 +59,19 @@ export class ReportingRegistry {
     unsubscribe(id: string): boolean {
         this.pending.delete(id);
         return this.subscriptions.delete(id);
+    }
+
+    restore(subscription: ReportSubscription): void {
+        this.subscriptions.set(subscription.id, {...subscription});
+    }
+
+    pendingUpdate(id: string): ReportUpdate | undefined {
+        const update = this.pending.get(id);
+        return update === undefined ? undefined : {...update};
+    }
+
+    restorePending(update: ReportUpdate): void {
+        this.pending.set(update.subscriptionId, {...update});
     }
 
     publish(id: string, value: unknown, now = Date.now()): boolean {
@@ -93,5 +114,65 @@ export class ReportingRegistry {
         return [...this.subscriptions.values()]
             .filter((subscription) => fabricId === undefined || subscription.fabricId === fabricId)
             .map((subscription) => ({...subscription}));
+    }
+}
+
+/** SDK runtime이 소유하는 fabric별 구독·보고 orchestration 경계. */
+export class MatterReportingRuntime {
+    constructor(
+        private readonly adapter?: MatterReportingAdapter,
+        readonly registry = new ReportingRegistry(),
+    ) {
+        this.registry.setDelivery((update) => this.adapter?.report(update));
+        this.registry.setDeliveryError((error, update) => this.adapter?.onError?.(error, update));
+    }
+
+    subscribe(input: Omit<ReportSubscription, "nextDueAt">, now = Date.now()): ReportSubscription {
+        const previous = this.registry.list().find((item) => item.id === input.id);
+        const previousPending = previous === undefined ? undefined : this.registry.pendingUpdate(previous.id);
+        if (previous) this.adapter?.unsubscribe(previous);
+
+        let subscription: ReportSubscription | undefined;
+
+        try {
+            subscription = this.registry.subscribe(input, now);
+            this.adapter?.subscribe(subscription);
+        } catch (error) {
+            if (subscription) this.registry.unsubscribe(subscription.id);
+            if (previous) {
+                this.registry.restore(previous);
+                if (previousPending) this.registry.restorePending(previousPending);
+                try {
+                    this.adapter?.subscribe(previous);
+                } catch {
+                    // Preserve the original subscription error; adapter owns recovery diagnostics.
+                }
+            }
+            throw error;
+        }
+
+        // The registry subscription succeeds together with the adapter subscription.
+        if (!subscription) throw new Error("report subscription was not created");
+        return subscription;
+    }
+
+    unsubscribe(id: string): boolean {
+        const subscription = this.registry.list().find((item) => item.id === id);
+        if (!subscription) return false;
+
+        this.adapter?.unsubscribe(subscription);
+        return this.registry.unsubscribe(id);
+    }
+
+    publish(id: string, value: unknown, now = Date.now()): boolean {
+        return this.registry.publish(id, value, now);
+    }
+
+    drainDue(now = Date.now()): ReportUpdate[] {
+        return this.registry.drainDue(now);
+    }
+
+    list(fabricId?: string): ReportSubscription[] {
+        return this.registry.list(fabricId);
     }
 }
