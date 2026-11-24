@@ -117,6 +117,11 @@ export default class PlatformFanout {
                 registration.queue.push(event);
                 registration.stats.dropped += 1;
                 this.reportDrop(registration, dropped, "state");
+            } else if (event.type !== "transient") {
+                const [dropped] = registration.queue.splice(0, 1);
+                registration.queue.push(event);
+                registration.stats.dropped += 1;
+                this.reportDrop(registration, dropped, "transient");
             } else {
                 registration.stats.dropped += 1;
                 this.reportDrop(registration, event, "transient");
