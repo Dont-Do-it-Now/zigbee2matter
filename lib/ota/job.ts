@@ -28,8 +28,8 @@ export class OtaJobStore {
     constructor(options: OtaJobStoreOptions = {}) {
         this.#maxConcurrent = options.maxConcurrent ?? 1;
         this.#now = options.now ?? Date.now;
-        this.#idFactory = options.idFactory ?? (() => `ota-${this.#now()}-${Math.random().toString(36).slice(2, 8)}`);
-        if (!Number.isInteger(this.#maxConcurrent) || this.#maxConcurrent < 1) throw new Error("maxConcurrent must be a positive integer");
+        this.#idFactory = options.idFactory ?? (() => `ota-${this.#timestamp()}-${Math.random().toString(36).slice(2, 8)}`);
+        if (!Number.isSafeInteger(this.#maxConcurrent) || this.#maxConcurrent < 1) throw new Error("maxConcurrent must be a positive integer");
     }
 
     get activeCount(): number {
@@ -46,10 +46,13 @@ export class OtaJobStore {
             throw new Error("OTA job already active for device");
         }
 
+        const id = this.#idFactory();
+        if (typeof id !== "string" || id.length === 0 || this.#jobs.has(id)) throw new Error("OTA job id is invalid or already exists");
+
         const job: OtaJob = {
-            id: this.#idFactory(),
+            id,
             deviceIeeeAddr,
-            createdAt: this.#now(),
+            createdAt: this.#timestamp(),
             status: "queued",
             cancelRequested: false,
         };
@@ -74,7 +77,7 @@ export class OtaJobStore {
     start(job: OtaJob): void {
         this.assertMutable(job);
         job.status = "running";
-        job.startedAt = this.#now();
+        job.startedAt = this.#timestamp();
     }
 
     progress(job: OtaJob, progress: number, remaining?: number): void {
@@ -97,7 +100,7 @@ export class OtaJobStore {
         if (job.status === "completed" || job.status === "failed" || job.status === "interrupted") return;
         job.cancelRequested = true;
         job.status = "cancelled";
-        job.finishedAt = this.#now();
+        job.finishedAt = this.#timestamp();
     }
 
     complete(job: OtaJob): void {
@@ -105,7 +108,7 @@ export class OtaJobStore {
         if (job.cancelRequested) return this.cancel(job);
         job.progress = 100;
         job.status = "completed";
-        job.finishedAt = this.#now();
+        job.finishedAt = this.#timestamp();
     }
 
     fail(job: OtaJob, error: unknown): void {
@@ -113,7 +116,7 @@ export class OtaJobStore {
         if (job.cancelRequested) return this.cancel(job);
         job.status = "failed";
         job.error = error instanceof Error ? error.message : String(error);
-        job.finishedAt = this.#now();
+        job.finishedAt = this.#timestamp();
     }
 
     interruptActive(): void {
@@ -121,7 +124,7 @@ export class OtaJobStore {
             if (job.status === "queued" || job.status === "running") {
                 job.status = "interrupted";
                 job.error = "service restarted before OTA completion";
-                job.finishedAt = this.#now();
+                job.finishedAt = this.#timestamp();
             }
         }
     }
@@ -131,5 +134,12 @@ export class OtaJobStore {
             throw new Error(`OTA job '${job.id}' is already terminal`);
         }
         if (job.cancelRequested) throw new Error(`OTA job '${job.id}' cancellation requested`);
+    }
+
+    #timestamp(): number {
+        const value = this.#now();
+        if (!Number.isSafeInteger(value)) throw new Error("OTA clock is invalid");
+
+        return value;
     }
 }
