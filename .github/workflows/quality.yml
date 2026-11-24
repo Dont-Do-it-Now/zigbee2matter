@@ -5,8 +5,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  release:
-    types: [published]
+    inputs:
+      release_gate:
+        description: "Run the manually approved release preflight"
+        required: true
+        default: false
+        type: boolean
+      release_evidence:
+        description: "Path to the phase evidence JSON"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "17 3 * * 1"
 
@@ -36,6 +45,10 @@ jobs:
         run: node scripts/lockfile-recovery.mjs
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Static release and security gate
+        run: node scripts/release-gate.mjs
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high
       - name: Biome check
         run: pnpm run check
       - name: Build
@@ -82,9 +95,9 @@ jobs:
           name: upstream-ledger-${{ github.sha }}
           path: upstream-ledger.json
 
-  release:
-    name: release gates
-    if: github.event_name == 'release'
+  release-preflight:
+    name: manually approved release preflight
+    if: github.event_name == 'workflow_dispatch' && inputs.release_gate == true
     needs: quality
     runs-on: ubuntu-latest
     environment: production
@@ -99,12 +112,7 @@ jobs:
         with:
           node-version: 22.13.0
           cache: pnpm
-      - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Generate SBOM
-        run: pnpm dlx --yes @cyclonedx/cyclonedx-npm --output-file bom.json --output-format json
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ github.sha }}
-          path: bom.json
+      - name: Validate release evidence
+        env:
+          RELEASE_EVIDENCE: ${{ inputs.release_evidence }}
+        run: node scripts/release-gate.mjs --release "$RELEASE_EVIDENCE"
