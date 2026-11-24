@@ -49,7 +49,9 @@ export class RestApiRouter {
     private readonly maxBodyBytes: number;
 
     constructor(private readonly deps: RestRouterDeps) {
-        this.maxBodyBytes = Math.max(1024, Math.floor(deps.maxBodyBytes ?? 1_048_576));
+        const maxBodyBytes = deps.maxBodyBytes ?? 1_048_576;
+        if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1024) throw new Error("maxBodyBytes must be an integer of at least 1024");
+        this.maxBodyBytes = maxBodyBytes;
     }
 
     handle(req: IncomingMessage, res: ServerResponse): void {

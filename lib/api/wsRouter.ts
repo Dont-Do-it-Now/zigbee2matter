@@ -31,9 +31,9 @@ export class WsApiRouter {
             }
 
             const session = new WsEventSession({maxQueue: this.options.maxQueue});
-            const inboundWindowMs = Math.max(1, Math.floor(this.options.inboundWindowMs ?? 1_000));
-            const maxInboundMessages = Math.max(1, Math.floor(this.options.maxInboundMessages ?? 60));
-            const maxPayloadBytes = Math.max(1, Math.floor(this.options.maxPayloadBytes ?? 65_536));
+            const inboundWindowMs = positiveLimit(this.options.inboundWindowMs ?? 1_000, "inboundWindowMs");
+            const maxInboundMessages = positiveLimit(this.options.maxInboundMessages ?? 60, "maxInboundMessages");
+            const maxPayloadBytes = positiveLimit(this.options.maxPayloadBytes ?? 65_536, "maxPayloadBytes");
             let inboundWindowStartedAt = Date.now();
             let inboundMessages = 0;
             let initializing = true;
@@ -115,6 +115,12 @@ export class WsApiRouter {
         if (socket.readyState !== WebSocket.OPEN) return;
         for (const frame of session.drain()) socket.send(JSON.stringify(frame));
     }
+}
+
+function positiveLimit(value: number, name: string): number {
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);
+
+    return value;
 }
 
 function isSequence(value: unknown): value is number {
