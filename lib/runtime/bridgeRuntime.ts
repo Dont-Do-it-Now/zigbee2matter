@@ -12,12 +12,17 @@ import type {WsSnapshot} from "../api/wsSession";
 import {EndpointRegistry, type EndpointRegistryOptions} from "../matter/endpointRegistry";
 import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
 import type {BridgeId} from "../identity";
-import {BackupFileStore, type PersistentSnapshot} from "../storage/backupStore";
+import {BackupFileStore} from "../storage/backupStore";
+import type {PersistentSnapshot} from "../storage/backup";
+import {
+    assertRestoreApplied,
+    assertSnapshotProvider,
+    type BackupSnapshotAdapter,
+    type BackupSnapshotProvider,
+    validateSnapshotParts,
+} from "./backupRestore";
 
-export interface BackupSnapshotProvider {
-    identity(): unknown;
-    fabric(): unknown;
-}
+export type {BackupSnapshotAdapter, BackupSnapshotProvider} from "./backupRestore";
 
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
@@ -25,6 +30,7 @@ export interface BridgeRuntimeOptions {
     readonly backup?: {
         readonly store?: BackupFileStore;
         readonly snapshotProvider?: BackupSnapshotProvider;
+        readonly snapshotAdapter?: BackupSnapshotAdapter;
     };
     readonly auth?: AuthOptions;
     readonly initialTokens?: readonly TokenRecord[];
@@ -46,6 +52,7 @@ export class BridgeRuntime {
     private dynamicEndpointRuntime?: DynamicEndpointRuntime;
     private readonly backupStore: BackupFileStore;
     private readonly backupSnapshotProvider?: BackupSnapshotProvider;
+    private readonly backupSnapshotAdapter?: BackupSnapshotAdapter;
     private endpointRegistry?: EndpointRegistry;
     private attachedEventBus?: EventBus;
 
@@ -57,6 +64,7 @@ export class BridgeRuntime {
         this.matterEndpointFactory = options.matterEndpointFactory;
         this.backupStore = options.backup?.store ?? new BackupFileStore();
         this.backupSnapshotProvider = options.backup?.snapshotProvider;
+        this.backupSnapshotAdapter = options.backup?.snapshotAdapter;
         if (options.api) {
             const limiter = new AuthFailureRateLimiter();
             this.api = new ApiServer({
@@ -123,20 +131,28 @@ export class BridgeRuntime {
 
     async createPersistentBackup(passphrase: string): Promise<void> {
         if (!this.endpointRegistry) throw new Error("endpoint registry must be opened before creating a backup");
-        if (!this.backupSnapshotProvider) throw new Error("backup snapshot provider is not configured");
+        const provider = this.backupSnapshotProvider;
+        assertSnapshotProvider(provider);
 
         const snapshot: PersistentSnapshot = {
             schema: "zigbee2matter.snapshot",
             version: 1,
-            identity: this.backupSnapshotProvider.identity(),
-            fabric: this.backupSnapshotProvider.fabric(),
+            identity: provider.identity(),
+            fabric: provider.fabric(),
             endpointRegistry: this.endpointRegistry.serialize(),
         };
+        validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);
         await this.backupStore.writeSnapshot(snapshot, passphrase);
     }
 
     async restorePersistentBackup(passphrase: string): Promise<PersistentSnapshot> {
-        return await this.backupStore.readSnapshot(passphrase);
+        const snapshot = await this.backupStore.readSnapshot(passphrase);
+        validateSnapshotParts(snapshot.identity, snapshot.fabric, snapshot.endpointRegistry);
+        if (!this.backupSnapshotAdapter) throw new Error("backup restore adapter is not configured");
+
+        const result = await this.backupSnapshotAdapter.restore(snapshot);
+        assertRestoreApplied(result);
+        return snapshot;
     }
 
     async stop(): Promise<void> {

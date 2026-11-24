@@ -32,6 +32,7 @@ export interface RestRouterDeps {
     readonly listBridges?: () => readonly unknown[];
     readonly listDiagnostics?: () => unknown;
     readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
+    readonly runMigration?: (input: unknown, principal: Principal) => Promise<unknown>;
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
     readonly maxBodyBytes?: number;
     readonly authFailureRateLimiter?: AuthFailureRateLimiter;
@@ -123,6 +124,12 @@ export class RestApiRouter {
             if (!this.deps.executeCommand) throw new ApiError("UNSUPPORTED", "Commands unavailable");
             const body = await readJson(req, this.maxBodyBytes);
             this.writeJson(res, 202, redactSecrets(await this.deps.executeCommand(body, principal)));
+            return;
+        }
+        if (req.method === "POST" && pathname === "/migration") {
+            if (!this.deps.runMigration) throw new ApiError("NOT_FOUND", "Migration unavailable");
+            const body = await readJson(req, this.maxBodyBytes);
+            this.writeJson(res, 202, redactSecrets(await this.deps.runMigration(body, principal)));
             return;
         }
 

@@ -20,18 +20,31 @@ import ExtensionPublish from "./extension/publish";
 import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
+import type {EndpointRegistryDocument} from "./matter/endpointRegistry";
 import {diagnoseMatterNetwork} from "./matter/networkConfig";
 import {resolveAttestation} from "./matter/attestation";
 import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
+import {CallbackHaIntegrationAdapter, HaIntegrationRouter, type HaCommand} from "./api/haIntegration";
+import {HaHybridPolicy} from "./api/haHybrid";
 import {FileApiTokenStore} from "./api/tokenStore";
+import {runMigrationOperations, type MigrationOperationsInput} from "./migration/operations";
 import CommandRouter from "./command/router";
 import CommandLoopGuard from "./command/loopGuard";
 import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
-import {FileBridgeIdentityStore, FileNetworkIdentityStore, parseEntityKey, toHerdsmanIeee, type BridgeId, type NetworkIdentity} from "./identity";
+import {
+    FileBridgeIdentityStore,
+    FileNetworkIdentityStore,
+    formatDeviceKey,
+    formatGroupKey,
+    parseEntityKey,
+    toHerdsmanIeee,
+    type BridgeId,
+    type NetworkIdentity,
+} from "./identity";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
 import data from "./util/data";
@@ -51,6 +64,8 @@ export class Controller {
     public readonly zigbee: Zigbee;
     public readonly state: State;
     public readonly runtime: BridgeRuntime;
+    public readonly ha: HaIntegrationRouter;
+    public readonly haHybrid: HaHybridPolicy;
     public readonly networkIdentity: NetworkIdentity;
     public readonly bridgeIdentity: BridgeId;
     private readonly commandRouter: CommandRouter;
@@ -70,7 +85,29 @@ export class Controller {
         this.eventBus = new EventBus();
         const apiSettings = settings.get().api;
         const apiTokenStore = new FileApiTokenStore(data.joinPath("api-tokens.json"));
+        this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
+        this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
         this.runtime = new BridgeRuntime({
+            backup: {
+                snapshotProvider: {
+                    identity: () => this.networkIdentity,
+                    fabric: () => ({bridgeId: this.bridgeIdentity}),
+                },
+                snapshotAdapter: {
+                    restore: async (snapshot) => {
+                        if (!isRecord(snapshot.identity) || snapshot.identity.networkId !== this.networkIdentity.networkId) {
+                            return {applied: false, reason: "backup network identity does not match this bridge"};
+                        }
+                        if (!isRecord(snapshot.fabric) || snapshot.fabric.bridgeId !== this.bridgeIdentity) {
+                            return {applied: false, reason: "backup bridge identity does not match this bridge"};
+                        }
+                        const registry = this.runtime.currentEndpointRegistry;
+                        if (!registry) return {applied: false, reason: "endpoint registry is not open"};
+                        await registry.restore(snapshot.endpointRegistry as EndpointRegistryDocument);
+                        return {applied: true};
+                    },
+                },
+            },
             auth: {
                 legacyToken: apiSettings.auth_token,
                 onChange: (records) => apiTokenStore.save(records),
@@ -88,6 +125,7 @@ export class Controller {
                       listJobs: () => this.listRestJobs(),
                       listBridges: () => this.listRestBridges(),
                       executeCommand: (input, principal) => this.executeRestCommand(input, principal),
+                      runMigration: (input) => this.runMigration(input),
                       snapshot: () => ({
                           epoch: this.runtime.events.epoch,
                           sequence: this.runtime.events.lastSequence,
@@ -96,8 +134,14 @@ export class Controller {
                   }
                 : undefined,
         });
-        this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
-        this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
+        this.ha = new HaIntegrationRouter();
+        this.haHybrid = new HaHybridPolicy();
+        const haCommand = (command: HaCommand): Promise<void> => this.executeHaCommand(command);
+        this.ha.add(new CallbackHaIntegrationAdapter("direct", {onCommand: haCommand}));
+        this.ha.add(new CallbackHaIntegrationAdapter("matter", {onCommand: haCommand}));
+        this.ha.connect("direct", {onCommand: haCommand});
+        this.ha.connect("matter", {onCommand: haCommand});
+        this.haHybrid.connect({onCommand: (mode, command) => this.ha.send(mode, command)});
         this.runtime.attachEventBus(this.eventBus);
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
@@ -284,6 +328,30 @@ export class Controller {
         } as Command;
 
         return await this.commandRouter.submit(command);
+    }
+
+    private async runMigration(input: unknown): Promise<unknown> {
+        if (!isRecord(input)) throw new ApiError("INVALID_ARGUMENT", "migration input must be an object");
+        for (const key of ["preflight", "importData", "cutover", "automation"] as const) {
+            if (!isRecord(input[key])) throw new ApiError("INVALID_ARGUMENT", `migration ${key} input is required`);
+        }
+        return await runMigrationOperations(input as unknown as MigrationOperationsInput);
+    }
+
+    private async executeHaCommand(command: HaCommand): Promise<void> {
+        const target = command.entity.kind === "device" ? {key: formatDeviceKey(command.entity)} : {key: formatGroupKey(command.entity)};
+        const operation = command.service === "get" ? "get" : "set";
+        await this.executeRestCommand(
+            {
+                requestId: randomUUID(),
+                correlationId: randomUUID(),
+                deadline: Date.now() + 30_000,
+                operation,
+                target,
+                value: command.data ?? {},
+            },
+            {tokenId: "ha-integration", scope: "control", source: "anonymous"},
+        );
     }
 
     async start(): Promise<void> {
@@ -731,3 +799,4 @@ export class Controller {
         }
     }
 }
+import {randomUUID} from "node:crypto";

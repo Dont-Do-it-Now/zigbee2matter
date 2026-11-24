@@ -10,6 +10,13 @@ export interface HaEntityRecord {
     platform: HaEntityPlatform;
     name: string;
     availability: HaEntityAvailability;
+    state?: HaEntityState;
+}
+
+export interface HaEntityState {
+    value: unknown;
+    revision: number;
+    observedAt: number;
 }
 
 export function stableHaUniqueId(key: EntityKey): string {
@@ -34,6 +41,7 @@ export class HaEntityRegistry {
             platform,
             name,
             availability: existing?.availability === "removed" ? "available" : (existing?.availability ?? "available"),
+            state: existing?.state === undefined ? undefined : {...existing.state},
         };
         this.records.set(uniqueId, record);
 
@@ -56,6 +64,20 @@ export class HaEntityRegistry {
         record.availability = availability;
 
         return {...record};
+    }
+
+    setState(key: EntityKey, value: unknown, observedAt = Date.now()): HaEntityRecord | undefined {
+        const record = this.records.get(stableHaUniqueId(key));
+        if (record === undefined) return undefined;
+        if (!Number.isFinite(observedAt)) throw new Error("observedAt must be finite");
+
+        record.state = {
+            value,
+            revision: (record.state?.revision ?? 0) + 1,
+            observedAt,
+        };
+
+        return {...record, state: {...record.state}};
     }
 
     remove(key: EntityKey): HaEntityRecord | undefined {

@@ -252,6 +252,19 @@ export class EndpointRegistry {
         return {version: ENDPOINT_REGISTRY_VERSION, bridgeId: this.bridgeId, nextSeq: this.#nextSeq, entries: this.list()};
     }
 
+    /** Restores a validated document and persists it through the registry store. */
+    async restore(document: EndpointRegistryDocument): Promise<void> {
+        const parsed = parseEndpointRegistryDocument(document, this.bridgeId);
+        const before = this.serialize();
+        this.#restoreFrom(parsed);
+        try {
+            await this.#store.save(this.bridgeId, this.serialize());
+        } catch (error) {
+            this.#restoreFrom(before);
+            throw error;
+        }
+    }
+
     /** active 면 기존 매핑 그대로. 없으면 발급(또는 정책에 따라 복원)하고 저장 후 반환. 잘못된 key 는 throw. */
     async ensure(key: RegistryKey): Promise<EndpointRegistryEntry> {
         const keyStr = keyString(key);
