@@ -1,6 +1,6 @@
 /** C7 REST 라우팅 경계(T056). 기존 frontend HTTP 서버에 주입할 수 있는 Node handler. */
 import type {IncomingMessage, ServerResponse} from "node:http";
-import {authorizeRequest, type ApiAuth, type Principal, ApiError, redactSecrets, toApiError} from "./auth";
+import {authorizeRequest, type ApiAuth, type Principal, type Scope, ApiError, redactSecrets, toApiError} from "./auth";
 import {AuthFailureRateLimiter} from "./rateLimit";
 
 export interface RestDevice {
@@ -83,6 +83,28 @@ export class RestApiRouter {
             this.writeJson(res, 200, redactSecrets(this.deps.listDiagnostics()));
             return;
         }
+        if (req.method === "GET" && pathname === "/tokens") {
+            this.writeJson(res, 200, {tokens: this.deps.auth.list().map((token) => redactSecrets(token))});
+            return;
+        }
+        if (req.method === "POST" && pathname === "/tokens") {
+            const body = await readJson(req, this.maxBodyBytes);
+            if (!isRecord(body) || !isScope(body.scope)) throw new ApiError("INVALID_ARGUMENT", "scope is required");
+            if (body.label !== undefined && typeof body.label !== "string") throw new ApiError("INVALID_ARGUMENT", "label must be a string");
+            if (body.ttlMs !== undefined && typeof body.ttlMs !== "number") throw new ApiError("INVALID_ARGUMENT", "ttlMs must be a number");
+            const issued = this.deps.auth.issue(body.scope, {
+                ...(body.label !== undefined ? {label: body.label} : {}),
+                ...(body.ttlMs !== undefined ? {ttlMs: body.ttlMs} : {}),
+            });
+            this.writeJson(res, 201, issued);
+            return;
+        }
+        if (req.method === "DELETE" && pathname.startsWith("/tokens/")) {
+            const id = decodeTokenId(pathname.slice("/tokens/".length));
+            this.deps.auth.revoke(id);
+            this.writeJson(res, 200, {revoked: true});
+            return;
+        }
         if (req.method === "POST" && pathname === "/commands") {
             if (!this.deps.executeCommand) throw new ApiError("UNSUPPORTED", "Commands unavailable");
             const body = await readJson(req, this.maxBodyBytes);
@@ -103,6 +125,26 @@ export class RestApiRouter {
 
     private writeError(res: ServerResponse, error: ApiError): void {
         this.writeJson(res, error.httpStatus, error.toBody());
+    }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isScope(value: unknown): value is Scope {
+    return value === "read" || value === "control" || value === "admin";
+}
+
+function decodeTokenId(value: string): string {
+    if (!value || value.includes("/")) throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
+    try {
+        const id = decodeURIComponent(value);
+        if (!id || id.includes("/")) throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
+        return id;
+    } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError("INVALID_ARGUMENT", "Invalid token id");
     }
 }
 
