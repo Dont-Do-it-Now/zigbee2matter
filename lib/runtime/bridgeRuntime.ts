@@ -141,11 +141,12 @@ export class BridgeRuntime {
         if (!this.endpointRegistry) {
             throw new Error("endpoint registry must be opened before starting Matter");
         }
+        if (!this.matterEndpointFactory) {
+            throw new Error("Matter endpoint factory is not configured");
+        }
 
         await this.matter.createNode(options);
-        if (this.matterEndpointFactory) {
-            this.dynamicEndpointRuntime = this.createSdkDynamicEndpointRuntime(this.matterEndpointFactory);
-        }
+        this.dynamicEndpointRuntime = this.createSdkDynamicEndpointRuntime(this.matterEndpointFactory);
     }
 
     async openEndpointRegistry(bridgeId: BridgeId, options: EndpointRegistryOptions = {}): Promise<EndpointRegistry> {
