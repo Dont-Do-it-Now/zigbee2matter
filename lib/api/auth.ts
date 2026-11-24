@@ -127,7 +127,17 @@ export class ApiAuth {
         this.now = options.now ?? Date.now;
         for (const r of initial) {
             // 불량 레코드는 버리고 경고만(전체 기동 차단 금지). 해시/토큰 값은 경고에 포함하지 않는다.
-            if (r && typeof r.id === "string" && r.id && isScope(r.scope) && typeof r.hash === "string" && HASH_RE.test(r.hash)) {
+            if (
+                r &&
+                typeof r.id === "string" &&
+                r.id &&
+                isScope(r.scope) &&
+                typeof r.hash === "string" &&
+                HASH_RE.test(r.hash) &&
+                (r.label === undefined || typeof r.label === "string") &&
+                (r.expiresAt === undefined || (Number.isFinite(r.expiresAt) && r.expiresAt >= 0)) &&
+                (r.revokedAt === undefined || (Number.isFinite(r.revokedAt) && r.revokedAt >= 0))
+            ) {
                 this.records.set(r.id, {...r});
             } else {
                 options.warn?.(`Discarded invalid API token record (id=${typeof r?.id === "string" ? r.id : "?"})`);
@@ -138,7 +148,10 @@ export class ApiAuth {
     /** 새 토큰 발급. secret은 이 반환값으로만 한 번 노출된다. */
     issue(scope: Scope, opts: {label?: string; ttlMs?: number} = {}): {id: string; secret: string; info: TokenInfo} {
         if (!isScope(scope)) throw new ApiError("INVALID_ARGUMENT", "Invalid scope");
-        if (opts.ttlMs !== undefined && !(Number.isFinite(opts.ttlMs) && opts.ttlMs > 0)) {
+        if (opts.label !== undefined && typeof opts.label !== "string") {
+            throw new ApiError("INVALID_ARGUMENT", "Invalid label");
+        }
+        if (opts.ttlMs !== undefined && !(Number.isFinite(opts.ttlMs) && opts.ttlMs > 0 && Number.isFinite(this.now() + opts.ttlMs))) {
             throw new ApiError("INVALID_ARGUMENT", "Invalid ttl");
         }
         const secret = randomBytes(32).toString("base64url");
