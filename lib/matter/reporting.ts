@@ -22,6 +22,7 @@ export class ReportingRegistry {
         if (!Number.isSafeInteger(input.minIntervalMs) || input.minIntervalMs < 0) throw new Error("invalid minIntervalMs");
         if (!Number.isSafeInteger(input.maxIntervalMs) || input.maxIntervalMs < input.minIntervalMs) throw new Error("invalid maxIntervalMs");
         const value = {...input, nextDueAt: now + input.minIntervalMs};
+        this.pending.delete(input.id);
         this.subscriptions.set(input.id, value);
         return {...value};
     }
