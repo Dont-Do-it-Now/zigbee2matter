@@ -396,7 +396,7 @@ export default class CommandRouter {
 
         const state = parsed;
 
-        return (pending.expectations ?? []).some((e) =>
+        return (pending.expectations ?? []).every((e) =>
             e.names.some((name) => name in state && (e.existsOnly || valuesMatch(state[name], e.expected))),
         );
     }
