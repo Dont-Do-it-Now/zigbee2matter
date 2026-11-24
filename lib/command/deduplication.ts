@@ -24,7 +24,9 @@ export default class CommandDeduplicator {
     private readonly now: () => number;
 
     constructor(options: CommandDeduplicatorOptions = {}) {
-        this.maxEntries = Math.max(1, Math.floor(options.maxEntries ?? DEFAULT_MAX_ENTRIES));
+        const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+        if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) throw new Error("maxEntries must be a positive integer");
+        this.maxEntries = maxEntries;
         this.now = options.now ?? ((): number => Date.now());
     }
 
