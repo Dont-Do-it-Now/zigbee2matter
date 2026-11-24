@@ -30,7 +30,8 @@ export interface MatterNodeOptions {
 }
 
 export interface MatterEndpointFactory {
-    create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; number: number}>;
+    create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown}>;
+    readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
     remove(entry: EndpointRegistryEntry): Promise<void>;
 }
 
@@ -42,9 +43,9 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
 
     async create(entry: EndpointRegistryEntry): Promise<{number: number}> {
         const created = await this.factory.create(entry);
-        await this.runtime.addEndpoint(created.endpoint);
+        const added = await this.runtime.addEndpoint(created.endpoint);
 
-        return {number: created.number};
+        return {number: this.factory.readAssignedNumber(entry, created.endpoint, added)};
     }
 
     async remove(entry: EndpointRegistryEntry): Promise<void> {
@@ -95,9 +96,9 @@ export class MatterSdkRuntime {
         return node;
     }
 
-    async addEndpoint(endpoint: unknown): Promise<void> {
+    async addEndpoint(endpoint: unknown): Promise<unknown> {
         if (!this.node) throw new Error("Matter node has not been created");
-        await this.node.add(endpoint);
+        return await this.node.add(endpoint);
     }
 
     async start(): Promise<void> {
