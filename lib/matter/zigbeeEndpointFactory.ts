@@ -7,7 +7,7 @@
 import type {MappingExpose} from "./mappingRegistry";
 import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
-import {matterLevelToZigbee, zigbeeBrightnessToMatter} from "./lightingMapping";
+import {matterLevelToZigbee, validateColorTemperatureMireds, zigbeeBrightnessToMatter} from "./lightingMapping";
 import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
 
 interface EndpointDefinition {
@@ -17,6 +17,7 @@ interface EndpointDefinition {
 interface EndpointEvents {
     onOff?: {onOff$Changed?: {on(listener: (value: boolean) => void): void}};
     levelControl?: {currentLevel$Changed?: {on(listener: (value: number) => void): void}};
+    colorControl?: {colorTemperatureMireds$Changed?: {on(listener: (value: number) => void): void}};
 }
 
 interface MatterEndpointInstance {
@@ -36,7 +37,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "colorTemperature" | "temperature" | "humidity" | "contact" | "occupancy";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -118,9 +119,12 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (typeof state.available === "boolean") {
             patch.bridgedDeviceBasicInformation = {reachable: state.available};
         }
-        if (capability === "light") {
+        if (capability === "light" || capability === "colorTemperature") {
             if (state.state === "ON" || state.state === "OFF") patch.onOff = {onOff: state.state === "ON"};
             if (typeof state.brightness === "number") patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
+            if (capability === "colorTemperature" && typeof state.color_temp === "number") {
+                patch.colorControl = {colorTemperatureMireds: validateColorTemperatureMireds(state.color_temp)};
+            }
         } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
             const value = celsiusToMatter(state.temperature);
             if (value.known) patch.temperatureMeasurement = {measuredValue: value.value};
@@ -153,6 +157,14 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
+            const hasColor = light.features?.some((feature) => feature.name === "color") ?? false;
+            const hasColorTemperature = light.features?.some((feature) => feature.type === "numeric" && feature.name === "color_temp") ?? false;
+            if (hasColor) throw new Error("Matter mapping is unsupported: full color light requires an approved ColorControl mapping");
+            if (hasColorTemperature) {
+                const {ColorTemperatureLightDevice} = await import("@matter/main/devices/color-temperature-light");
+                return {definition: ColorTemperatureLightDevice as unknown as EndpointDefinition, capability: "colorTemperature"};
+            }
+
             const hasBrightness = light.features?.some((feature) => feature.type === "numeric" && feature.name === "brightness") ?? false;
             if (hasBrightness) {
                 const {DimmableLightDevice} = await import("@matter/main/devices/dimmable-light");
@@ -191,6 +203,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         endpoint.events?.levelControl?.currentLevel$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             void send({brightness: matterLevelToZigbee(value)});
+        });
+        endpoint.events?.colorControl?.colorTemperatureMireds$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            void send({color_temp: validateColorTemperatureMireds(value)});
         });
     }
 }
