@@ -37,6 +37,11 @@ interface EndpointEvents {
     };
     windowCovering?: {targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void}};
     doorLock?: {lockState$Changed?: {on(listener: (value: number) => void): void}};
+    thermostat?: {
+        systemMode$Changed?: {on(listener: (value: number) => void): void};
+        occupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
+        occupiedCoolingSetpoint$Changed?: {on(listener: (value: number) => void): void};
+    };
     switch?: {
         initialPress?: {on(listener: (value: unknown) => void): void};
         shortRelease?: {on(listener: (value: unknown) => void): void};
@@ -63,7 +68,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy" | "lock";
+type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy" | "lock" | "thermostat";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -185,6 +190,17 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         } else if (capability === "lock") {
             const lockState = matterLockState(state.state ?? state.lock_state);
             if (lockState !== undefined) patch.doorLock = {lockState};
+        } else if (capability === "thermostat") {
+            const thermostat: Record<string, unknown> = {};
+            const localTemperature = celsiusToMatterValue(state.local_temperature);
+            if (localTemperature !== undefined) thermostat.localTemperature = localTemperature;
+            const heatingSetpoint = celsiusToMatterValue(state.occupied_heating_setpoint);
+            if (heatingSetpoint !== undefined) thermostat.occupiedHeatingSetpoint = heatingSetpoint;
+            const coolingSetpoint = celsiusToMatterValue(state.occupied_cooling_setpoint);
+            if (coolingSetpoint !== undefined) thermostat.occupiedCoolingSetpoint = coolingSetpoint;
+            const systemMode = matterSystemMode(state.system_mode);
+            if (systemMode !== undefined) thermostat.systemMode = systemMode;
+            if (Object.keys(thermostat).length > 0) patch.thermostat = thermostat;
         }
         if (Object.keys(patch).length === 0) return;
 
@@ -207,7 +223,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
         const energy = flattened.find((expose) => expose.type === "numeric" && (expose.name === "power" || expose.name === "energy"));
         const lock = flattened.find((expose) => expose.type === "lock");
-        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy, lock].filter((value) => value !== undefined);
+        const thermostat = flattened.find((expose) => expose.type === "climate");
+        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy, lock, thermostat].filter((value) => value !== undefined);
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
@@ -288,6 +305,16 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             const {DoorLockDevice} = await import("@matter/main/devices/door-lock");
             return {definition: DoorLockDevice as unknown as EndpointDefinition, capability: "lock"};
         }
+        if (thermostat) {
+            const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
+                import("@matter/main/devices/thermostat"),
+                import("@matter/main/behaviors/thermostat"),
+            ]);
+            return {
+                definition: ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "Occupancy", "AutoMode")) as unknown as EndpointDefinition,
+                capability: "thermostat",
+            };
+        }
 
         throw new Error("Matter mapping is unsupported");
     }
@@ -342,6 +369,19 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             const state = zigbeeLockState(value);
             if (state !== undefined) this.sendCommand(endpointId, send, {state});
         });
+        endpoint.events?.thermostat?.systemMode$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const mode = zigbeeSystemMode(value);
+            if (mode !== undefined) this.sendCommand(endpointId, send, {system_mode: mode});
+        });
+        endpoint.events?.thermostat?.occupiedHeatingSetpoint$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            this.sendCommand(endpointId, send, {occupied_heating_setpoint: value / 100});
+        });
+        endpoint.events?.thermostat?.occupiedCoolingSetpoint$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            this.sendCommand(endpointId, send, {occupied_cooling_setpoint: value / 100});
+        });
         endpoint.events?.switch?.initialPress?.on(() => this.sendButtonAction(endpointId, send, "initial_press"));
         endpoint.events?.switch?.shortRelease?.on(() => this.sendButtonAction(endpointId, send, "short_release"));
         endpoint.events?.switch?.longPress?.on(() => this.sendButtonAction(endpointId, send, "long_press"));
@@ -391,5 +431,29 @@ function matterLockState(value: unknown): number | undefined {
 function zigbeeLockState(value: number): "LOCK" | "UNLOCK" | undefined {
     if (value === 1) return "LOCK";
     if (value === 2) return "UNLOCK";
+    return undefined;
+}
+
+function celsiusToMatterValue(value: unknown): number | undefined {
+    if (typeof value !== "number") return undefined;
+    const mapped = celsiusToMatter(value);
+    return mapped.known ? mapped.value : undefined;
+}
+
+function matterSystemMode(value: unknown): number | undefined {
+    if (value === "off") return 0;
+    if (value === "auto") return 1;
+    if (value === "cool") return 3;
+    if (value === "heat") return 4;
+    if (value === "emergency_heating") return 5;
+    return undefined;
+}
+
+function zigbeeSystemMode(value: number): "off" | "auto" | "cool" | "heat" | "emergency_heating" | undefined {
+    if (value === 0) return "off";
+    if (value === 1) return "auto";
+    if (value === 3) return "cool";
+    if (value === 4) return "heat";
+    if (value === 5) return "emergency_heating";
     return undefined;
 }
