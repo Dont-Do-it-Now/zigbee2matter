@@ -1,3 +1,4 @@
+import {randomUUID} from "node:crypto";
 import bind from "bind-decorator";
 import {setLogger as zhSetLogger} from "zigbee-herdsman";
 import {InterviewState} from "zigbee-herdsman/dist/controller/model/device";
@@ -328,8 +329,9 @@ export class Controller {
         for (const endpoint of device.zh.endpoints) {
             const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
             if (!key) continue;
+            const endpointState = stateForEndpoint(state, device.endpointName(endpoint), String(endpoint.ID));
             try {
-                await this.runtime.updateMatterEndpoint(key, state);
+                await this.runtime.updateMatterEndpoint(key, endpointState);
             } catch (error) {
                 logger.warning(`Matter state update failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
             }
@@ -968,4 +970,16 @@ export class Controller {
         }
     }
 }
-import {randomUUID} from "node:crypto";
+
+function stateForEndpoint(state: Record<string, unknown>, ...suffixes: Array<string | undefined>): Record<string, unknown> {
+    const scoped = {...state};
+    for (const suffix of suffixes) {
+        if (!suffix) continue;
+        const marker = `_${suffix}`;
+        for (const [key, value] of Object.entries(state)) {
+            if (key.endsWith(marker)) scoped[key.slice(0, -marker.length)] = value;
+        }
+    }
+
+    return scoped;
+}
