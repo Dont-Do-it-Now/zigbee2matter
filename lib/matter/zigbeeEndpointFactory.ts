@@ -81,6 +81,11 @@ interface EndpointDefinitionPlan {
     supportsTilt?: boolean;
 }
 
+interface CoverPositionState {
+    lift?: number;
+    tilt?: number;
+}
+
 interface FactoryOptions {
     loadSdk: () => Promise<MatterMainModule>;
     resolve: (entry: EndpointRegistryEntry) => Promise<ZigbeeMatterEndpointSource | undefined>;
@@ -91,6 +96,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly endpoints = new Map<string, MatterEndpointInstance>();
     private readonly capabilities = new Map<string, MatterCapability>();
     private readonly coverTilts = new Map<string, boolean>();
+    private readonly coverPositions = new Map<string, CoverPositionState>();
     private readonly stateUpdates = new Set<string>();
     private readonly colorValues = new Map<string, {hue?: number; saturation?: number; x?: number; y?: number}>();
 
@@ -121,6 +127,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         this.endpoints.set(entry.endpointId, endpoint);
         this.capabilities.set(entry.endpointId, plan.capability);
         this.coverTilts.set(entry.endpointId, plan.supportsTilt === true);
+        this.coverPositions.set(entry.endpointId, {});
         this.colorValues.set(entry.endpointId, {});
 
         return {endpoint};
@@ -148,6 +155,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             this.stateUpdates.delete(entry.endpointId);
             this.capabilities.delete(entry.endpointId);
             this.coverTilts.delete(entry.endpointId);
+            this.coverPositions.delete(entry.endpointId);
             this.colorValues.delete(entry.endpointId);
         }
     }
@@ -181,12 +189,16 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             }
         } else if (capability === "cover") {
             const windowCovering: Record<string, unknown> = {};
+            const positions = this.coverPositions.get(entry.endpointId) ?? {};
             if (typeof state.position === "number") {
-                windowCovering.currentPositionLiftPercent100ths = Math.round(mapCoverPosition(state.position) * 100);
+                positions.lift = Math.round(mapCoverPosition(state.position) * 100);
+                windowCovering.currentPositionLiftPercent100ths = positions.lift;
             }
             if (this.coverTilts.get(entry.endpointId) && typeof state.tilt === "number") {
-                windowCovering.currentPositionTiltPercent100ths = Math.round(mapCoverPosition(state.tilt) * 100);
+                positions.tilt = Math.round(mapCoverPosition(state.tilt) * 100);
+                windowCovering.currentPositionTiltPercent100ths = positions.tilt;
             }
+            this.coverPositions.set(entry.endpointId, positions);
             if (Object.keys(windowCovering).length > 0) patch.windowCovering = windowCovering;
         } else if (capability === "energy") {
             if (typeof state.power === "number") patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
@@ -396,11 +408,13 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         });
         endpoint.events?.windowCovering?.targetPositionLiftPercent100ths$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId) || value === null) return;
-            this.sendCommand(endpointId, send, {position: mapCoverPosition(value / 100)});
+            const current = this.coverPositions.get(endpointId)?.lift;
+            this.sendCommand(endpointId, send, current === value ? {state: "STOP"} : {position: mapCoverPosition(value / 100)});
         });
         endpoint.events?.windowCovering?.targetPositionTiltPercent100ths$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId) || value === null || !this.coverTilts.get(endpointId)) return;
-            this.sendCommand(endpointId, send, {tilt: mapCoverPosition(value / 100)});
+            const current = this.coverPositions.get(endpointId)?.tilt;
+            this.sendCommand(endpointId, send, current === value ? {state: "STOP"} : {tilt: mapCoverPosition(value / 100)});
         });
         endpoint.events?.doorLock?.lockState$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
