@@ -4,6 +4,7 @@ import {toMatterEnvVars, toServerNodeNetworkState, type MatterNetworkConfig} fro
 import type {ResolvedAttestation} from "./attestation";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
+import type {CommissioningCode} from "./commissioning";
 import {MatterReportingRuntime, type MatterReportingAdapter} from "./reporting";
 
 export type {MatterReportingAdapter} from "./reporting";
@@ -12,6 +13,12 @@ export interface MatterServerNode {
     start(): Promise<void>;
     close(): Promise<void>;
     add(endpoint: unknown): Promise<unknown>;
+    readonly state?: {
+        readonly commissioning?: {
+            readonly discriminator: number;
+            readonly pairingCodes?: {readonly manualPairingCode: string};
+        };
+    };
 }
 
 interface MatterEndpointContainer {
@@ -235,6 +242,16 @@ export class MatterSdkRuntime {
 
     get currentNode(): MatterServerNode | undefined {
         return this.node;
+    }
+
+    getCommissioningCode(): CommissioningCode {
+        const commissioning = this.node?.state?.commissioning;
+        const setupCode = commissioning?.pairingCodes?.manualPairingCode;
+        if (setupCode === undefined || commissioning === undefined) {
+            throw new Error("Matter commissioning code is not available before the SDK node is created");
+        }
+
+        return {setupCode, discriminator: commissioning.discriminator};
     }
 
     private clearAppliedEnvironment(): void {

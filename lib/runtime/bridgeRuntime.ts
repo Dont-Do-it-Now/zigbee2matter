@@ -91,7 +91,7 @@ export class BridgeRuntime {
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
         this.lifecycle = new ServiceLifecycle();
-        this.commissioning = options.commissioning ?? new CommissioningManager();
+        this.commissioning = options.commissioning ?? new CommissioningManager({codeFactory: () => this.matter.getCommissioningCode()});
         this.multiBridge = options.multiBridge
             ? new MultiBridgeRuntime(options.multiBridge.registry ?? new MultiBridgeRegistry(), options.multiBridge.factory)
             : undefined;
