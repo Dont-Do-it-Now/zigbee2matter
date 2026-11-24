@@ -88,10 +88,14 @@ export class MatterSdkRuntime {
             throw new Error("Matter passcode and discriminator must be provided together");
         }
         const environment = options.environment ?? this.environment;
-        const environmentNames = Object.keys(toMatterEnvVars(options.network ?? {}));
-        for (const [name, value] of Object.entries(toMatterEnvVars(options.network ?? {}))) environment.set(name, value);
+        const environmentVars = toMatterEnvVars(options.network ?? {});
+        const appliedEnvironmentNames: string[] = [];
 
         try {
+            for (const [name, value] of Object.entries(environmentVars)) {
+                environment.set(name, value);
+                appliedEnvironmentNames.push(name);
+            }
             const sdk = await this.load();
             const commissioning = options.passcode === undefined || options.discriminator === undefined
                 ? undefined
@@ -117,10 +121,10 @@ export class MatterSdkRuntime {
             this.nodeId = options.id;
             this.started = false;
             this.appliedEnvironment = environment;
-            this.appliedEnvironmentNames = environmentNames;
+            this.appliedEnvironmentNames = appliedEnvironmentNames;
             return node;
         } catch (error) {
-            for (const name of environmentNames) environment.unset(name);
+            for (const name of appliedEnvironmentNames) environment.unset(name);
             throw error;
         }
     }
@@ -161,18 +165,35 @@ export class MatterSdkRuntime {
     }
 }
 
-const previousProcessEnvironment = new Map<string, string | undefined>();
+interface ProcessEnvironmentState {
+    previous: string | undefined;
+    value: string;
+    owners: number;
+}
+
+const processEnvironmentState = new Map<string, ProcessEnvironmentState>();
 const processMatterEnvironment: MatterEnvironment = {
     set(name, value): void {
         const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
-        if (!previousProcessEnvironment.has(processName)) previousProcessEnvironment.set(processName, process.env[processName]);
-        process.env[processName] = String(value);
+        const nextValue = String(value);
+        const current = processEnvironmentState.get(processName);
+        if (current) {
+            if (current.value !== nextValue) throw new Error(`Matter environment '${processName}' is already set to a different value`);
+            current.owners += 1;
+            return;
+        }
+
+        processEnvironmentState.set(processName, {previous: process.env[processName], value: nextValue, owners: 1});
+        process.env[processName] = nextValue;
     },
     unset(name): void {
         const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
-        const previous = previousProcessEnvironment.get(processName);
-        if (previous === undefined) delete process.env[processName];
-        else process.env[processName] = previous;
-        previousProcessEnvironment.delete(processName);
+        const current = processEnvironmentState.get(processName);
+        if (!current) return;
+        current.owners -= 1;
+        if (current.owners > 0) return;
+        if (current.previous === undefined) delete process.env[processName];
+        else process.env[processName] = current.previous;
+        processEnvironmentState.delete(processName);
     },
 };
