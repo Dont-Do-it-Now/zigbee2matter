@@ -1,4 +1,4 @@
-import {closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, fsyncSync} from "node:fs";
+import {chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, fsyncSync} from "node:fs";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
 import type {TokenRecord} from "./auth";
@@ -21,6 +21,7 @@ export class FileApiTokenStore {
     save(records: readonly TokenRecord[]): void {
         const directory = path.dirname(this.filePath);
         mkdirSync(directory, {recursive: true, mode: 0o700});
+        chmodSync(directory, 0o700);
         const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
         const descriptor = openSync(temporaryPath, "wx", 0o600);
 
@@ -33,6 +34,7 @@ export class FileApiTokenStore {
 
         try {
             renameSync(temporaryPath, this.filePath);
+            chmodSync(this.filePath, 0o600);
         } catch (error) {
             try {
                 unlinkSync(temporaryPath);
