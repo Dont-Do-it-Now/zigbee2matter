@@ -110,7 +110,7 @@ export class MatterSdkRuntime {
             if (!loaded.ServerNode?.create) throw new Error("Matter SDK does not expose ServerNode.create");
             this.module = loaded;
         } catch (error) {
-            throw new Error(`Matter SDK '${moduleName}' is not installed or cannot be loaded: ${(error as Error).message}`);
+            throw new Error(`Matter SDK '${moduleName}' is not installed or cannot be loaded: ${error instanceof Error ? error.message : String(error)}`);
         }
         return this.module;
     }
