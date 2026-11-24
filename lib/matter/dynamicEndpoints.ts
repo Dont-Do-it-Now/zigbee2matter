@@ -74,8 +74,17 @@ export class DynamicEndpointRuntime {
         if (plan.action === "reuse") return plan;
 
         const created = await this.adapter.create(plan.entry);
-        await this.coordinator.recordCreated(key, created.number);
-        return {action: "create", entry: {...plan.entry, number: created.number}};
+        try {
+            await this.coordinator.recordCreated(key, created.number);
+            return {action: "create", entry: {...plan.entry, number: created.number}};
+        } catch (error) {
+            try {
+                await this.adapter.remove(plan.entry);
+            } catch {
+                // Preserve the registry error; diagnostics own cleanup reporting.
+            }
+            throw error;
+        }
     }
 
     async remove(key: RegistryKey): Promise<boolean> {
