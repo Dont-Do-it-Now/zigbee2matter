@@ -374,6 +374,7 @@ export class Controller {
 
         if (!isRecord(payload) || (payload.state !== "online" && payload.state !== "offline")) return;
         const available = payload.state === "online";
+        this.runtime.events.publish("availability", entity.isDevice() ? `device/${entity.ieeeAddr}` : `group/${entity.ID}`, {available});
         for (const state of this.stateSnapshotsForEntity(entity)) {
             if (available) this.runtime.stateSnapshots.markAvailable(state.key);
             else this.runtime.stateSnapshots.markUnavailable(state.key);
