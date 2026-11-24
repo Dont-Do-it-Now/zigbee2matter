@@ -18,6 +18,7 @@ import {
 } from "./lightingMapping";
 import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
 import {mapCoverPosition} from "./coverMapping";
+import {mapButtonAction} from "./buttonMapping";
 
 interface EndpointDefinition {
     with(behavior: unknown): unknown;
@@ -34,6 +35,12 @@ interface EndpointEvents {
         currentY$Changed?: {on(listener: (value: number) => void): void};
     };
     windowCovering?: {targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void}};
+    switch?: {
+        initialPress?: {on(listener: (value: unknown) => void): void};
+        shortRelease?: {on(listener: (value: unknown) => void): void};
+        longPress?: {on(listener: (value: unknown) => void): void};
+        multiPressComplete?: {on(listener: (value: {totalNumberOfPressesCounted?: number}) => void): void};
+    };
 }
 
 interface MatterEndpointInstance {
@@ -53,7 +60,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "temperature" | "humidity" | "contact" | "occupancy";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -186,7 +193,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const contact = flattened.find((expose) => expose.type === "binary" && expose.name === "contact");
         const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
         const cover = flattened.find((expose) => expose.type === "cover");
-        const matches = [light, cover, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
+        const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
+        const matches = [light, cover, button, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
@@ -218,6 +226,18 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             return {
                 definition: WindowCoveringDevice.with(WindowCoveringServer.with("Lift", "PositionAwareLift")) as unknown as EndpointDefinition,
                 capability: "cover",
+            };
+        }
+        if (button) {
+            const [{GenericSwitchDevice}, {SwitchServer}] = await Promise.all([
+                import("@matter/main/devices/generic-switch"),
+                import("@matter/main/behaviors/switch"),
+            ]);
+            return {
+                definition: GenericSwitchDevice.with(
+                    SwitchServer.with("MomentarySwitch", "MomentarySwitchRelease", "MomentarySwitchLongPress", "MomentarySwitchMultiPress"),
+                ) as unknown as EndpointDefinition,
+                capability: "button",
             };
         }
         if (temperature) {
@@ -286,6 +306,26 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             if (this.stateUpdates.has(endpointId) || value === null) return;
             this.sendCommand(endpointId, send, {position: mapCoverPosition(value / 100)});
         });
+        endpoint.events?.switch?.initialPress?.on(() => this.sendButtonAction(endpointId, send, "initial_press"));
+        endpoint.events?.switch?.shortRelease?.on(() => this.sendButtonAction(endpointId, send, "short_release"));
+        endpoint.events?.switch?.longPress?.on(() => this.sendButtonAction(endpointId, send, "long_press"));
+        endpoint.events?.switch?.multiPressComplete?.on((value) => {
+            const pressCount = value.totalNumberOfPressesCounted;
+            if (pressCount === undefined) return;
+            this.sendButtonAction(endpointId, send, "multi_press_complete", pressCount);
+        });
+    }
+
+    private sendButtonAction(
+        endpointId: string,
+        send: ZigbeeMatterEndpointSource["send"],
+        action: string,
+        pressCount?: number,
+    ): void {
+        if (this.stateUpdates.has(endpointId)) return;
+        const result = mapButtonAction(action, pressCount);
+        if (!result.supported) return;
+        this.sendCommand(endpointId, send, pressCount === undefined ? {action} : {action, pressCount});
     }
 
     private sendCommand(endpointId: string, send: ZigbeeMatterEndpointSource["send"], payload: Record<string, unknown>): void {
