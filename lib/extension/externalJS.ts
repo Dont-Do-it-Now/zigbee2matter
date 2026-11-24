@@ -154,6 +154,10 @@ export default abstract class ExternalJSExtension<M> extends Extension {
         }
 
         const {name} = message;
+        const trust = evaluateExternalJSTrust(name);
+        if (!trust.allowed) {
+            return utils.getResponse(message, {}, "External JavaScript is disabled or the file name is invalid");
+        }
         const toBeRemoved = this.getFilePath(name);
 
         if (fs.existsSync(toBeRemoved)) {

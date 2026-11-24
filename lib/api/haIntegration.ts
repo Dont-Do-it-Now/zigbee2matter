@@ -1,6 +1,7 @@
 /** HA Direct/Matter 공용 통합 경계(T049/T050/T051). */
 import type {EntityKey} from "../identity";
 import {HaEntityRegistry, type HaEntityPlatform} from "./haEntityRegistry";
+import type {ReportUpdate} from "../matter/reporting";
 
 export type HaIntegrationMode = "direct" | "matter" | "hybrid";
 export type HaCommand = {entity: EntityKey; service: string; data?: Record<string, unknown>};
@@ -26,6 +27,8 @@ export interface HaIntegrationAdapter {
     connect?(callbacks: HaIntegrationCallbacks): void;
     /** Core 상태를 해당 HA transport로 전달한다. */
     publishState?(update: HaStateUpdate): void;
+    /** Matter reporting 결과를 해당 HA transport로 전달한다. */
+    publishReport?(update: ReportUpdate): void;
 }
 
 export interface CallbackHaIntegrationAdapterOptions {
@@ -33,6 +36,7 @@ export interface CallbackHaIntegrationAdapterOptions {
     readonly onRegister?: (entity: EntityKey, platform: HaEntityPlatform, name: string) => void;
     readonly onAvailability?: (entity: EntityKey, available: boolean) => void;
     readonly onState?: (update: HaStateUpdate) => void;
+    readonly onReport?: (update: ReportUpdate) => void;
 }
 
 /** In-process adapter used by the Direct and Matter composition roots. */
@@ -61,6 +65,10 @@ export class CallbackHaIntegrationAdapter implements HaIntegrationAdapter {
 
     publishState(update: HaStateUpdate): void {
         this.options.onState?.(update);
+    }
+
+    publishReport(update: ReportUpdate): void {
+        this.options.onReport?.(update);
     }
 }
 
@@ -105,6 +113,13 @@ export class HaIntegrationRouter {
         const record = this.registry.setState(entity, value, observedAt);
         if (!record?.state) throw new Error(`HA entity is not registered: ${record?.uniqueId ?? "unknown"}`);
         adapter.publishState?.({entity, value: record.state.value, revision: record.state.revision, observedAt: record.state.observedAt});
+    }
+
+    publishReport(mode: HaIntegrationMode, update: ReportUpdate): void {
+        const adapter = this.adapters.get(mode);
+        if (!adapter) throw new Error(`HA integration is not configured: ${mode}`);
+
+        adapter.publishReport?.(update);
     }
 
     send(mode: HaIntegrationMode, command: HaCommand): Promise<void> {

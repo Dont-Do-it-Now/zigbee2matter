@@ -27,6 +27,7 @@ import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {CallbackHaIntegrationAdapter, HaIntegrationRouter, type HaCommand} from "./api/haIntegration";
 import {HaHybridPolicy} from "./api/haHybrid";
+import {ReportingRegistry} from "./matter/reporting";
 import {FileApiTokenStore} from "./api/tokenStore";
 import {runMigrationOperations, type MigrationOperationsInput} from "./migration/operations";
 import CommandRouter from "./command/router";
@@ -66,6 +67,7 @@ export class Controller {
     public readonly runtime: BridgeRuntime;
     public readonly ha: HaIntegrationRouter;
     public readonly haHybrid: HaHybridPolicy;
+    public readonly reporting: ReportingRegistry;
     public readonly networkIdentity: NetworkIdentity;
     public readonly bridgeIdentity: BridgeId;
     private readonly commandRouter: CommandRouter;
@@ -142,6 +144,10 @@ export class Controller {
         this.ha.connect("direct", {onCommand: haCommand});
         this.ha.connect("matter", {onCommand: haCommand});
         this.haHybrid.connect({onCommand: (mode, command) => this.ha.send(mode, command)});
+        this.reporting = new ReportingRegistry(
+            (update) => this.ha.publishReport("matter", update),
+            (error) => logger.warning(`Matter report delivery failed: ${error instanceof Error ? error.message : String(error)}`),
+        );
         this.runtime.attachEventBus(this.eventBus);
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant

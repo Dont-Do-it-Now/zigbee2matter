@@ -10,12 +10,32 @@ export interface ReportSubscription {
 
 export interface ReportUpdate {
     readonly subscriptionId: string;
+    /** 보고를 어느 fabric transport로 전달할지 식별한다. 기존 호출자 호환을 위해 optional이다. */
+    readonly fabricId?: string;
     readonly value: unknown;
 }
+
+export type ReportDelivery = (update: ReportUpdate) => void;
+export type ReportDeliveryError = (error: unknown, update: ReportUpdate) => void;
 
 export class ReportingRegistry {
     private readonly subscriptions = new Map<string, ReportSubscription>();
     private readonly pending = new Map<string, ReportUpdate>();
+    private delivery?: ReportDelivery;
+    private deliveryError?: ReportDeliveryError;
+
+    constructor(delivery?: ReportDelivery, deliveryError?: ReportDeliveryError) {
+        this.delivery = delivery;
+        this.deliveryError = deliveryError;
+    }
+
+    setDelivery(delivery: ReportDelivery | undefined): void {
+        this.delivery = delivery;
+    }
+
+    setDeliveryError(deliveryError: ReportDeliveryError | undefined): void {
+        this.deliveryError = deliveryError;
+    }
 
     subscribe(input: Omit<ReportSubscription, "nextDueAt">, now = Date.now()): ReportSubscription {
         if (!input.id || !input.fabricId) throw new Error("subscription identity is required");
@@ -35,7 +55,7 @@ export class ReportingRegistry {
     publish(id: string, value: unknown, now = Date.now()): boolean {
         const subscription = this.subscriptions.get(id);
         if (!subscription) return false;
-        this.pending.set(id, {subscriptionId: id, value});
+        this.pending.set(id, {subscriptionId: id, fabricId: subscription.fabricId, value});
         if (now >= subscription.nextDueAt) {
             this.subscriptions.set(id, {...subscription, nextDueAt: now});
         }
@@ -50,6 +70,13 @@ export class ReportingRegistry {
             if (update) {
                 due.push(update);
                 this.pending.delete(id);
+                if (this.delivery) {
+                    try {
+                        this.delivery(update);
+                    } catch (error) {
+                        this.deliveryError?.(error, update);
+                    }
+                }
             }
             this.subscriptions.set(id, {...subscription, nextDueAt: now + subscription.maxIntervalMs});
         }
