@@ -1,1 +1,1 @@
-export {BridgeRuntime, type BridgeRuntimeOptions} from "./bridgeRuntime";
+export {BridgeRuntime, type BackupSnapshotProvider, type BridgeRuntimeOptions} from "./bridgeRuntime";
