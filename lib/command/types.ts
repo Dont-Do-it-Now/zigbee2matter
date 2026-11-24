@@ -94,7 +94,7 @@ export interface CommandResult {
 
 export type ResolvedTarget =
     | {ok: true; name: string; kind: "device" | "group"; supported: boolean; endpointNames: ReadonlyArray<string>; endpoint?: string}
-    | {ok: false; errorCode: "NOT_FOUND" | "UNAVAILABLE"; message: string};
+    | {ok: false; errorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "UNAVAILABLE"; message: string};
 
 /** Port: entity lookup (adapter over `Zigbee.resolveEntity` and T019 keys). Must not send RF. */
 export interface TargetResolver {

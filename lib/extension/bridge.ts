@@ -114,7 +114,8 @@ export default class Bridge extends Extension {
         this.pairing = new PairingPolicy({eventBus: this.eventBus});
         const pairing = this.pairing;
         this.eventBus.onPermitJoinChanged(this, (data) => {
-            pairing.setPermitJoinEnd(data.permitted && data.timeout ? Date.now() + data.timeout * 1000 : undefined);
+            const timeout = "timeout" in data && typeof data.timeout === "number" ? data.timeout : undefined;
+            pairing.setPermitJoinEnd(data.permitted && timeout ? Date.now() + timeout * 1000 : undefined);
         });
 
         this.eventBus.onEntityRenamed(this, async () => {

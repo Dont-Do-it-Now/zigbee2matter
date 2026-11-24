@@ -45,6 +45,8 @@ export function requiredScope(command: Command): CommandScope {
         return "control";
     }
 
+    if (command.operation !== "request") return "admin";
+
     return BRIDGE_REQUEST_SCOPES.get(command.target.request) ?? "admin";
 }
 

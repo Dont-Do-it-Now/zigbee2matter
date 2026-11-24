@@ -91,7 +91,7 @@ export default class Availability extends Extension {
                 this.lastPublishedAvailabilities.get(memberDevice.ieeeAddr) === true ? ("online" as const) : ("offline" as const),
             );
 
-        return evaluateAvailability({scope: "group", memberStates}).status === "online";
+        return evaluateAvailability({scope: "group", memberStates: [...memberStates]}).status === "online";
     }
 
     private resetTimer(device: Device, resetBackoff = false): void {

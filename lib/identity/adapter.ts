@@ -27,7 +27,8 @@ export interface IdentityEndpointLike {
 }
 
 export interface IdentityGroupLike {
-    ID: number;
+    ID?: number;
+    groupID?: number;
 }
 
 /**
@@ -55,7 +56,8 @@ export function deviceKeyOf(
 }
 
 export function groupKeyOf(networkId: NetworkId, group: IdentityGroupLike, feature: string): GroupKey | undefined {
-    return makeGroupKey(networkId, group.ID, feature);
+    const id = group.ID ?? group.groupID;
+    return id === undefined ? undefined : makeGroupKey(networkId, id, feature);
 }
 
 export function deviceKeyStringOf(

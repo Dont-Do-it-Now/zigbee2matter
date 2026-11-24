@@ -22,7 +22,7 @@ export function mapButtonAction(action: string, pressCount?: number): ButtonActi
     if (event === undefined) return {supported: false, reason: `unsupported button action: ${action}`};
 
     if (event === "multiPressComplete") {
-        if (!Number.isSafeInteger(pressCount) || pressCount < 2) {
+        if (typeof pressCount !== "number" || !Number.isSafeInteger(pressCount) || pressCount < 2) {
             return {supported: false, reason: "multi_press_complete requires pressCount >= 2"};
         }
 

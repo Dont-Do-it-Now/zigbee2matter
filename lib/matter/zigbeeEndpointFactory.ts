@@ -255,8 +255,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number {
         const endpointNumber = (endpoint as MatterEndpointInstance).number;
         const addedNumber = (added as {number?: unknown} | undefined)?.number;
-        const number = endpointNumber ?? addedNumber;
-        if (!Number.isSafeInteger(number) || number < 1 || number > 0xfffe) {
+        const number = (endpointNumber ?? addedNumber) as number | undefined;
+        if (typeof number !== "number" || !Number.isSafeInteger(number) || number < 1 || number > 0xfffe) {
             throw new Error(`Matter endpoint '${entry.endpointId}' did not receive a valid number`);
         }
 
@@ -470,7 +470,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         return undefined;
     }
 
-    private async lockDefinition(base: PlanBase, source: ZigbeeMatterEndpointSource, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+    private async lockDefinition(base: PlanBase, source: ZigbeeMatterEndpointSource, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
         const [{DoorLockDevice}, {DoorLockServer}] = await Promise.all([
             import("@matter/main/devices/door-lock"),
             import("@matter/main/behaviors/door-lock"),
@@ -557,7 +557,7 @@ async function loadDevice(path: string): Promise<EndpointDefinition> {
 }
 
 /** primary device type에 없는 센서/전력 cluster를 같은 endpoint에 추가할 behavior로 로드한다. */
-async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): Promise<unknown[]> {
+async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): Promise<any[]> {
     const behaviors: unknown[] = [];
     if (caps.temperature && primarySensor !== "temperature") {
         behaviors.push((await import("@matter/main/behaviors/temperature-measurement")).TemperatureMeasurementServer);
@@ -582,7 +582,7 @@ async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): P
     return behaviors;
 }
 
-async function lightDefinition(base: PlanBase, light: MappingExpose, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+async function lightDefinition(base: PlanBase, light: MappingExpose, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
     const features = light.features ?? [];
     const hasColor = features.some((f) => f.name === "color_xy" || f.name === "color_hs" || f.name === "color");
     const hasColorTemperature = features.some((f) => f.type === "numeric" && f.name === "color_temp");
@@ -605,7 +605,7 @@ async function coverDefinition(
     base: PlanBase,
     cover: MappingExpose,
     source: ZigbeeMatterEndpointSource,
-    extras: readonly unknown[],
+    extras: readonly any[],
     report: (error: unknown) => void,
 ): Promise<EndpointDefinitionPlan> {
     const [{WindowCoveringDevice}, {WindowCoveringServer, MovementDirection, MovementType}] = await Promise.all([
@@ -620,8 +620,8 @@ async function coverDefinition(
         void send(payload).catch(report);
     };
     // 이동/정지 명령은 StopMotion 포함 Matter command를 서버 핸들러에서 받아 Zigbee로 보낸다.
-    class ZigbeeWindowCoveringServer extends WindowCoveringServer.with(...features) {
-        protected override handleMovement(type: number, _reversed: boolean, direction: number, target?: number): void {
+    class ZigbeeWindowCoveringServer extends WindowCoveringServer.with(...(features as any)) {
+        public override handleMovement(type: any, _reversed: boolean, direction: any, target?: number): void {
             const key = type === MovementType.Tilt ? "tilt" : "position";
             if (target !== undefined) dispatch({[key]: matterPercent100thsToZigbee(target, invert)});
             else if (type === MovementType.Lift && direction !== MovementDirection.DefinedByPosition) {
@@ -629,7 +629,7 @@ async function coverDefinition(
             }
         }
 
-        protected override handleStopMovement(): void {
+        public override handleStopMovement(): void {
             dispatch({state: "STOP"});
         }
     }
@@ -637,7 +637,7 @@ async function coverDefinition(
     return {...base, definition: WindowCoveringDevice.with(ZigbeeWindowCoveringServer, ...extras) as EndpointDefinition, supportsTilt};
 }
 
-async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, extras: readonly unknown[]): Promise<EndpointDefinitionPlan> {
+async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
     const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
         import("@matter/main/devices/thermostat"),
         import("@matter/main/behaviors/thermostat"),
@@ -664,7 +664,7 @@ async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, e
 
     return {
         ...base,
-        definition: ThermostatDevice.with(ThermostatServer.with(...features), ...extras) as EndpointDefinition,
+        definition: ThermostatDevice.with(ThermostatServer.with(...(features as any)), ...extras) as EndpointDefinition,
         setpointRanges,
         supportedModes: modes,
     };

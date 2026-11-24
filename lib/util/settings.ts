@@ -277,16 +277,18 @@ export function validate(): string[] {
 
     const errors = [];
 
-    if (_settings.advanced?.network_key && typeof _settings.advanced.network_key === "string" && _settings.advanced.network_key !== "GENERATE") {
-        errors.push(`advanced.network_key: should be array or 'GENERATE' (is '${_settings.advanced.network_key}')`);
+    const settingsWithDefaults = get();
+
+    if (settingsWithDefaults.advanced?.network_key && typeof settingsWithDefaults.advanced.network_key === "string" && settingsWithDefaults.advanced.network_key !== "GENERATE") {
+        errors.push(`advanced.network_key: should be array or 'GENERATE' (is '${settingsWithDefaults.advanced.network_key}')`);
     }
 
-    if (_settings.advanced?.pan_id && typeof _settings.advanced.pan_id === "string" && _settings.advanced.pan_id !== "GENERATE") {
-        errors.push(`advanced.pan_id: should be number or 'GENERATE' (is '${_settings.advanced.pan_id}')`);
+    if (settingsWithDefaults.advanced?.pan_id && typeof settingsWithDefaults.advanced.pan_id === "string" && settingsWithDefaults.advanced.pan_id !== "GENERATE") {
+        errors.push(`advanced.pan_id: should be number or 'GENERATE' (is '${settingsWithDefaults.advanced.pan_id}')`);
     }
 
-    if (_settings.advanced?.ext_pan_id && typeof _settings.advanced.ext_pan_id === "string" && _settings.advanced.ext_pan_id !== "GENERATE") {
-        errors.push(`advanced.ext_pan_id: should be array or 'GENERATE' (is '${_settings.advanced.ext_pan_id}')`);
+    if (settingsWithDefaults.advanced?.ext_pan_id && typeof settingsWithDefaults.advanced.ext_pan_id === "string" && settingsWithDefaults.advanced.ext_pan_id !== "GENERATE") {
+        errors.push(`advanced.ext_pan_id: should be array or 'GENERATE' (is '${settingsWithDefaults.advanced.ext_pan_id}')`);
     }
 
     // Verify that all friendly names are unique
@@ -299,8 +301,6 @@ export function validate(): string[] {
             errors.push(`Device icon of '${e.friendly_name}' should start with 'device_icons/', got '${e.icon}'`);
         }
     };
-
-    const settingsWithDefaults = get();
 
     for (const key in settingsWithDefaults.devices) {
         check(settingsWithDefaults.devices[key]);

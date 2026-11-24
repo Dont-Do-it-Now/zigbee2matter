@@ -2,7 +2,7 @@
 import {createServer, type IncomingMessage, type Server} from "node:http";
 import {createServer as createSecureServer} from "node:https";
 import {readFileSync} from "node:fs";
-import type {Socket} from "node:net";
+import type {Duplex} from "node:stream";
 import WebSocket from "ws";
 import type {EventStream} from "../events";
 import {RestApiRouter, type RestRouterDeps} from "./restRouter";
@@ -98,7 +98,7 @@ export class ApiServer {
         return this.http?.address() ?? null;
     }
 
-    private upgrade(request: IncomingMessage, socket: Socket, head: Buffer): void {
+    private upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
         let pathname: string;
         try {
             pathname = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;

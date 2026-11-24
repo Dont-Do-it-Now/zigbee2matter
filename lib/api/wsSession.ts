@@ -76,8 +76,8 @@ export default class WsEventSession {
 
     drain(): WsFrame[] {
         const frames = this.queue.splice(0);
-        if (this.resyncRequired && frames.every((frame) => frame.type !== "resync")) {
-            frames.push({type: "resync", reason: this.resyncReason ?? "invalid"});
+        if (this.resyncRequired && !frames.some((frame) => frame.type === "resync")) {
+            frames.push({type: "resync", reason: this.resyncReason ?? "invalid"} as WsFrame);
         }
 
         return frames;

@@ -451,7 +451,7 @@ export default class Bind extends Extension {
     private recordBinding(
         source: Device | Group,
         sourceEndpoint: zh.Endpoint,
-        target: Device | Group,
+        target: Device | Group | typeof DEFAULT_BIND_GROUP,
         bindTarget: zh.Endpoint | zh.Group | number,
         clusters: readonly string[],
         active: boolean,

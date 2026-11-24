@@ -67,7 +67,7 @@ export default class DeviceCommandQueue {
                 this.queues.set(key, queue);
             }
         } else {
-            this.start(entry, keys);
+            this.runEntry(entry, keys);
         }
 
         return true;
@@ -108,7 +108,7 @@ export default class DeviceCommandQueue {
         return [...this.running.values()].some((keys) => keys.includes(key));
     }
 
-    private start(entry: Entry, keys: ReadonlyArray<string>): void {
+    private runEntry(entry: Entry, keys: ReadonlyArray<string>): void {
         this.running.set(entry.command.requestId, keys);
         try {
             entry.run();
@@ -139,7 +139,7 @@ export default class DeviceCommandQueue {
         try {
             for (let entry = this.nextRunnable(); entry && !this.stopped; entry = this.nextRunnable()) {
                 this.removeQueued(entry);
-                this.start(entry, entry.keys);
+                this.runEntry(entry, entry.keys);
             }
         } finally {
             this.pumping = false;
