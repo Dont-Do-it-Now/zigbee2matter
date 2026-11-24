@@ -207,7 +207,11 @@ export class EndpointRegistry {
 
     /** 저장소에서 로드(없으면 빈 레지스트리, 첫 변경 시 저장). */
     static async open(bridgeId: BridgeId, store: EndpointRegistryStore, options: EndpointRegistryOptions = {}): Promise<EndpointRegistry> {
-        const registry = new EndpointRegistry(bridgeId, store, options.rejoin ?? "new-id");
+        const rejoin = options.rejoin ?? "new-id";
+        if (rejoin !== "new-id" && rejoin !== "restore") {
+            throw new Error(`endpoint registry: unsupported rejoin policy ${String(rejoin)}`);
+        }
+        const registry = new EndpointRegistry(bridgeId, store, rejoin);
         const document = await store.load(bridgeId);
 
         if (document !== undefined) {
