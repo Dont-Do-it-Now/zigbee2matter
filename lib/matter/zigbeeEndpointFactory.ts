@@ -57,6 +57,7 @@ interface MatterEndpointConstructor {
 
 interface ZigbeeMatterEndpointSource {
     name: string;
+    available: boolean;
     exposes: readonly MappingExpose[];
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
@@ -99,7 +100,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 productName: source.name,
                 productLabel: source.name,
                 serialNumber: entry.endpointId,
-                reachable: true,
+                reachable: source.available,
             },
         });
 

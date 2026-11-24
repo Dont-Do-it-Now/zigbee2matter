@@ -309,6 +309,7 @@ export class Controller {
 
         return {
             name: device.name,
+            available: this.state.get(device).available !== false,
             exposes: device.exposes() as never,
             send: async (payload: Record<string, unknown>) => {
                 this.bridgeBus.onMessage(buildEntityTopic(device.name, String(endpoint.ID), "set"), JSON.stringify(payload));
