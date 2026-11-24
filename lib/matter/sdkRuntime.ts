@@ -13,9 +13,7 @@ export interface MatterServerNode {
 
 export interface MatterMainModule {
     ServerNode: {
-        create(rootEndpoint: unknown, options: Record<string, unknown>): Promise<MatterServerNode>;
-        RootEndpoint?: unknown;
-        RootEndpointWithoutGroupcast?: unknown;
+        create(options: Record<string, unknown>): Promise<MatterServerNode>;
     };
     Endpoint?: new (definition: unknown, options?: Record<string, unknown>) => unknown;
     VendorId?: (value: number) => unknown;
@@ -164,9 +162,7 @@ export class MatterSdkRuntime {
                       },
                   }
                 : undefined;
-            const rootEndpoint = sdk.ServerNode.RootEndpoint ?? sdk.ServerNode.RootEndpointWithoutGroupcast;
-            if (rootEndpoint === undefined) throw new Error("Matter SDK does not expose a root endpoint");
-            const node = await sdk.ServerNode.create(rootEndpoint, {
+            const node = await sdk.ServerNode.create({
                 id: options.id,
                 ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
                 ...(commissioning ? {commissioning} : {}),
