@@ -73,11 +73,12 @@ export class MatterSdkRuntime {
         if (this.module) return this.module;
         const moduleName: string = "@matter/main";
         try {
-            this.module = (await import(moduleName)) as unknown as MatterMainModule;
+            const loaded = (await import(moduleName)) as unknown as MatterMainModule;
+            if (!loaded.ServerNode?.create) throw new Error("Matter SDK does not expose ServerNode.create");
+            this.module = loaded;
         } catch (error) {
             throw new Error(`Matter SDK '${moduleName}' is not installed or cannot be loaded: ${(error as Error).message}`);
         }
-        if (!this.module.ServerNode?.create) throw new Error("Matter SDK does not expose ServerNode.create");
         return this.module;
     }
 
