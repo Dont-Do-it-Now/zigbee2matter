@@ -7,7 +7,7 @@
 import type {MappingExpose} from "./mappingRegistry";
 import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
-import {matterLevelToZigbee} from "./lightingMapping";
+import {matterLevelToZigbee, zigbeeBrightnessToMatter} from "./lightingMapping";
 
 interface EndpointDefinition {
     with(behavior: unknown): unknown;
@@ -21,6 +21,7 @@ interface EndpointEvents {
 interface MatterEndpointInstance {
     number?: unknown;
     events?: EndpointEvents;
+    set(values: Record<string, unknown>): Promise<void>;
     close(): Promise<void>;
 }
 
@@ -41,6 +42,7 @@ interface FactoryOptions {
 
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly endpoints = new Map<string, MatterEndpointInstance>();
+    private readonly stateUpdates = new Set<string>();
 
     constructor(private readonly options: FactoryOptions) {}
 
@@ -65,7 +67,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             },
         });
 
-        this.bindCommands(endpoint, source.send);
+        this.bindCommands(endpoint, entry.endpointId, source.send);
         this.endpoints.set(entry.endpointId, endpoint);
 
         return {endpoint};
@@ -90,6 +92,28 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             await endpoint.close();
         } finally {
             this.endpoints.delete(entry.endpointId);
+            this.stateUpdates.delete(entry.endpointId);
+        }
+    }
+
+    async updateState(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void> {
+        const endpoint = this.endpoints.get(entry.endpointId);
+        if (endpoint === undefined) return;
+
+        const patch: Record<string, unknown> = {};
+        if (state.state === "ON" || state.state === "OFF") {
+            patch.onOff = {onOff: state.state === "ON"};
+        }
+        if (typeof state.brightness === "number") {
+            patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
+        }
+        if (Object.keys(patch).length === 0) return;
+
+        this.stateUpdates.add(entry.endpointId);
+        try {
+            await endpoint.set(patch);
+        } finally {
+            this.stateUpdates.delete(entry.endpointId);
         }
     }
 
@@ -107,11 +131,13 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         return OnOffLightDevice as unknown as EndpointDefinition;
     }
 
-    private bindCommands(endpoint: MatterEndpointInstance, send: ZigbeeMatterEndpointSource["send"]): void {
+    private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: ZigbeeMatterEndpointSource["send"]): void {
         endpoint.events?.onOff?.onOff$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
             void send({state: value ? "ON" : "OFF"});
         });
         endpoint.events?.levelControl?.currentLevel$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
             void send({brightness: matterLevelToZigbee(value)});
         });
     }

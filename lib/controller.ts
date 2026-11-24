@@ -197,6 +197,7 @@ export class Controller {
         this.eventBus.onStateChange(this, (data) => {
             const kind = data.entity.isDevice() ? "device" : "group";
             this.runtime.stateSnapshots.observe(`${kind}:${data.entity.ID}`, data.to);
+            if (data.entity.isDevice()) void this.updateMatterState(data.entity, data.to);
         });
         this.eventBus.onDeviceInterview(this, (data) => {
             if (data.status === "successful") void this.syncMatterEndpoints(data.device, true);
@@ -310,6 +311,18 @@ export class Controller {
                 this.bridgeBus.onMessage(buildEntityTopic(device.name, String(endpoint.ID), "set"), JSON.stringify(payload));
             },
         };
+    }
+
+    private async updateMatterState(device: import("./model/device").default, state: Record<string, unknown>): Promise<void> {
+        for (const endpoint of device.zh.endpoints) {
+            const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+            if (!key) continue;
+            try {
+                await this.runtime.updateMatterEndpoint(key, state);
+            } catch (error) {
+                logger.warning(`Matter state update failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
     }
 
     private async restoreMatterEndpoints(): Promise<void> {

@@ -44,6 +44,7 @@ export interface MatterEndpointFactory {
     create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown}>;
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
     remove(entry: EndpointRegistryEntry): Promise<void>;
+    updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void>;
 }
 
 /** SDK-owned fabric/key-store persistence boundary. The runtime never serializes SDK internals itself. */

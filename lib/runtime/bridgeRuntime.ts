@@ -10,7 +10,7 @@ import {MatterSdkEndpointAdapter, MatterSdkRuntime, type MatterEndpointFactory, 
 import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
 import type {RestDevice, RestRouterDeps} from "../api/restRouter";
 import type {WsSnapshot} from "../api/wsSession";
-import {EndpointRegistry, type EndpointRegistryOptions} from "../matter/endpointRegistry";
+import {EndpointRegistry, type EndpointRegistryOptions, type RegistryKey} from "../matter/endpointRegistry";
 import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
 import type {BridgeId} from "../identity";
 import {BackupFileStore} from "../storage/backupStore";
@@ -177,6 +177,12 @@ export class BridgeRuntime {
 
     get currentDynamicEndpointRuntime(): DynamicEndpointRuntime | undefined {
         return this.dynamicEndpointRuntime;
+    }
+
+    async updateMatterEndpoint(key: RegistryKey, state: Record<string, unknown>): Promise<void> {
+        const entry = this.endpointRegistry?.get(key);
+        if (!entry) return;
+        await this.matterEndpointFactory?.updateState?.(entry, state);
     }
 
     async createPersistentBackup(passphrase: string): Promise<void> {
