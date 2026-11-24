@@ -47,6 +47,7 @@ import {
     deviceKeyOf,
     formatDeviceKey,
     formatGroupKey,
+    groupKeyOf,
     parseEntityKey,
     toHerdsmanIeee,
     type BridgeId,
@@ -138,8 +139,22 @@ export class Controller {
                         }
                         const registry = this.runtime.currentEndpointRegistry;
                         if (!registry) return {applied: false, reason: "endpoint registry is not open"};
-                        await this.runtime.matter.restoreFabric(snapshot.fabric);
-                        await registry.restore(snapshot.endpointRegistry as EndpointRegistryDocument);
+                        const previousFabric = await this.runtime.matter.snapshotFabric();
+                        const previousRegistry = registry.serialize();
+                        try {
+                            await registry.restore(snapshot.endpointRegistry as EndpointRegistryDocument);
+                            await this.runtime.matter.restoreFabric(snapshot.fabric);
+                        } catch (error) {
+                            try {
+                                await registry.restore(previousRegistry);
+                                await this.runtime.matter.restoreFabric(previousFabric);
+                            } catch (rollbackError) {
+                                logger.error(
+                                    `Persistent backup rollback failed (${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)})`,
+                                );
+                            }
+                            throw error;
+                        }
                         return {applied: true};
                     },
                 },
@@ -200,8 +215,9 @@ export class Controller {
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
         this.state = new State(this.eventBus, this.zigbee);
         this.eventBus.onStateChange(this, (data) => {
-            const kind = data.entity.isDevice() ? "device" : "group";
-            this.runtime.stateSnapshots.observe(`${kind}:${data.entity.ID}`, data.to);
+            for (const state of this.stateSnapshotsForEntity(data.entity, data.to)) {
+                this.runtime.stateSnapshots.observe(state.key, state.value);
+            }
             if (data.entity.isDevice()) void this.updateMatterState(data.entity, data.to);
         });
         this.eventBus.onBridgeBusMessagePublished(this, (data) => this.onAvailabilityPublished(data));
@@ -209,6 +225,9 @@ export class Controller {
             if (data.status === "successful") void this.syncMatterEndpoints(data.device, true);
         });
         this.eventBus.onEntityRemoved(this, (data) => {
+            for (const state of this.stateSnapshotsForEntity(data.entity)) {
+                this.runtime.stateSnapshots.remove(state.key);
+            }
             if (data.entity.isDevice()) void this.syncMatterEndpoints(data.entity, false);
         });
         const resolver: TargetResolver = {
@@ -355,11 +374,27 @@ export class Controller {
 
         if (!isRecord(payload) || (payload.state !== "online" && payload.state !== "offline")) return;
         const available = payload.state === "online";
-        const kind = entity.isDevice() ? "device" : "group";
-        const key = `${kind}:${entity.ID}`;
-        if (available) this.runtime.stateSnapshots.markAvailable(key);
-        else this.runtime.stateSnapshots.markUnavailable(key);
+        for (const state of this.stateSnapshotsForEntity(entity)) {
+            if (available) this.runtime.stateSnapshots.markAvailable(state.key);
+            else this.runtime.stateSnapshots.markUnavailable(state.key);
+        }
         if (entity.isDevice()) void this.updateMatterState(entity, {available});
+    }
+
+    private stateSnapshotsForEntity(
+        entity: import("./model/device").default | import("./model/group").default,
+        state: Record<string, unknown> = {},
+    ): readonly {key: string; value: Record<string, unknown>}[] {
+        if (entity.isDevice()) {
+            return entity.zh.endpoints.flatMap((endpoint) => {
+                const key = deviceKeyOf(this.networkIdentity.networkId, entity.zh, endpoint, "state");
+                return key === undefined ? [] : [{key: formatDeviceKey(key), value: stateForEndpoint(state, entity.endpointName(endpoint), String(endpoint.ID))}];
+            });
+        }
+
+        const key = groupKeyOf(this.networkIdentity.networkId, entity.zh, "state");
+
+        return key === undefined ? [] : [{key: formatGroupKey(key), value: state}];
     }
 
     private async restoreMatterEndpoints(): Promise<void> {
