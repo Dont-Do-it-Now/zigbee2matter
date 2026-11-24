@@ -59,6 +59,7 @@ import {stringify} from "./util/stringify";
 import utils from "./util/utils";
 import Zigbee from "./zigbee";
 import {ZigbeeMatterEndpointFactory} from "./matter/zigbeeEndpointFactory";
+import type {MappingExpose} from "./matter/mappingRegistry";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -308,11 +309,15 @@ export class Controller {
         if (!device || !device.isDevice()) return undefined;
         const endpoint = device.zh.getEndpoint(key.endpoint);
         if (!endpoint) return undefined;
+        const endpointName = device.endpointName(endpoint);
+        const endpointExposes = device.exposes().filter((expose) =>
+            expose.endpoint === undefined || expose.endpoint === endpointName || expose.endpoint === String(endpoint.ID),
+        ) as MappingExpose[];
 
         return {
             name: device.name,
             available: this.state.get(device).available !== false,
-            exposes: device.exposes() as never,
+            exposes: endpointExposes,
             send: async (payload: Record<string, unknown>) => {
                 this.bridgeBus.onMessage(buildEntityTopic(device.name, String(endpoint.ID), "set"), JSON.stringify(payload));
             },
