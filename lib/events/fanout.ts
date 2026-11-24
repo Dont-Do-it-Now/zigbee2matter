@@ -47,7 +47,7 @@ export default class PlatformFanout {
             listener,
             unsubscribeFromStream: () => {},
             queue: [],
-            maxQueue: Math.max(1, Math.floor(options.maxQueue ?? 100)),
+            maxQueue: validateQueueLimit(options.maxQueue ?? 100),
             onDrop: options.onDrop,
             onError: options.onError,
             running: false,
@@ -174,4 +174,10 @@ export default class PlatformFanout {
             // A drop reporter must not affect other consumers.
         }
     }
+}
+
+function validateQueueLimit(value: number): number {
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error("maxQueue must be a positive integer");
+
+    return value;
 }
