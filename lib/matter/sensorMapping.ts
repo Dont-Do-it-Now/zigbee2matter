@@ -16,7 +16,7 @@ export function celsiusToMatter(value: number | null | undefined): KnownValue<nu
     assertFinite(value, "temperature");
 
     const scaled = Math.round(value * 100);
-    if (scaled < -27315 || scaled > 32767) throw new Error("temperature is outside Matter int16 range");
+    if (scaled < -32768 || scaled > 32767) throw new Error("temperature is outside Matter int16 range");
 
     return {known: true, value: scaled};
 }
