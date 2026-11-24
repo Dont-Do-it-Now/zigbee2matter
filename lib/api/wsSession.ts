@@ -94,7 +94,7 @@ export default class WsEventSession {
     }
 
     resetAfterSnapshot(epoch: string, sequence: number): void {
-        if (sequence < 0 || !Number.isSafeInteger(sequence)) throw new Error("invalid snapshot sequence");
+        if (epoch.length === 0 || sequence < 0 || !Number.isSafeInteger(sequence)) throw new Error("invalid snapshot sequence");
 
         this.queue.length = 0;
         this.epoch = epoch;
