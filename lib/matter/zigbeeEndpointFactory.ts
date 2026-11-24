@@ -36,6 +36,7 @@ interface EndpointEvents {
         currentY$Changed?: {on(listener: (value: number) => void): void};
     };
     windowCovering?: {targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void}};
+    doorLock?: {lockState$Changed?: {on(listener: (value: number) => void): void}};
     switch?: {
         initialPress?: {on(listener: (value: unknown) => void): void};
         shortRelease?: {on(listener: (value: unknown) => void): void};
@@ -62,7 +63,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy" | "lock";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -181,6 +182,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             patch.booleanState = {booleanStateValue: state.contact};
         } else if (capability === "occupancy" && typeof state.occupancy === "boolean") {
             patch.occupancySensing = {occupancy: state.occupancy ? 1 : 0};
+        } else if (capability === "lock") {
+            const lockState = matterLockState(state.state ?? state.lock_state);
+            if (lockState !== undefined) patch.doorLock = {lockState};
         }
         if (Object.keys(patch).length === 0) return;
 
@@ -202,7 +206,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const cover = flattened.find((expose) => expose.type === "cover");
         const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
         const energy = flattened.find((expose) => expose.type === "numeric" && (expose.name === "power" || expose.name === "energy"));
-        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
+        const lock = flattened.find((expose) => expose.type === "lock");
+        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy, lock].filter((value) => value !== undefined);
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
@@ -279,6 +284,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             const {OccupancySensorDevice} = await import("@matter/main/devices/occupancy-sensor");
             return {definition: OccupancySensorDevice as unknown as EndpointDefinition, capability: "occupancy"};
         }
+        if (lock) {
+            const {DoorLockDevice} = await import("@matter/main/devices/door-lock");
+            return {definition: DoorLockDevice as unknown as EndpointDefinition, capability: "lock"};
+        }
 
         throw new Error("Matter mapping is unsupported");
     }
@@ -328,6 +337,11 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             if (this.stateUpdates.has(endpointId) || value === null) return;
             this.sendCommand(endpointId, send, {position: mapCoverPosition(value / 100)});
         });
+        endpoint.events?.doorLock?.lockState$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            const state = zigbeeLockState(value);
+            if (state !== undefined) this.sendCommand(endpointId, send, {state});
+        });
         endpoint.events?.switch?.initialPress?.on(() => this.sendButtonAction(endpointId, send, "initial_press"));
         endpoint.events?.switch?.shortRelease?.on(() => this.sendButtonAction(endpointId, send, "short_release"));
         endpoint.events?.switch?.longPress?.on(() => this.sendButtonAction(endpointId, send, "long_press"));
@@ -366,4 +380,16 @@ function flatten(exposes: readonly MappingExpose[]): MappingExpose[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function matterLockState(value: unknown): number | undefined {
+    if (value === "LOCK" || value === "LOCKED" || value === true) return 1;
+    if (value === "UNLOCK" || value === "UNLOCKED" || value === false) return 2;
+    return undefined;
+}
+
+function zigbeeLockState(value: number): "LOCK" | "UNLOCK" | undefined {
+    if (value === 1) return "LOCK";
+    if (value === 2) return "UNLOCK";
+    return undefined;
 }
