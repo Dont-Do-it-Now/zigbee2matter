@@ -94,6 +94,8 @@ Use the existing Zigbee2MQTT configuration flow for coordinator and Zigbee setti
 
 To enable the Matter node, set `matter.enabled: true` in the configuration and provide both `matter.passcode` and `matter.discriminator` when commissioning credentials are configured. Optional `matter.network` settings expose the Matter UDP `port`, mDNS `mdnsInterface`, `ipv4`, and listening addresses. IPv6 is required; the runtime performs a network preflight and stops before SDK startup when an error is detected. The Matter SDK is loaded at runtime; an enabled Matter node requires the selected SDK version to be installed.
 
+Matter attestation defaults to `matter.attestation.mode: development`, which uses the SDK's test certification and test VID range. For production-owned certification, use `custom` with `vendorIdOwnershipAcknowledged: true` and paths to the DAC, PAI, certification declaration, and DAC private key. Relative paths resolve under the data directory's `matter/attestation/` folder. Certificate and private-key files are never bundled or logged.
+
 ### Docker
 
 The deployment skeleton is in [`docker/`](docker/). It supports persistent data, host networking for mDNS, USB coordinator access, and explicitly configured TCP coordinator access. Review the device path and network settings before starting a container.
