@@ -146,7 +146,11 @@ export default class CommandRouter {
                 return Promise.resolve(this.emit(this.build(command, validation.rejection.status ?? "failed", {...validation.rejection, terminal: true, dispatched: false})));
             }
 
-            this.deps.loopGuard?.record(command);
+            try {
+                this.deps.loopGuard?.record(command);
+            } catch {
+                // Loop diagnostics must never reject an otherwise valid command.
+            }
             const duplicate = this.deps.hooks?.admit?.(command);
 
             if (duplicate) {
