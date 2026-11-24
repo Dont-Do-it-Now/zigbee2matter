@@ -114,9 +114,11 @@ async function acquireLock(lockPath: string, timeoutMs: number): Promise<() => P
     await chmod(directory, 0o700);
 
     while (true) {
+        let created = false;
         try {
             const token = randomUUID();
             const handle = await open(lockPath, "wx", 0o600);
+            created = true;
             try {
                 await handle.writeFile(token, "utf8");
                 await handle.sync();
@@ -141,6 +143,13 @@ async function acquireLock(lockPath: string, timeoutMs: number): Promise<() => P
                 }
             };
         } catch (error) {
+            if (created) {
+                try {
+                    await rm(lockPath, {force: true});
+                } catch {
+                    // Preserve the original lock creation error.
+                }
+            }
             if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
 
             try {
