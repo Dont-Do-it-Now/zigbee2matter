@@ -240,7 +240,7 @@ export class Controller {
             authorize: (command) => this.authorizeCommand(command),
         };
         this.commandDeduplicator = new CommandDeduplicator();
-        this.commandQueue = new DeviceCommandQueue();
+        this.commandQueue = new DeviceCommandQueue({keyResolver: (command) => this.commandQueueKeys(command)});
         const commandLoopGuard = new CommandLoopGuard({
             onRepeat: (diagnosis) => {
                 this.runtime.events.publish("transient", "command/loop", diagnosis, {correlationId: diagnosis.correlationId});
@@ -499,6 +499,29 @@ export class Controller {
             return {ok: true};
         }
         return {ok: false, errorCode: "FORBIDDEN", message: "insufficient command scope"};
+    }
+
+    private commandQueueKeys(command: Command): readonly string[] {
+        if (command.operation === "request") return [`bridge:${command.target.request}`];
+
+        const resolved = this.resolveCommandTarget(command.target);
+        if (!resolved.ok) return [command.target.key ?? command.target.entity ?? "unknown"];
+
+        const entity = this.zigbee.resolveEntity(resolved.name);
+        if (!entity) return [resolved.name];
+        if (entity.isDevice()) {
+            const endpoints = resolved.endpoint
+                ? [entity.endpoint(resolved.endpoint)]
+                : entity.zh.endpoints;
+            return endpoints
+                .filter((endpoint): endpoint is NonNullable<typeof endpoint> => endpoint !== undefined)
+                .map((endpoint) => `device/${entity.ieeeAddr}/${endpoint.ID}`);
+        }
+
+        return [
+            `group/${entity.ID}`,
+            ...entity.zh.members.map((member) => `device/${member.deviceIeeeAddress}/${member.ID}`),
+        ];
     }
 
     private async executeRestCommand(input: unknown, principal: Principal): Promise<unknown> {
