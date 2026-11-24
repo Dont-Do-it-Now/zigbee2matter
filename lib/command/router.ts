@@ -1,16 +1,16 @@
 import type {BridgeBus} from "../bridgeBus/types";
 import type EventBus from "../eventBus";
-import type CommandLoopGuard from "./loopGuard";
-import CommandRetryPolicy from "./retry";
 import {
     BRIDGE_RESPONSE_PREFIX,
     buildBridgeRequestTopic,
     buildEntityTopic,
     classifyBridgeError,
     entityStateTopic,
+    isExistenceOnlyKey,
     isIdempotent,
     isValidEntityName,
     KNOWN_BRIDGE_REQUESTS,
+    SENSITIVE_BRIDGE_REQUESTS,
     sanitizeErrorMessage,
 } from "./mapping";
 import type {
@@ -27,6 +27,8 @@ import type {
 
 const MAX_VALUE_KEYS = 64;
 const MAX_VALUE_BYTES = 8192;
+const MAX_DEADLINE_MS = 10 * 60 * 1000;
+const MAX_TIMER_MS = 2 ** 31 - 1;
 const TRANSACTION_PREFIX = "c3:";
 
 export interface CommandRouterDeps {
@@ -35,28 +37,60 @@ export interface CommandRouterDeps {
     resolver: TargetResolver;
     authorizer: CommandAuthorizer;
     validator?: ValueValidator;
-    loopGuard?: CommandLoopGuard;
     hooks?: CommandHooks;
-    retryPolicy?: CommandRetryPolicy;
+    /** Sensitive bridge requests (see `SENSITIVE_BRIDGE_REQUESTS`) explicitly allowed. Default: none. */
+    allowedSensitiveRequests?: ReadonlySet<string>;
     /** Test seam. */
     now?: () => number;
+}
+
+interface Expectation {
+    /** Accepted payload key names (`key`, `key_<endpoint>`). */
+    names: ReadonlyArray<string>;
+    /** Requested primitive value to compare (case-insensitive string compare). Ignored when `existsOnly`. */
+    expected: unknown;
+    existsOnly: boolean;
 }
 
 interface Pending {
     command: Command;
     resolve: (result: CommandResult) => void;
-    attempt: number;
     timer: ReturnType<typeof setTimeout> | undefined;
     dispatched: boolean;
+    /** Canonical entity name from the single `resolver.resolve` call in validate (entity commands). */
+    name?: string;
     /** `request`: transaction echoed by upstream `utils.getResponse`. */
     transaction?: string;
-    /** `set`/`get`: canonical state topic and the keys whose appearance counts as an observation. */
+    /** `set`/`get`: state topic and observation expectations. */
     stateTopic?: string;
-    keys?: ReadonlyArray<string>;
+    expectations?: ReadonlyArray<Expectation>;
+}
+
+interface Rejection {
+    errorCode: CommandErrorCode;
+    errorMessage: string;
+    status?: CommandStatus;
+}
+
+interface Validation {
+    rejection?: Rejection;
+    name?: string;
+}
+
+function reject(errorCode: CommandErrorCode, errorMessage: string, status?: CommandStatus): Validation {
+    return {rejection: {errorCode, errorMessage, status}};
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function valuesMatch(published: unknown, expected: unknown): boolean {
+    if (typeof published === "object" || typeof expected === "object") {
+        return false;
+    }
+
+    return String(published).toLowerCase() === String(expected).toLowerCase();
 }
 
 /**
@@ -67,15 +101,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Upstream facts (docs/evidence/T012.md): `<name>/set|get` has NO response/error channel (errors are only logged,
  * `publish.ts` catch); only `bridge/request/*` echoes `transaction` with `status: ok|error`. Therefore:
  * - `request`: ok -> `executed`, error -> `failed`, silence until deadline -> `timeout`.
- * - `set`: first state publish containing a requested key -> `executed` (optimistic state, NOT device report);
- *   no publish until deadline -> `unknown` (converter failure / `optimistic:false` are indistinguishable).
- * - `get`: first state publish containing a requested key -> `confirmed` (device report); otherwise `unknown`.
- * `accepted` only means validated and handed to the bus; it never implies device success.
+ * - `set`/`get`: an entity-state publish (`meta.isEntityState`) matching the request -> `executed` (optimistic/cached state, NOT a
+ *   device report; `confirmed` is never issued here); none until deadline -> `unknown`.
+ * `accepted` only means validated and handed to the bus; it never implies device success. `submit` never throws/rejects.
  */
 export default class CommandRouter {
     private readonly pending = new Map<string, Pending>();
-    private readonly retryTimers = new Map<string, {timer: ReturnType<typeof setTimeout>; pending: Pending}>();
-    private started = false;
+    private running = false;
     private readonly now: () => number;
 
     constructor(private readonly deps: CommandRouterDeps) {
@@ -83,91 +115,108 @@ export default class CommandRouter {
     }
 
     start(): void {
-        if (!this.started) {
-            this.started = true;
+        if (!this.running) {
+            this.running = true;
             this.deps.eventBus.onBridgeBusMessagePublished(this, this.onPublished);
         }
     }
 
     stop(): void {
+        this.running = false;
         this.deps.eventBus.removeListeners(this);
-        this.started = false;
 
-        for (const requestId of [...this.pending.keys()]) {
-            this.settle(requestId, "unknown", {errorCode: "UNAVAILABLE", errorMessage: "router stopped"});
-        }
-        for (const [requestId, retry] of this.retryTimers) {
-            clearTimeout(retry.timer);
-            this.retryTimers.delete(requestId);
-            retry.pending.resolve(this.build(retry.pending.command, "unknown", {
-                errorCode: "UNAVAILABLE",
-                errorMessage: "router stopped before retry",
-                terminal: true,
-                dispatched: retry.pending.dispatched,
-            }));
+        for (const [requestId, pending] of [...this.pending]) {
+            // Not yet injected (queued by the schedule hook): guaranteed 0 RF -> failed. Injected: outcome unknown.
+            this.settle(requestId, pending.dispatched ? "unknown" : "failed", {errorCode: "UNAVAILABLE", errorMessage: "router stopped"});
         }
     }
 
-    /** Resolves with the FINAL result. Intermediate statuses (`accepted`) go to `hooks.onResult`. Never rejects. */
+    /** Resolves with the FINAL result. Intermediate statuses (`accepted`) go to `hooks.onResult`. Never throws, never rejects. */
     submit(command: Command): Promise<CommandResult> {
-        const rejection = this.validate(command);
-
-        if (rejection) {
-            return Promise.resolve(this.emit(this.build(command, rejection.status ?? "failed", {...rejection, terminal: true, dispatched: false})));
+        if (!this.running) {
+            return Promise.resolve(this.emit(this.build(command, "failed", {errorCode: "UNAVAILABLE", errorMessage: "router not running", terminal: true, dispatched: false})));
         }
 
-        this.deps.loopGuard?.record(command);
+        try {
+            const validation = this.validate(command);
 
-        const duplicate = this.deps.hooks?.admit?.(command);
-
-        if (duplicate) {
-            return Promise.resolve(this.emit(duplicate));
-        }
-
-        return new Promise<CommandResult>((resolve) => {
-            const pending = this.register(command, resolve, 1);
-            this.emit(this.build(command, "accepted", {terminal: false, dispatched: false}));
-
-            const run = (): void => this.inject(pending);
-            const schedule = this.deps.hooks?.schedule;
-
-            if (schedule) {
-                if (schedule(command, run) === false) {
-                    this.settle(command.requestId, "failed", {errorCode: "BUSY", errorMessage: "command queue is full"});
-                }
-            } else {
-                run();
+            if (validation.rejection) {
+                return Promise.resolve(this.emit(this.build(command, validation.rejection.status ?? "failed", {...validation.rejection, terminal: true, dispatched: false})));
             }
-        });
+
+            const duplicate = this.deps.hooks?.admit?.(command);
+
+            if (duplicate) {
+                return Promise.resolve(this.emit(duplicate));
+            }
+
+            return new Promise<CommandResult>((resolve) => {
+                let registered: Pending | undefined;
+
+                try {
+                    registered = this.register(command, validation.name, resolve);
+                    this.emit(this.build(command, "accepted", {terminal: false, dispatched: false}));
+
+                    const pending = registered;
+                    const run = (): void => this.inject(pending);
+                    const schedule = this.deps.hooks?.schedule;
+
+                    if (schedule) {
+                        if (schedule(command, run) === false) {
+                            this.settleNow(registered, "failed", {
+                                errorCode: "BUSY",
+                                errorMessage: "command queue is full",
+                                terminal: true,
+                            });
+                        }
+                    } else {
+                        run();
+                    }
+                } catch {
+                    // schedule/register threw synchronously: clean up timer/pending, report actual dispatch state.
+                    if (registered && this.pending.get(command.requestId) === registered) {
+                        this.settleNow(registered, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true});
+                    } else {
+                        resolve(this.emit(this.build(command, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true, dispatched: false})));
+                    }
+                }
+            });
+        } catch {
+            return Promise.resolve(this.emit(this.build(command, "failed", {errorCode: "INTERNAL", errorMessage: "internal error", terminal: true, dispatched: false})));
+        }
     }
 
-    private validate(command: Command): ({errorCode: CommandErrorCode; errorMessage: string} & {status?: CommandStatus}) | undefined {
-        const fail = (errorCode: CommandErrorCode, errorMessage: string, status?: CommandStatus) => ({errorCode, errorMessage, status});
-
-        if (!command.requestId || !command.correlationId) {
-            return fail("INVALID_ARGUMENT", "requestId and correlationId are required");
+    private validate(command: Command): Validation {
+        if (!command?.requestId || !command.correlationId) {
+            return reject("INVALID_ARGUMENT", "requestId and correlationId are required");
         }
 
         if (this.pending.has(command.requestId)) {
-            return fail("CONFLICT", "requestId already in flight");
+            return reject("CONFLICT", "requestId already in flight");
         }
 
         if (!command.identity?.principal) {
-            return fail("UNAUTHORIZED", "no authenticated identity");
+            return reject("UNAUTHORIZED", "no authenticated identity");
         }
 
-        if (!Number.isFinite(command.deadline) || command.deadline <= this.now()) {
-            return fail("TIMEOUT", "deadline already passed", "timeout");
+        const remaining = command.deadline - this.now();
+
+        if (!Number.isFinite(command.deadline) || remaining <= 0) {
+            return reject("TIMEOUT", "deadline already passed", "timeout");
+        }
+
+        if (remaining > MAX_DEADLINE_MS) {
+            return reject("INVALID_ARGUMENT", "deadline too far in the future");
         }
 
         if (!isPlainObject(command.value)) {
-            return fail("INVALID_ARGUMENT", "value must be an object");
+            return reject("INVALID_ARGUMENT", "value must be an object");
         }
 
         const keys = Object.keys(command.value);
 
-        if (keys.length > MAX_VALUE_KEYS || (command.operation === "set" && keys.length === 0)) {
-            return fail("INVALID_ARGUMENT", "value has invalid number of keys");
+        if (keys.length > MAX_VALUE_KEYS || (command.operation !== "request" && keys.length === 0)) {
+            return reject("INVALID_ARGUMENT", "value has invalid number of keys");
         }
 
         let serialized: string;
@@ -175,103 +224,106 @@ export default class CommandRouter {
         try {
             serialized = JSON.stringify(command.value);
         } catch {
-            return fail("INVALID_ARGUMENT", "value is not serializable");
+            return reject("INVALID_ARGUMENT", "value is not serializable");
         }
 
         if (serialized.length > MAX_VALUE_BYTES) {
-            return fail("INVALID_ARGUMENT", "value too large");
+            return reject("INVALID_ARGUMENT", "value too large");
         }
 
-        if (command.operation === "request") {
-            return this.validateRequest(command, keys, fail);
-        }
-
-        return this.validateEntity(command, fail);
+        return command.operation === "request" ? this.validateRequest(command, keys) : this.validateEntity(command);
     }
 
-    private validateRequest(
-        command: Extract<Command, {operation: "request"}>,
-        keys: string[],
-        fail: (code: CommandErrorCode, message: string) => {errorCode: CommandErrorCode; errorMessage: string; status?: CommandStatus},
-    ): ReturnType<typeof fail> | undefined {
+    private validateRequest(command: Extract<Command, {operation: "request"}>, keys: string[]): Validation {
         if (keys.includes("transaction")) {
-            return fail("INVALID_ARGUMENT", "'transaction' is reserved");
+            return reject("INVALID_ARGUMENT", "'transaction' is reserved");
         }
 
         const auth = this.deps.authorizer.authorize(command, undefined);
 
         if (!auth.ok) {
-            return fail(auth.errorCode, auth.message);
+            return reject(auth.errorCode, auth.message);
         }
+
+        const request = command.target.request;
 
         // Upstream silently ignores unknown request keys (no response), so reject before injecting.
-        if (!KNOWN_BRIDGE_REQUESTS.has(command.target.request)) {
-            return fail("UNSUPPORTED", "unknown bridge request");
+        if (!KNOWN_BRIDGE_REQUESTS.has(request)) {
+            return reject("UNSUPPORTED", "unknown bridge request");
         }
 
-        return undefined;
+        if (SENSITIVE_BRIDGE_REQUESTS.has(request) && !this.deps.allowedSensitiveRequests?.has(request)) {
+            return reject("FORBIDDEN", "sensitive bridge request is disabled");
+        }
+
+        return {};
     }
 
-    private validateEntity(
-        command: EntityCommand,
-        fail: (code: CommandErrorCode, message: string) => {errorCode: CommandErrorCode; errorMessage: string; status?: CommandStatus},
-    ): ReturnType<typeof fail> | undefined {
+    private validateEntity(command: EntityCommand): Validation {
         if (command.operation !== "set" && command.operation !== "get") {
-            return fail("INVALID_ARGUMENT", "unknown operation");
+            return reject("INVALID_ARGUMENT", "unknown operation");
         }
 
         if (!isValidEntityName(command.target)) {
-            return fail("INVALID_ARGUMENT", "invalid target");
+            return reject("INVALID_ARGUMENT", "invalid target");
         }
 
+        // The ONLY resolve call; its canonical name is reused for topic building and observation.
         const resolved = this.deps.resolver.resolve(command.target);
         const auth = this.deps.authorizer.authorize(command, resolved);
 
         // Authorize before revealing existence (NOT_FOUND) to unauthorized callers.
         if (!auth.ok) {
-            return fail(auth.errorCode, auth.message);
+            return reject(auth.errorCode, auth.message);
         }
 
         if (!resolved.ok) {
-            return fail(resolved.errorCode, resolved.message);
+            return reject(resolved.errorCode, resolved.message);
         }
 
         if (!resolved.supported) {
-            return fail("UNSUPPORTED", "target has no definition");
+            return reject("UNSUPPORTED", "target has no definition");
         }
 
         const endpoint = command.target.endpoint;
 
         if (endpoint !== undefined) {
             if (resolved.kind === "group") {
-                return fail("INVALID_ARGUMENT", "groups have no endpoint");
+                return reject("INVALID_ARGUMENT", "groups have no endpoint");
             }
 
             if (!resolved.endpointNames.includes(endpoint) && !/^\d+$/.test(endpoint)) {
-                return fail("NOT_FOUND", "endpoint not found");
+                return reject("NOT_FOUND", "endpoint not found");
             }
         }
 
         const rejection = this.deps.validator?.validate(command, resolved);
 
-        return rejection ? fail(rejection.errorCode, rejection.message) : undefined;
+        return rejection ? reject(rejection.errorCode, rejection.message) : {name: resolved.name};
     }
 
-    private register(command: Command, resolve: (result: CommandResult) => void, attempt: number): Pending {
-        const pending: Pending = {command, resolve, attempt, timer: undefined, dispatched: false};
+    private register(command: Command, name: string | undefined, resolve: (result: CommandResult) => void): Pending {
+        const pending: Pending = {command, resolve, timer: undefined, dispatched: false};
 
         if (command.operation === "request") {
             pending.transaction = `${TRANSACTION_PREFIX}${command.requestId}`;
+        } else if (name === undefined) {
+            throw new Error("entity command without resolved name");
         } else {
-            // validate() guarantees a resolved target; re-resolve is cheap and pure (name may be an IEEE string).
-            const resolved = this.deps.resolver.resolve(command.target);
-            const name = resolved.ok ? resolved.name : command.target.entity;
-            pending.stateTopic = entityStateTopic(name);
             const suffix = command.target.endpoint;
-            pending.keys = Object.keys(command.value).flatMap((key) => (suffix === undefined ? [key] : [key, `${key}_${suffix}`]));
+            pending.name = name;
+            pending.stateTopic = entityStateTopic(name);
+            pending.expectations = Object.entries(command.value).map(([key, value]) => ({
+                names: suffix === undefined ? [key] : [key, `${key}_${suffix}`],
+                expected: value,
+                // `get` values are placeholders; only presence of the key in the published state is meaningful.
+                existsOnly: command.operation === "get" || isExistenceOnlyKey(key, value),
+            }));
         }
 
-        pending.timer = setTimeout(() => this.onDeadline(command.requestId), Math.max(0, command.deadline - this.now()));
+        const timer = setTimeout(() => this.onDeadline(command.requestId), Math.min(MAX_TIMER_MS, Math.max(0, command.deadline - this.now())));
+        timer.unref();
+        pending.timer = timer;
         this.pending.set(command.requestId, pending);
 
         return pending;
@@ -280,23 +332,22 @@ export default class CommandRouter {
     private inject(pending: Pending): void {
         const {command} = pending;
 
-        if (!this.pending.has(command.requestId)) {
+        if (this.pending.get(command.requestId) !== pending) {
             return; // settled (deadline/stop) while queued by the schedule hook: 0 RF.
         }
 
         try {
-            pending.dispatched = true;
-
             if (command.operation === "request") {
                 const payload = JSON.stringify({...command.value, transaction: pending.transaction});
+                pending.dispatched = true;
                 this.deps.bridgeBus.onMessage(buildBridgeRequestTopic(command.target.request), payload);
-            } else {
-                const resolved = this.deps.resolver.resolve(command.target);
-                const name = resolved.ok ? resolved.name : command.target.entity;
-                this.deps.bridgeBus.onMessage(buildEntityTopic(name, command.target.endpoint, command.operation), JSON.stringify(command.value));
+            } else if (pending.name !== undefined) {
+                const topic = buildEntityTopic(pending.name, command.target.endpoint, command.operation);
+                pending.dispatched = true;
+                this.deps.bridgeBus.onMessage(topic, JSON.stringify(command.value));
             }
         } catch {
-            this.settle(command.requestId, "failed", {errorCode: "INTERNAL", errorMessage: "dispatch failed"});
+            this.settleNow(pending, "failed", {errorCode: "INTERNAL", errorMessage: "dispatch failed", terminal: true});
         }
     }
 
@@ -310,22 +361,37 @@ export default class CommandRouter {
             return;
         }
 
-        for (const [requestId, pending] of this.pending) {
+        // Only entity state publishes (`Controller.publishEntityState` sets meta.isEntityState) are observations.
+        if (data.options?.meta?.isEntityState !== true) {
+            return;
+        }
+
+        for (const [requestId, pending] of [...this.pending]) {
             if (pending.stateTopic === data.topic && pending.dispatched && this.reportMatches(pending, data.payload)) {
-                // set: optimistic state (converter resolved) -> executed. get: device report -> confirmed.
-                this.settle(requestId, pending.command.operation === "get" ? "confirmed" : "executed", {});
+                // Optimistic (set) or cached/reported (get) state: cannot be told apart from a device report here -> `executed`, never `confirmed`.
+                this.settle(requestId, "executed", {});
             }
         }
     };
 
     private reportMatches(pending: Pending, payload: string): boolean {
-        try {
-            const parsed: unknown = JSON.parse(payload);
+        let parsed: unknown;
 
-            return isPlainObject(parsed) && (pending.keys ?? []).some((key) => key in parsed);
+        try {
+            parsed = JSON.parse(payload);
         } catch {
             return false;
         }
+
+        if (!isPlainObject(parsed)) {
+            return false;
+        }
+
+        const state = parsed;
+
+        return (pending.expectations ?? []).some((e) =>
+            e.names.some((name) => name in state && (e.existsOnly || valuesMatch(state[name], e.expected))),
+        );
     }
 
     private onBridgeResponse(payload: string): void {
@@ -369,63 +435,42 @@ export default class CommandRouter {
         } else if (pending.command.operation === "request") {
             this.settle(requestId, "timeout", {errorCode: "TIMEOUT", errorMessage: "no response before deadline"});
         } else {
-            this.settle(requestId, "unknown", {errorCode: "TIMEOUT", errorMessage: "no device report before deadline"});
+            this.settle(requestId, "unknown", {errorCode: "TIMEOUT", errorMessage: "no state report before deadline"});
         }
     }
 
     private settle(requestId: string, status: CommandStatus, extra: Partial<CommandResult>): void {
         const pending = this.pending.get(requestId);
 
-        if (!pending) {
-            return;
+        if (pending) {
+            this.settleNow(pending, status, {...extra, terminal: true});
         }
+    }
 
+    private settleNow(pending: Pending, status: CommandStatus, extra: Partial<CommandResult> & {terminal: boolean}): CommandResult {
+        this.pending.delete(pending.command.requestId);
         clearTimeout(pending.timer);
-        const result = this.build(pending.command, status, {...extra, terminal: true, dispatched: pending.dispatched});
-        const decision = this.deps.retryPolicy?.decide(pending.command, result, pending.attempt, this.now());
 
-        this.pending.delete(requestId);
-        this.emit(result);
-
-        if (decision?.retry) {
-            const retryCommand = {...pending.command, requestId: `${pending.command.requestId}:retry:${pending.attempt}`} as Command;
-            const timer = setTimeout(() => {
-                this.retryTimers.delete(requestId);
-                if (!this.started) {
-                    pending.resolve(this.build(pending.command, "unknown", {
-                        errorCode: "UNAVAILABLE",
-                        errorMessage: "router stopped before retry",
-                        terminal: true,
-                        dispatched: pending.dispatched,
-                    }));
-                    return;
-                }
-                const next = this.register(retryCommand, pending.resolve, pending.attempt + 1);
-                this.emit(this.build(retryCommand, "accepted", {terminal: false, dispatched: false}));
-                const schedule = this.deps.hooks?.schedule;
-                const run = (): void => this.inject(next);
-                if (schedule) {
-                    if (schedule(retryCommand, run) === false) {
-                        this.settle(retryCommand.requestId, "failed", {errorCode: "BUSY", errorMessage: "command queue is full"});
-                    }
-                } else {
-                    run();
-                }
-            }, decision.delayMs);
-            this.retryTimers.set(requestId, {timer, pending});
-            return;
-        }
-
+        // `emit` swallows hook errors, so `resolve` is always reached.
+        const result = this.emit(this.build(pending.command, status, {...extra, dispatched: pending.dispatched}));
         pending.resolve(result);
+
+        return result;
     }
 
     private build(command: Command, status: CommandStatus, extra: Partial<CommandResult> & {terminal: boolean; dispatched: boolean}): CommandResult {
-        const autoRetryAllowed = isIdempotent(command);
         const failed = status === "failed" || status === "timeout" || status === "unknown";
+        let autoRetryAllowed = false;
+
+        try {
+            autoRetryAllowed = isIdempotent(command);
+        } catch {
+            // malformed command: keep the safe default (no auto retry)
+        }
 
         return {
-            requestId: command.requestId,
-            correlationId: command.correlationId,
+            requestId: String(command?.requestId ?? ""),
+            correlationId: String(command?.correlationId ?? ""),
             status,
             errorCode: extra.errorCode,
             errorMessage: extra.errorMessage,
@@ -436,11 +481,17 @@ export default class CommandRouter {
             autoRetryAllowed,
             at: this.now(),
             data: extra.data,
+            revision: extra.revision,
         };
     }
 
+    /** Hook errors must never break resolution: swallowed. */
     private emit(result: CommandResult): CommandResult {
-        this.deps.hooks?.onResult?.(result);
+        try {
+            this.deps.hooks?.onResult?.(result);
+        } catch {
+            // ignore
+        }
 
         return result;
     }

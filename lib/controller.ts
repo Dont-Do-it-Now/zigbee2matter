@@ -26,7 +26,6 @@ import {FileApiTokenStore} from "./api/tokenStore";
 import CommandRouter from "./command/router";
 import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
-import CommandRetryPolicy from "./command/retry";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import {FileBridgeIdentityStore, FileNetworkIdentityStore, type BridgeId, type NetworkIdentity} from "./identity";
@@ -111,7 +110,6 @@ export class Controller {
             bridgeBus: this.bridgeBus,
             resolver,
             authorizer,
-            retryPolicy: new CommandRetryPolicy(),
             hooks: {
                 admit: this.commandDeduplicator.admit,
                 schedule: this.commandQueue.schedule,

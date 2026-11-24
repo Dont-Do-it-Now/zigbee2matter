@@ -28,6 +28,12 @@ export const KNOWN_BRIDGE_REQUESTS: ReadonlySet<string> = new Set([
     "action",
 ]);
 
+/**
+ * Requests whose response/side effect may carry secrets or keys (network key backup, install codes, external definition source).
+ * Rejected with FORBIDDEN unless the router is explicitly configured with `allowedSensitiveRequests`.
+ */
+export const SENSITIVE_BRIDGE_REQUESTS: ReadonlySet<string> = new Set(["backup", "install_code/add", "device/generate_external_definition"]);
+
 /** Bridge requests safe to repeat (same end state). Everything else is treated as non-idempotent. */
 const IDEMPOTENT_BRIDGE_REQUESTS: ReadonlySet<string> = new Set([
     "device/options",
@@ -70,6 +76,22 @@ export function isIdempotent(command: Command): boolean {
     }
 
     return true;
+}
+
+/**
+ * Keys whose published value cannot be compared with the requested value (toggle, relative move/step, scene_*, non-primitive values):
+ * correlation falls back to key presence.
+ */
+export function isExistenceOnlyKey(key: string, value: unknown): boolean {
+    if (SCENE_KEYS.has(key) || RELATIVE_KEY_RE.test(key)) {
+        return true;
+    }
+
+    if (STATE_KEY_RE.test(key) && typeof value === "string" && NON_IDEMPOTENT_STATE_VALUES.has(value.toLowerCase())) {
+        return true;
+    }
+
+    return typeof value === "object" || value === undefined;
 }
 
 /** Upstream topic regex (`publish.ts`): `<base>/(?!bridge)(.+?)/(get|set)(?:/(.+))?$`. The endpoint segment sits between name and get/set. */

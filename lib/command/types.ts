@@ -86,6 +86,8 @@ export interface CommandResult {
     at: number;
     /** Upstream `bridge/response/*` `data`, only for `request`. */
     data?: unknown;
+    /** C3 optional state revision. Not set by the router yet (needs C2 StateRecord / eventBus hook). */
+    revision?: number;
 }
 
 export type ResolvedTarget =
