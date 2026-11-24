@@ -17,6 +17,7 @@ import {
     zigbeeColorXyToMatter,
 } from "./lightingMapping";
 import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
+import {toWattHours, toWatts} from "./energyMapping";
 import {mapCoverPosition} from "./coverMapping";
 import {mapButtonAction} from "./buttonMapping";
 
@@ -60,7 +61,7 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "temperature" | "humidity" | "contact" | "occupancy";
+type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "button" | "energy" | "temperature" | "humidity" | "contact" | "occupancy";
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
@@ -164,6 +165,11 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             }
         } else if (capability === "cover" && typeof state.position === "number") {
             patch.windowCovering = {currentPositionLiftPercent100ths: Math.round(mapCoverPosition(state.position) * 100)};
+        } else if (capability === "energy") {
+            if (typeof state.power === "number") patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
+            if (typeof state.energy === "number") {
+                patch.electricalEnergyMeasurement = {cumulativeEnergyImported: {energy: Math.round(toWattHours(state.energy, "Wh") * 1000)}};
+            }
         } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
             const value = celsiusToMatter(state.temperature);
             if (value.known) patch.temperatureMeasurement = {measuredValue: value.value};
@@ -194,7 +200,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
         const cover = flattened.find((expose) => expose.type === "cover");
         const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
-        const matches = [light, cover, button, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
+        const energy = flattened.find((expose) => expose.type === "numeric" && (expose.name === "power" || expose.name === "energy"));
+        const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
         if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
         if (light) {
@@ -238,6 +245,20 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                     SwitchServer.with("MomentarySwitch", "MomentarySwitchRelease", "MomentarySwitchLongPress", "MomentarySwitchMultiPress"),
                 ) as unknown as EndpointDefinition,
                 capability: "button",
+            };
+        }
+        if (energy) {
+            const [{ElectricalMeterDevice}, {ElectricalPowerMeasurementServer}, {ElectricalEnergyMeasurementServer}] = await Promise.all([
+                import("@matter/main/devices/electrical-meter"),
+                import("@matter/main/behaviors/electrical-power-measurement"),
+                import("@matter/main/behaviors/electrical-energy-measurement"),
+            ]);
+            return {
+                definition: ElectricalMeterDevice.with(
+                    ElectricalPowerMeasurementServer,
+                    ElectricalEnergyMeasurementServer.with("ImportedEnergy", "CumulativeEnergy"),
+                ) as unknown as EndpointDefinition,
+                capability: "energy",
             };
         }
         if (temperature) {
