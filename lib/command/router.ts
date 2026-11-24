@@ -234,6 +234,10 @@ export default class CommandRouter {
             return reject("INVALID_ARGUMENT", "value is not serializable");
         }
 
+        if (typeof serialized !== "string") {
+            return reject("INVALID_ARGUMENT", "value is not serializable");
+        }
+
         if (serialized.length > MAX_VALUE_BYTES) {
             return reject("INVALID_ARGUMENT", "value too large");
         }
