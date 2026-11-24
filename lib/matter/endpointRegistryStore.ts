@@ -31,7 +31,9 @@ export class FileEndpointRegistryStore implements EndpointRegistryStore {
 
     constructor(options: FileEndpointRegistryStoreOptions = {}) {
         this.directory = options.directory ?? data.joinPath(REGISTRY_DIRECTORY);
-        this.lockTimeoutMs = options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
+        const lockTimeoutMs = options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
+        if (!Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs <= 0) throw new Error("endpoint registry: invalid lock timeout");
+        this.lockTimeoutMs = lockTimeoutMs;
     }
 
     async load(bridgeId: BridgeId): Promise<EndpointRegistryDocument | undefined> {
@@ -90,7 +92,9 @@ export class FileEndpointRegistryStore implements EndpointRegistryStore {
 }
 
 async function acquireLock(lockPath: string, timeoutMs: number): Promise<() => Promise<void>> {
-    const deadline = Date.now() + timeoutMs;
+    const now = Date.now();
+    if (!Number.isSafeInteger(now) || !Number.isSafeInteger(now + timeoutMs)) throw new Error("endpoint registry: invalid lock deadline");
+    const deadline = now + timeoutMs;
     const directory = path.dirname(lockPath);
     await mkdir(directory, {recursive: true, mode: 0o700});
     await chmod(directory, 0o700);
