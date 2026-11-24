@@ -58,11 +58,27 @@ export class BridgeRuntime {
     }
 
     async stop(): Promise<void> {
-        await this.api?.stop();
-        await this.matter.stop();
-        if (this.attachedEventBus) {
-            this.events.detach(this.attachedEventBus);
-            this.attachedEventBus = undefined;
+        let firstError: unknown;
+
+        try {
+            await this.api?.stop();
+        } catch (error) {
+            firstError = error;
+        }
+
+        try {
+            await this.matter.stop();
+        } catch (error) {
+            firstError ??= error;
+        } finally {
+            if (this.attachedEventBus) {
+                this.events.detach(this.attachedEventBus);
+                this.attachedEventBus = undefined;
+            }
+        }
+
+        if (firstError !== undefined) {
+            throw firstError;
         }
     }
 
