@@ -40,7 +40,7 @@ export class HaEntityRegistry {
             key: canonicalKey,
             platform,
             name,
-            availability: existing?.availability === "removed" ? "available" : (existing?.availability ?? "available"),
+            availability: existing?.availability ?? "available",
             state: existing?.state === undefined ? undefined : {...existing.state},
         };
         this.records.set(uniqueId, record);
@@ -60,6 +60,7 @@ export class HaEntityRegistry {
     setAvailability(key: EntityKey, availability: Exclude<HaEntityAvailability, "removed">): HaEntityRecord | undefined {
         const record = this.records.get(stableHaUniqueId(key));
         if (record === undefined) return undefined;
+        if (record.availability === "removed") return {...record};
 
         record.availability = availability;
 

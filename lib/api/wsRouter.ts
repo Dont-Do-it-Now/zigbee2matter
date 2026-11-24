@@ -90,9 +90,17 @@ export class WsApiRouter {
                             throw new Error("invalid snapshot sequence");
                         }
                         session.resetAfterSnapshot(message.epoch, message.sequence);
+                    } else {
+                        throw new Error("unsupported WebSocket message type");
                     }
                 } catch {
-                    socket.send(JSON.stringify({type: "resync", reason: "invalid"}));
+                    session.acceptReplay({
+                        resync: true,
+                        reason: "invalid",
+                        epoch: this.options.stream.epoch,
+                        oldestSequence: undefined,
+                    });
+                    this.flush(socket, session);
                 }
             };
 
