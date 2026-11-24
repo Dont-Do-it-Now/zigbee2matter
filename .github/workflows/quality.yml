@@ -1,0 +1,110 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  release:
+    types: [published]
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.26.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: MQTT free gate
+        run: node scripts/mqtt-free-gate.mjs --strict-test
+      - name: Lockfile recovery contract
+        run: node scripts/lockfile-recovery.mjs
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Biome check
+        run: pnpm run check
+      - name: Build
+        run: pnpm run build
+      - name: TypeScript check
+        run: pnpm exec tsc --noEmit
+      - name: Tests
+        run: pnpm test
+      - name: Generate SBOM
+        run: pnpm dlx --yes @cyclonedx/cyclonedx-npm --output-file bom.json --output-format json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: bom.json
+
+  upstream-ledger:
+    name: upstream ledger (read-only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      UPSTREAM_BASE_SHA: 3c841fdfd66c92239921ef84fde8f039c64e1662
+      UPSTREAM_REF: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch upstream candidate
+        run: |
+          git remote add upstream https://github.com/Koenkk/zigbee2mqtt.git
+          git fetch --no-tags upstream "${UPSTREAM_REF}"
+      - name: Classify upstream diff
+        run: >-
+          node scripts/upstream-ledger.mjs
+          --base "${UPSTREAM_BASE_SHA}"
+          --candidate "$(git rev-parse "refs/remotes/upstream/${UPSTREAM_REF}")"
+          --json --fail-on-review > upstream-ledger.json
+      - name: Upload upstream ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-ledger-${{ github.sha }}
+          path: upstream-ledger.json
+
+  release:
+    name: release gates
+    if: github.event_name == 'release'
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.26.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate SBOM
+        run: pnpm dlx --yes @cyclonedx/cyclonedx-npm --output-file bom.json --output-format json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: bom.json
