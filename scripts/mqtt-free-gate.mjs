@@ -1,19 +1,32 @@
 // T072 MQTT-free gate. Node 표준 라이브러리만 사용, 읽기 전용(파일 쓰기/네트워크/git 없음).
 // 사용: node scripts/mqtt-free-gate.mjs [--root <dir>] [--json] [--strict-test]
 // exit 0 = 위반 없음, 1 = 위반, 2 = 게이트 자체 오류. 허용 목록: scripts/mqtt-free-gate.allowlist.json
-import {existsSync, readdirSync, readFileSync, statSync} from "node:fs";
+import {existsSync, lstatSync, readdirSync, readFileSync} from "node:fs";
 import {dirname, join, relative, sep} from "node:path";
 import {fileURLToPath} from "node:url";
 
+// 예상 밖 예외(잘못된 정규식, 파일 읽기 실패 등)는 위반(1)과 구분되는 게이트 오류(2)
+process.on("uncaughtException", (e) => {
+    console.error(`GATE ERROR: ${e?.stack ?? e}`);
+    process.exit(2);
+});
 const args = process.argv.slice(2);
-const argVal = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+const argVal = (name) => {
+    if (!args.includes(name)) return undefined;
+    const v = args[args.indexOf(name) + 1];
+    if (!v || v.startsWith("--")) {
+        console.error(`GATE ERROR: ${name} 값 누락`);
+        process.exit(2);
+    }
+    return v;
+};
 const ROOT = argVal("--root") ?? join(dirname(fileURLToPath(import.meta.url)), "..");
 const AS_JSON = args.includes("--json");
 const STRICT_TEST = args.includes("--strict-test");
 
 // 금지 패키지: mqtt 클라이언트/브로커. 허용 패키지는 allowlist.allowedPackages (브랜드 이름 zigbee2mqtt*).
-const FORBIDDEN_PKG = /^(@[\w.-]+\/)?(mqtt|mqtt-.+|.+-mqtt|mqtt\.js|async-mqtt|paho-mqtt|aedes(-.+)?|mosca|mosquitto(-.+)?|emqx(-.+)?|hivemq(-.+)?|vernemq(-.+)?)$/i;
-const FORBIDDEN_PKG_PREFIX = /^@aedes\//i;
+const FORBIDDEN_PKG = /^(@[\w.-]+\/)?(mqtt\d*|mqtt[_.-].+|.+[-_.]mqtt\d*|async-mqtt|paho-mqtt|aedes(-.+)?|mosca|mosquitto(-.+)?|emqx(-.+)?|hivemq(-.+)?|vernemq(-.+)?)$/i;
+const FORBIDDEN_PKG_PREFIX = /^@[^/]*(mqtt|emqx|aedes|hivemq|vernemq)[^/]*\//i;
 // 하드 금지(코드 패턴): 허용 목록으로 풀 수 없다.
 const HARD_BAN = [
     [/\bthis\.mqtt\b/, "this.mqtt"],
@@ -38,7 +51,8 @@ function walk(dir, out = []) {
     for (const name of readdirSync(dir)) {
         if (SKIP_DIRS.has(name)) continue;
         const p = join(dir, name);
-        const st = statSync(p);
+        const st = lstatSync(p);
+        if (st.isSymbolicLink()) continue; // 심볼릭 링크는 따라가지 않음
         if (st.isDirectory()) walk(p, out);
         else if (st.size < 2_000_000 && TEXT_EXT.test(rel(p))) out.push(p);
     }
@@ -54,6 +68,12 @@ try {
     process.exit(2);
 }
 const allowedPkgs = new Set(allow.allowedPackages ?? []);
+for (const r of allow.rules ?? []) {
+    if (!Number.isInteger(r.max) || r.max < 0) {
+        console.error(`GATE ERROR: allowlist 규칙 max는 0 이상의 정수 필수: ${r.file} ${r.category}`);
+        process.exit(2);
+    }
+}
 const rules = (allow.rules ?? []).map((r) => ({...r, re: r.pattern ? new RegExp(r.pattern, "i") : null, hits: 0}));
 const isForbiddenPkg = (n) => !allowedPkgs.has(n) && (FORBIDDEN_PKG.test(n) || FORBIDDEN_PKG_PREFIX.test(n));
 
@@ -89,7 +109,8 @@ for (const f of ["pnpm-workspace.yaml", "pnpm-lock.yaml"]) {
 }
 
 // (B) lib/** import/require (+ index.js, cli.js, scripts). test/** 는 기본 경고(--strict-test 시 위반)
-const IMPORT_RE = /(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s+)["']([^"']+)["']/g;
+// 파일 전체 텍스트 매칭(줄 나뉨 허용): from "x", import("x"), require("x"), import "x", createRequire(...)("x"), 백틱 리터럴
+const IMPORT_RE = /(?:\b(?:from|import)\s*["']([^"'\n]+)["'])|(?:(?:\bimport\s*\(|\brequire\s*\(|\)\s*\()\s*["'`]([^"'`$\n]+)["'`])/g;
 const pkgOf = (spec) => (spec.startsWith(".") || spec.startsWith("node:") ? null : spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/"));
 const importFiles = [...walk(join(ROOT, "lib")), ...["index.js", "cli.js"].map((f) => join(ROOT, f)).filter(existsSync), ...walk(join(ROOT, "scripts")).filter((p) => !SELF.test(rel(p)))];
 const testFiles = walk(join(ROOT, "test"));
@@ -99,14 +120,16 @@ for (const [files, target] of [
 ]) {
     for (const p of files) {
         if (!/\.(ts|mts|cts|js|mjs|cjs)$/.test(p)) continue;
-        lines(p).forEach((l, i) => {
-            IMPORT_RE.lastIndex = 0;
-            for (let m; (m = IMPORT_RE.exec(l)); ) {
-                const n = pkgOf(m[1]);
-                if (n && isForbiddenPkg(n)) add("B-import", rel(p), i + 1, `금지 MQTT 모듈 import '${m[1]}'`, target);
-            }
-            if (/vi\.mock\(\s*["']mqtt/.test(l)) add("B-import", rel(p), i + 1, "vi.mock('mqtt') 잔존", target);
-        });
+        const text = readFileSync(p, "utf8");
+        const lineOf = (idx) => text.slice(0, idx).split("\n").length;
+        IMPORT_RE.lastIndex = 0;
+        for (let m; (m = IMPORT_RE.exec(text)); ) {
+            const spec = m[1] ?? m[2];
+            const n = pkgOf(spec);
+            if (n && isForbiddenPkg(n)) add("B-import", rel(p), lineOf(m.index), `금지 MQTT 모듈 import '${spec}'`, target);
+        }
+        const mock = /vi\.mock\(\s*["'`]mqtt/g;
+        for (let m; (m = mock.exec(text)); ) add("B-import", rel(p), lineOf(m.index), "vi.mock('mqtt') 잔존", target);
     }
 }
 
@@ -166,7 +189,7 @@ for (const p of scanFiles) {
     });
 }
 for (const r of rules) {
-    if (r.max !== undefined && r.hits > r.max) add("D-ident", r.file, 0, `허용 한도 초과: '${r.category}' ${r.hits} > max ${r.max} (신규 mqtt 문자열 유입)`);
+    if (r.hits > r.max) add("D-ident", r.file, 0, `허용 한도 초과: '${r.category}' ${r.hits} > max ${r.max} (신규 mqtt 문자열 유입)`);
     if (r.hits === 0) add("D-stale", r.file, 0, `미사용 allowlist 항목(삭제 검토): ${r.category} ${r.pattern ?? ""}`, warnings);
 }
 
