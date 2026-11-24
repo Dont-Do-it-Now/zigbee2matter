@@ -1,7 +1,7 @@
 /** C4 WebSocket 라우팅 경계(T057). 기존 frontend WebSocket 서버에 연결한다. */
 import type {IncomingMessage} from "node:http";
 import WebSocket from "ws";
-import type {EventStream} from "../events";
+import type {BridgeEvent, EventStream} from "../events";
 import {authorizeWebSocket, type ApiAuth} from "./auth";
 import WsEventSession, {type WsSnapshot} from "./wsSession";
 
@@ -36,17 +36,28 @@ export class WsApiRouter {
             const maxPayloadBytes = Math.max(1, Math.floor(this.options.maxPayloadBytes ?? 65_536));
             let inboundWindowStartedAt = Date.now();
             let inboundMessages = 0;
+            let initializing = true;
+            const bufferedEvents: BridgeEvent[] = [];
+            const unsubscribe = this.options.stream.subscribe((event) => {
+                if (initializing) bufferedEvents.push(event);
+                else {
+                    session.accept(event);
+                    this.flush(socket, session);
+                }
+            });
+
             const snapshot = this.options.snapshot?.() ?? {
                 epoch: this.options.stream.epoch,
                 sequence: this.options.stream.lastSequence,
                 payload: {},
             };
             session.acceptSnapshot(snapshot);
-            const unsubscribe = this.options.stream.subscribe((event) => {
-                session.accept(event);
-                this.flush(socket, session);
-            });
             session.acceptReplay(this.options.stream.replay(snapshot.sequence, snapshot.epoch));
+            initializing = false;
+            for (const event of bufferedEvents) {
+                if (session.lastAcceptedSequence !== undefined && event.sequence <= session.lastAcceptedSequence) continue;
+                session.accept(event);
+            }
             this.flush(socket, session);
             const heartbeat = setInterval(() => {
                 const frame = session.heartbeat();

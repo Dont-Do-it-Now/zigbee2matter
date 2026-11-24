@@ -97,6 +97,10 @@ export default class WsEventSession {
         return this.resyncRequired;
     }
 
+    get lastAcceptedSequence(): number | undefined {
+        return this.lastSequence;
+    }
+
     private requireResync(reason: "gap" | "epoch" | "invalid" | "overflow" | "order"): void {
         this.resyncRequired = true;
         this.queue.length = 0;
