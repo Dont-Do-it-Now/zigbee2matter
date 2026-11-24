@@ -291,7 +291,8 @@ export class Controller {
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
-                    await runtime.restore(key);
+                    const restored = await runtime.restore(key);
+                    if (restored === undefined) await runtime.create(key, true);
                 } catch (error) {
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
                 }
