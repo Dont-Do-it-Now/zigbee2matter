@@ -5,6 +5,7 @@ import {Zcl} from "zigbee-herdsman";
 import type {TClusterAttributeKeys} from "zigbee-herdsman/dist/zspec/zcl/definition/clusters-types";
 import type {ClusterName} from "zigbee-herdsman/dist/zspec/zcl/definition/tstype";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
+import BindingRegistry from "../groupBinding";
 import Device from "../model/device";
 import Group from "../model/group";
 import type {Zigbee2MQTTAPI, Zigbee2MQTTResponseEndpoints} from "../types/api";
@@ -190,6 +191,7 @@ interface ParsedBridgeBusMessage {
 export default class Bind extends Extension {
     #topicRegex = new RegExp(`^${BASE_TOPIC}/bridge/request/device/(bind|unbind|binds/clear)`);
     private pollDebouncers: {[s: string]: () => void} = {};
+    private readonly bindingRegistry = new BindingRegistry();
 
     // biome-ignore lint/suspicious/useAwait: API
     override async start(): Promise<void> {
@@ -412,11 +414,27 @@ export default class Bind extends Extension {
         if (successfulClusters.length !== 0) {
             /* v8 ignore stop */
             if (type === "bind") {
+                if (sourceKey !== undefined && targetKey !== undefined) {
+                    for (const cluster of successfulClusters) {
+                        const source = `${sourceKey}:${String(sourceEndpointKey)}`;
+                        const target = `${String(targetKey)}:${String(targetEndpointKey ?? "default")}`;
+                        this.bindingRegistry.upsert(source, target, cluster, true);
+                    }
+                }
                 await this.setupReporting(
                     resolvedSourceEndpoint.binds.filter((b) => successfulClusters.includes(b.cluster.name) && b.target === resolvedBindTarget),
                 );
-            } else if (typeof resolvedBindTarget !== "number" && !skipDisableReporting) {
-                await this.disableUnnecessaryReportings(resolvedBindTarget);
+            } else {
+                if (sourceKey !== undefined && targetKey !== undefined) {
+                    for (const cluster of successfulClusters) {
+                        const source = `${sourceKey}:${String(sourceEndpointKey)}`;
+                        const target = `${String(targetKey)}:${String(targetEndpointKey ?? "default")}`;
+                        this.bindingRegistry.remove(source, target, cluster);
+                    }
+                }
+                if (typeof resolvedBindTarget !== "number" && !skipDisableReporting) {
+                    await this.disableUnnecessaryReportings(resolvedBindTarget);
+                }
             }
         }
 
