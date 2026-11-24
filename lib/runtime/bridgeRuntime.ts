@@ -1,7 +1,7 @@
 /** Core·EventStream·API·Matter adapter를 묶는 composition root(T032/T053/T056/T057). */
 import type EventBus from "../eventBus";
 import {EventStream} from "../events";
-import {ApiAuth, type AuthOptions, type Principal} from "../api/auth";
+import {ApiAuth, type AuthOptions, type Principal, type TokenRecord} from "../api/auth";
 import {ApiServer, type ApiServerOptions} from "../api/server";
 import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
@@ -12,6 +12,7 @@ import type {WsSnapshot} from "../api/wsSession";
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly auth?: AuthOptions;
+    readonly initialTokens?: readonly TokenRecord[];
     readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter" | keyof RestRouterDeps> & {
         readonly listDevices: () => readonly RestDevice[];
         readonly snapshot?: () => WsSnapshot;
@@ -29,7 +30,7 @@ export class BridgeRuntime {
 
     constructor(options: BridgeRuntimeOptions = {}) {
         this.events = new EventStream(options.eventCapacity);
-        this.auth = new ApiAuth(options.auth);
+        this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.matter = new MatterSdkRuntime();
         if (options.api) {

@@ -22,11 +22,13 @@ import State from "./state";
 import {BridgeRuntime} from "./runtime";
 import type {RestDevice} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
+import {FileApiTokenStore} from "./api/tokenStore";
 import CommandRouter from "./command/router";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
+import data from "./util/data";
 import * as settings from "./util/settings";
 import {stringify} from "./util/stringify";
 import utils from "./util/utils";
@@ -57,8 +59,13 @@ export class Controller {
         zhcSetLogger(logger);
         this.eventBus = new EventBus();
         const apiSettings = settings.get().api;
+        const apiTokenStore = new FileApiTokenStore(data.joinPath("api-tokens.json"));
         this.runtime = new BridgeRuntime({
-            auth: {legacyToken: apiSettings.auth_token},
+            auth: {
+                legacyToken: apiSettings.auth_token,
+                onChange: (records) => apiTokenStore.save(records),
+            },
+            initialTokens: apiTokenStore.load(),
             api: apiSettings.enabled
                 ? {
                       host: apiSettings.host,

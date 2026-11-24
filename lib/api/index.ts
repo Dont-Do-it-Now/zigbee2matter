@@ -6,3 +6,4 @@ export {RestApiRouter, type RestDevice, type RestRouterDeps} from "./restRouter"
 export {WsApiRouter, type WsRouterOptions} from "./wsRouter";
 export {ApiServer, type ApiServerOptions} from "./server";
 export {AuthFailureRateLimiter, type RateLimitOptions} from "./rateLimit";
+export {FileApiTokenStore} from "./tokenStore";
