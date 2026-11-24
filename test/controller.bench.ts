@@ -56,7 +56,7 @@ vi.doMock("zigbee-herdsman", async (importOriginal) => {
     };
 });
 
-process.env.ZIGBEE2MQTT_DATA = "data-bench";
+process.env.ZIGBEE2MATTER_DATA = "data-bench";
 data._testReload();
 
 if (!existsSync(data.getPath())) {
@@ -407,35 +407,14 @@ const initController = async () => {
         async () => {},
     );
 
-    // all dummies, can trigger `controller.mqtt.onMessage(topic, message)` as needed
-    // @ts-expect-error mocking private
-    controller.mqtt.client = {
-        options: {
-            protocolVersion: 5,
-            protocol: "mqtt",
-            host: "localhost",
-            port: 1883,
-        },
-        queue: [],
-        reconnecting: false,
-        disconnecting: false,
-        disconnected: false,
-        endAsync: async () => {},
-        publishAsync: async () => {},
-    };
-    controller.mqtt.connect = async () => {
-        // @ts-expect-error private
-        await controller.mqtt.onConnect();
-    };
-    controller.mqtt.subscribe = async () => {};
-    controller.mqtt.unsubscribe = async () => {};
+    // in-process bridgeBus, no broker: trigger `controller.bridgeBus.onMessage(topic, message)` as needed
 
     // will be in-memory only
     controller.state.start = () => {};
     controller.state.stop = () => {};
 };
 
-describe("Controller with dummy zigbee/mqtt", () => {
+describe("Controller with dummy zigbee/bridgeBus", () => {
     bench(
         "[defaults] start & stop controller",
         async () => {
@@ -468,7 +447,6 @@ describe("Controller with dummy zigbee/mqtt", () => {
             const mockedGlobal = mockGlobalThis();
 
             await controller.start();
-            controller.mqtt.onMessage("homeassistant/status", Buffer.from("online", "utf8"));
             await settle(mockedGlobal);
 
             if ((await controller.zigbee.getCoordinatorVersion()).type !== "Dummy") {
@@ -519,11 +497,11 @@ describe("Controller with dummy zigbee/mqtt", () => {
         );
 
         bench(
-            "[defaults] receive MQTT message",
+            "[defaults] receive bridgeBus message",
             async () => {
                 const mockedGlobal = mockGlobalThis();
 
-                controller.mqtt.onMessage("zigbee2mqtt/0xf1f1f1f1f1f1f1f1/set", Buffer.from(`{"state": "OFF"}`, "utf8"));
+                controller.bridgeBus.onMessage("zigbee2matter/0xf1f1f1f1f1f1f1f1/set", Buffer.from(`{"state": "OFF"}`, "utf8"));
                 await settle(mockedGlobal);
             },
             {...BENCH_OPTIONS, setup, teardown},
@@ -534,8 +512,8 @@ describe("Controller with dummy zigbee/mqtt", () => {
             async () => {
                 const mockedGlobal = mockGlobalThis();
 
-                controller.eventBus.emitMQTTMessage({
-                    topic: "zigbee2mqtt/bridge/request/group/members/add",
+                controller.eventBus.emitBridgeBusMessage({
+                    topic: "zigbee2matter/bridge/request/group/members/add",
                     message: stringify({
                         device: "0xf1f1f1f1f1f1f1f1",
                         group: `${ZH_GROUPS[0].groupID}`,
@@ -588,71 +566,6 @@ describe("Controller with dummy zigbee/mqtt", () => {
                     data: {onOff: 1},
                     meta: {},
                 });
-                await settle(mockedGlobal);
-            },
-            {...BENCH_OPTIONS, setup, teardown},
-        );
-    });
-
-    describe("HA runtime", () => {
-        const setup: NonNullable<Parameters<typeof bench>[2]>["setup"] = async (task, mode) => {
-            BENCH_OPTIONS.setup!(task, mode);
-            initDevices();
-            initGroups();
-            await initSettings([[["homeassistant", "enabled"], true]]);
-            await initController();
-            const mockedGlobal = mockGlobalThis();
-
-            await controller.start();
-            controller.mqtt.onMessage("homeassistant/status", Buffer.from("online", "utf8"));
-            await settle(mockedGlobal);
-        };
-
-        const teardown = async () => {
-            await controller.stop();
-            unmockGlobalThis();
-        };
-
-        bench(
-            "[HA] receive device message",
-            async () => {
-                const mockedGlobal = mockGlobalThis();
-
-                controller.eventBus.emitDeviceMessage({
-                    type: "attributeReport",
-                    device: controller.zigbee.resolveEntity("0xf1f1f1f1f1f1f1f1"),
-                    endpoint: ZSpec.HA_ENDPOINT,
-                    linkquality: 200,
-                    groupID: 0,
-                    cluster: "genOnOff",
-                    data: {onOff: 1},
-                    meta: {},
-                });
-                await settle(mockedGlobal);
-            },
-            {...BENCH_OPTIONS, setup, teardown},
-        );
-
-        bench(
-            "[HA] receive MQTT message",
-            async () => {
-                const mockedGlobal = mockGlobalThis();
-
-                controller.mqtt.onMessage("zigbee2mqtt/0xf1f1f1f1f1f1f1f1/set", Buffer.from(`{"state": "OFF"}`, "utf8"));
-                await settle(mockedGlobal);
-            },
-            {...BENCH_OPTIONS, setup, teardown},
-        );
-
-        bench(
-            "[HA] receive MQTT discovery message",
-            async () => {
-                const mockedGlobal = mockGlobalThis();
-
-                controller.mqtt.onMessage(
-                    "homeassistant/sensor/0xe2e2e2e2e2e2e2e2/update/config",
-                    Buffer.from(stringify({availability: [{topic: "zigbee2mqtt/bridge/state", value_template: "{{ value_json.state }}"}]}), "utf8"),
-                );
                 await settle(mockedGlobal);
             },
             {...BENCH_OPTIONS, setup, teardown},

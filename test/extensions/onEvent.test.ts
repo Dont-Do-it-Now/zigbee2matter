@@ -2,7 +2,7 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it, vi, assert} from "vitest";
 import * as data from "../mocks/data";
 import {mockLogger} from "../mocks/logger";
-import {mockMQTTPublishAsync} from "../mocks/mqtt";
+import {mockBridgeBusPublish} from "../mocks/bridgeBus";
 import {flushPromises} from "../mocks/utils";
 import type {Device as ZhDevice} from "../mocks/zigbeeHerdsman";
 import {devices, events as mockZHEvents, returnDevices} from "../mocks/zigbeeHerdsman";
@@ -15,7 +15,7 @@ import OnEvent from "../../lib/extension/onEvent";
 import type Device from "../../lib/model/device";
 import * as settings from "../../lib/util/settings";
 
-const mocksClear = [mockMQTTPublishAsync, mockLogger.warning, mockLogger.debug];
+const mocksClear = [mockBridgeBusPublish, mockLogger.warning, mockLogger.debug];
 
 returnDevices.push(devices.bulb.ieeeAddr, devices.LIVOLO.ieeeAddr, devices.coordinator.ieeeAddr);
 

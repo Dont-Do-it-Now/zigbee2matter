@@ -14,10 +14,6 @@ export const DEFAULT_CONFIGURATION = {
     homeassistant: {enabled: false},
     frontend: {enabled: false},
     availability: {enabled: false},
-    mqtt: {
-        base_topic: "zigbee2mqtt",
-        server: "mqtt://localhost",
-    },
     serial: {
         port: "/dev/dummy",
     },
@@ -46,7 +42,6 @@ export const DEFAULT_CONFIGURATION = {
             friendly_name: "button_double_key",
         },
         "0x0017880104e45522": {
-            qos: 1,
             retain: false,
             friendly_name: "weather_sensor",
         },

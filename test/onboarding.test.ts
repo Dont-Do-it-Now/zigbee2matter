@@ -70,10 +70,6 @@ vi.mock("zigbee2mqtt-windfront", () => ({
 
 const SETTINGS_MINIMAL_DEFAULTS = {
     version: settings.CURRENT_VERSION,
-    mqtt: {
-        base_topic: settings.defaults.mqtt!.base_topic,
-        server: "mqtt://localhost:1883",
-    },
     serial: {},
     advanced: {
         log_level: settings.defaults.advanced!.log_level,
@@ -87,18 +83,22 @@ const SETTINGS_MINIMAL_DEFAULTS = {
         enabled: settings.defaults.frontend!.enabled,
         port: settings.defaults.frontend!.port,
     },
+    api: {
+        enabled: settings.defaults.api!.enabled,
+        host: settings.defaults.api!.host,
+        port: settings.defaults.api!.port,
+    },
     homeassistant: {
         enabled: settings.defaults.homeassistant!.enabled,
+    },
+    matter: {
+        enabled: settings.defaults.matter!.enabled,
     },
     onboarding: true,
 };
 
 const SAMPLE_SETTINGS_INIT = {
     version: settings.CURRENT_VERSION,
-    mqtt: {
-        base_topic: "zigbee2mqtt",
-        server: "mqtt://localhost:1883",
-    },
     serial: {
         port: "/dev/ttyUSB0",
         adapter: "zstack",
@@ -123,10 +123,6 @@ const SAMPLE_SETTINGS_INIT = {
 
 const SAMPLE_SETTINGS_SAVE = {
     version: settings.CURRENT_VERSION,
-    mqtt: {
-        base_topic: "zigbee2mqtt2",
-        server: "mqtt://192.168.1.200:1883",
-    },
     serial: {
         port: "COM3",
         adapter: "ember",
@@ -166,7 +162,7 @@ describe("Onboarding", () => {
         delete process.env.Z2M_ONBOARD_URL;
         delete process.env.Z2M_ONBOARD_NO_FAILURE_PAGE;
         delete process.env.Z2M_ONBOARD_NO_REDIRECT;
-        delete process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER;
+        delete process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT;
         delete process.env.ZIGBEE2MQTT_CONFIG_SERIAL_BAUDRATE;
         delete process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_CHANNEL;
         delete process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_NETWORK_KEY;
@@ -238,10 +234,8 @@ describe("Onboarding", () => {
         await vi.advanceTimersByTimeAsync(100); // flush
 
         if (expectWriteMinimal) {
-            const minimal = process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER
-                ? Object.assign({}, SETTINGS_MINIMAL_DEFAULTS, {
-                      mqtt: {server: process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER, base_topic: SETTINGS_MINIMAL_DEFAULTS.mqtt.base_topic},
-                  })
+            const minimal = process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT
+                ? Object.assign({}, SETTINGS_MINIMAL_DEFAULTS, {serial: {port: process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT}})
                 : SETTINGS_MINIMAL_DEFAULTS;
 
             expect(data.read()).toStrictEqual(minimal);
@@ -824,7 +818,7 @@ describe("Onboarding", () => {
     it("creates config file and sets given unusual settings", async () => {
         data.removeConfiguration();
 
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER = "mqtt://core-mosquitto:1883";
+        process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT = "/dev/ttyENV";
 
         mockFindAllDevices.mockResolvedValueOnce([
             {name: "My Device", path: "/dev/serial/by-id/my-device-001", adapter: "ember"},
@@ -838,10 +832,6 @@ describe("Onboarding", () => {
                     resolve(
                         await runOnboarding(
                             Object.assign({}, SAMPLE_SETTINGS_SAVE, {
-                                mqtt: {
-                                    user: "abcd",
-                                    password: "defg",
-                                },
                                 frontend: {
                                     enabled: false,
                                 },
@@ -875,7 +865,7 @@ describe("Onboarding", () => {
                     enable_external_js: false,
                 },
                 serial: {
-                    port: SAMPLE_SETTINGS_SAVE.serial.port,
+                    port: process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT,
                     adapter: SAMPLE_SETTINGS_SAVE.serial.adapter,
                     baudrate: SAMPLE_SETTINGS_SAVE.serial.baudrate,
                     rtscts: SAMPLE_SETTINGS_SAVE.serial.rtscts,
@@ -883,12 +873,6 @@ describe("Onboarding", () => {
                 frontend: {
                     enabled: false,
                     port: SETTINGS_MINIMAL_DEFAULTS.frontend.port,
-                },
-                mqtt: {
-                    base_topic: SETTINGS_MINIMAL_DEFAULTS.mqtt.base_topic,
-                    server: process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER,
-                    user: "abcd",
-                    password: "defg",
                 },
                 homeassistant: {
                     enabled: true,
@@ -899,7 +883,7 @@ describe("Onboarding", () => {
             {name: "My Device", path: "/dev/serial/by-id/my-device-001", adapter: "ember"},
             {name: "My Device 2", path: "/dev/serial/by-id/my-device-002"},
         ]);
-        expect(getData.settings.mqtt.server).toStrictEqual(process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER);
+        expect(getData.settings.serial.port).toStrictEqual(process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT);
         expect(submitData).toStrictEqual({success: true, frontendUrl: null});
     });
 
@@ -1088,7 +1072,7 @@ describe("Onboarding", () => {
         data.removeConfiguration();
 
         process.env.Z2M_ONBOARD_URL = "http://192.168.1.123:8888";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER = "mqtt://core-mosquitto:1883";
+        process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT = "/dev/ttyENV";
 
         let p;
 
@@ -1107,7 +1091,7 @@ describe("Onboarding", () => {
         await expect(p).resolves.toStrictEqual(true);
         expect(data.read()).toStrictEqual(
             Object.assign({}, SAMPLE_SETTINGS_SAVE, {
-                mqtt: {server: process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER, base_topic: SAMPLE_SETTINGS_SAVE.mqtt.base_topic},
+                serial: {...SAMPLE_SETTINGS_SAVE.serial, port: process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT},
             }),
         );
     });
@@ -1116,14 +1100,14 @@ describe("Onboarding", () => {
         data.removeConfiguration();
 
         process.env.Z2M_ONBOARD_NO_SERVER = "1";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER = "mqtt://core-mosquitto:1883";
+        process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT = "/dev/ttyENV";
 
         const p = onboard();
 
         await expect(p).resolves.toStrictEqual(true);
 
         const expected = Object.assign({}, SETTINGS_MINIMAL_DEFAULTS, {
-            mqtt: {server: process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER, base_topic: SETTINGS_MINIMAL_DEFAULTS.mqtt.base_topic},
+            serial: {port: process.env.ZIGBEE2MATTER_CONFIG_SERIAL_PORT},
         });
         // @ts-expect-error mock
         delete expected.onboarding;
@@ -1204,9 +1188,6 @@ describe("Onboarding", () => {
 
     it("runs 1.x.x conflict migrations", async () => {
         data.writeDefaultConfiguration({
-            mqtt: {
-                server: "mqtt://core-mosquitto:1883",
-            },
             homeassistant: true,
             advanced: {
                 network_key: "GENERATE",

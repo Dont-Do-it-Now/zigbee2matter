@@ -1,5 +1,5 @@
 // side-effect ensures using mock paths
-import {beforeEach, describe, expect, it} from "vitest";
+import {beforeEach, describe, expect, it, vi} from "vitest";
 import "./mocks/data";
 
 import fs from "node:fs";
@@ -20,7 +20,6 @@ const groupsFile = mockedData.joinPath("groups.yaml");
 const secretFile = mockedData.joinPath("secret.yaml");
 const minimalConfig = {
     homeassistant: {enabled: true},
-    mqtt: {base_topic: "zigbee2mqtt", server: "localhost"},
 };
 
 describe("Settings", () => {
@@ -42,7 +41,7 @@ describe("Settings", () => {
 
     const clearEnvironmentVariables = (): void => {
         for (const key in process.env) {
-            if (key.startsWith("ZIGBEE2MQTT_CONFIG_")) {
+            if (key.startsWith("ZIGBEE2MQTT_CONFIG_") || key.startsWith("ZIGBEE2MATTER_CONFIG_")) {
                 delete process.env[key];
             }
         }
@@ -72,12 +71,16 @@ describe("Settings", () => {
             homeassistant: {
                 enabled: false,
             },
+            matter: {
+                enabled: false,
+            },
             frontend: {
                 enabled: true,
             },
-            mqtt: {
-                base_topic: "zigbee2mqtt",
-                server: "mqtt://localhost",
+            api: {
+                enabled: true,
+                host: "127.0.0.1",
+                port: 8090,
             },
             advanced: {
                 network_key: "GENERATE",
@@ -106,16 +109,30 @@ describe("Settings", () => {
         expect(s).toStrictEqual(expected);
     });
 
+    it("Should ignore a legacy mqtt section with a warning (no broker support)", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        try {
+            write(configurationFile, {serial: {disable_led: true}, mqtt: {base_topic: "legacy", server: "legacy-host"}});
+            const s = settings.get() as unknown as Record<string, unknown>;
+            expect(s.mqtt).toBeUndefined();
+            expect(s.serial).toStrictEqual({disable_led: true});
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Ignoring the deprecated 'mqtt' section"));
+            expect(settings.validate()).toStrictEqual([]);
+        } finally {
+            warnSpy.mockRestore();
+        }
+    });
+
     it("Should apply environment variables as overrides", () => {
         write(secretFile, {password: "the-password"}, false);
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD = "!secret.yaml password";
+        process.env.ZIGBEE2MATTER_CONFIG_FRONTEND_AUTH_TOKEN = "!secret.yaml password";
         process.env.ZIGBEE2MQTT_CONFIG_SERIAL_DISABLE_LED = "true";
         process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_CHANNEL = "15";
         process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_OUTPUT = "attribute_and_json";
         process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT = '["console"]';
         process.env.ZIGBEE2MQTT_CONFIG_MAP_OPTIONS_GRAPHVIZ_COLORS_FILL = '{"enddevice": "#ff0000", "coordinator": "#00ff00", "router": "#0000ff"}';
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC = "testtopic";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER = "testserver";
+        process.env.ZIGBEE2MQTT_CONFIG_FRONTEND_HOST = "testhost"; // legacy prefix is still accepted
         process.env.ZIGBEE2MQTT_CONFIG_ADVANCED_NETWORK_KEY = "GENERATE";
         process.env.ZIGBEE2MQTT_CONFIG_DEVICES = "devices.yaml";
 
@@ -139,12 +156,11 @@ describe("Settings", () => {
         expected.advanced.log_output = ["console"];
         expected.advanced.output = "attribute_and_json";
         expected.map_options.graphviz.colors.fill = {enddevice: "#ff0000", coordinator: "#00ff00", router: "#0000ff"};
-        expected.mqtt.base_topic = "testtopic";
-        expected.mqtt.server = "testserver";
-        expected.mqtt.password = "the-password";
+        expected.frontend.host = "testhost";
+        expected.frontend.auth_token = "the-password";
         expected.advanced.network_key = "GENERATE";
 
-        write(configurationFile, {mqtt: {password: "config-password"}});
+        write(configurationFile, {frontend: {auth_token: "config-password"}});
         write(devicesFile, contentDevices);
 
         const writeAndCheck = (): void => {
@@ -157,7 +173,7 @@ describe("Settings", () => {
             expect(read(configurationFile)).toMatchObject({advanced: {channel: 15}});
 
             expect(read(secretFile)).toMatchObject({password: "the-password"});
-            expect(read(configurationFile)).toHaveProperty("mqtt.password", "!secret.yaml password");
+            expect(read(configurationFile)).toHaveProperty("frontend.auth_token", "!secret.yaml password");
         };
 
         // Write trice to ensure there are no side effects.
@@ -166,16 +182,13 @@ describe("Settings", () => {
         writeAndCheck();
     });
 
-    it("Should apply Home Assistant environment variables", () => {
-        // should be kept in sync with envs in https://github.com/zigbee2mqtt/hassio-zigbee2mqtt/blob/master/common/rootfs/docker-entrypoint.sh
+    it("Should apply add-on environment variables", () => {
         process.env.ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED = "true";
         process.env.ZIGBEE2MQTT_CONFIG_FRONTEND_PORT = "8099";
         process.env.ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED = "true";
         process.env.ZIGBEE2MQTT_CONFIG_SERIAL_PORT =
             "/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_48be7a7468d8ed11bfea786ff2c613ac-if00-port0";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_SERVER = "mqtt://core-mosquitto:1883";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_USER = "addons";
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD = "7RbR4NBSskS8TKG4ugzdRilXw6TPQ4NKFs259j2DxeultOFtl5JwciNZFd6feT5o";
+        process.env.ZIGBEE2MATTER_CONFIG_FRONTEND_AUTH_TOKEN = "7RbR4NBSskS8TKG4ugzdRilXw6TPQ4NKFs259j2DxeultOFtl5JwciNZFd6feT5o";
 
         write(configurationFile, {});
 
@@ -184,9 +197,7 @@ describe("Settings", () => {
         expected.frontend.port = 8099;
         expected.homeassistant.enabled = true;
         expected.serial.port = "/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_48be7a7468d8ed11bfea786ff2c613ac-if00-port0";
-        expected.mqtt.server = "mqtt://core-mosquitto:1883";
-        expected.mqtt.user = "addons";
-        expected.mqtt.password = "7RbR4NBSskS8TKG4ugzdRilXw6TPQ4NKFs259j2DxeultOFtl5JwciNZFd6feT5o";
+        expected.frontend.auth_token = "7RbR4NBSskS8TKG4ugzdRilXw6TPQ4NKFs259j2DxeultOFtl5JwciNZFd6feT5o";
         expected.devices = {};
         expected.groups = {};
 
@@ -204,8 +215,8 @@ describe("Settings", () => {
 
     it("Should preserve secret references when writing environment overrides", () => {
         write(secretFile, {password: "password-in-secret-file"}, false);
-        write(configurationFile, {mqtt: {password: "!secret password", server: "server"}});
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD = "password-in-env-var";
+        write(configurationFile, {frontend: {auth_token: "!secret password", host: "server"}});
+        process.env.ZIGBEE2MATTER_CONFIG_FRONTEND_AUTH_TOKEN = "password-in-env-var";
 
         const writeAndCheck = (): void => {
             expect(settings.write()); // trigger writing of ENVs
@@ -213,11 +224,11 @@ describe("Settings", () => {
 
             const s = settings.get();
             const expected: ExpectedSettings = objectAssignDeep({}, {groups: {}, devices: {}}, settings.testing.defaults);
-            expected.mqtt.password = "password-in-env-var";
-            expected.mqtt.server = "server";
+            expected.frontend.auth_token = "password-in-env-var";
+            expected.frontend.host = "server";
             expect(s).toStrictEqual(expected);
             expect(read(secretFile)).toMatchObject({password: "password-in-env-var"});
-            expect(read(configurationFile)).toMatchObject({mqtt: {password: "!secret password", server: "server"}});
+            expect(read(configurationFile)).toMatchObject({frontend: {auth_token: "!secret password", host: "server"}});
         };
 
         // Write trice to ensure there are no side effects.
@@ -228,13 +239,13 @@ describe("Settings", () => {
 
     it("Should prefer a secret reference from the environment over the configuration reference", () => {
         write(secretFile, {password: "original-password", override: "environment-password"}, false);
-        write(configurationFile, {mqtt: {password: "!secret password", server: "server"}});
-        process.env.ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD = "!secret.yaml override";
+        write(configurationFile, {frontend: {auth_token: "!secret password", host: "server"}});
+        process.env.ZIGBEE2MATTER_CONFIG_FRONTEND_AUTH_TOKEN = "!secret.yaml override";
 
         for (let i = 0; i < 3; i++) {
             settings.set(["advanced", "log_level"], "debug");
-            expect(settings.get().mqtt.password).toBe("environment-password");
-            expect(read(configurationFile)).toHaveProperty("mqtt.password", "!secret.yaml override");
+            expect(settings.get().frontend.auth_token).toBe("environment-password");
+            expect(read(configurationFile)).toHaveProperty("frontend.auth_token", "!secret.yaml override");
             expect(read(secretFile)).toStrictEqual({password: "original-password", override: "environment-password"});
         }
     });
@@ -299,12 +310,11 @@ describe("Settings", () => {
         settings.getDevice("0x12345678");
     });
 
-    it("Should read MQTT username and password form a separate file", () => {
+    it("Should read frontend host and auth token form a separate file", () => {
         const contentConfiguration = {
-            mqtt: {
-                server: "my.mqtt.server",
-                user: "!secret username",
-                password: "!secret password",
+            frontend: {
+                host: "!secret username",
+                auth_token: "!secret password",
             },
             advanced: {
                 network_key: "!secret network_key",
@@ -320,27 +330,15 @@ describe("Settings", () => {
         write(secretFile, contentSecret, false);
         write(configurationFile, contentConfiguration);
 
-        const expected = {
-            base_topic: "zigbee2mqtt",
-            include_device_information: false,
-            maximum_packet_size: 1048576,
-            keepalive: 60,
-            reject_unauthorized: true,
-            version: 4,
-            force_disable_retain: false,
-            password: "mysecretpassword",
-            server: "my.mqtt.server",
-            user: "mysecretusername",
-        };
-
-        expect(settings.get().mqtt).toStrictEqual(expected);
+        expect(settings.get().frontend.host).toStrictEqual("mysecretusername");
+        expect(settings.get().frontend.auth_token).toStrictEqual("mysecretpassword");
         expect(settings.get().advanced.network_key).toStrictEqual([1, 2, 3]);
 
         settings.testing.write();
         expect(read(configurationFile)).toStrictEqual(contentConfiguration);
         expect(read(secretFile)).toStrictEqual(contentSecret);
 
-        settings.set(["mqtt", "user"], "test123");
+        settings.set(["frontend", "host"], "test123");
         settings.set(["advanced", "network_key"], [1, 2, 3, 4]);
         expect(read(configurationFile)).toStrictEqual(contentConfiguration);
         expect(read(secretFile)).toStrictEqual({...contentSecret, username: "test123", network_key: [1, 2, 3, 4]});
@@ -348,10 +346,10 @@ describe("Settings", () => {
 
     it("Should read ALL secrets form a separate file", () => {
         const contentConfiguration = {
-            mqtt: {
-                server: "!secret server",
-                user: "!secret username",
-                password: "!secret.yaml password",
+            frontend: {
+                base_url: "!secret server",
+                host: "!secret username",
+                auth_token: "!secret.yaml password",
             },
             advanced: {
                 network_key: "!secret network_key",
@@ -359,7 +357,7 @@ describe("Settings", () => {
         };
 
         const contentSecret = {
-            server: "my.mqtt.server",
+            server: "my.server",
             username: "mysecretusername",
             password: "mysecretpassword",
             network_key: [1, 2, 3],
@@ -368,27 +366,15 @@ describe("Settings", () => {
         write(secretFile, contentSecret, false);
         write(configurationFile, contentConfiguration);
 
-        const expected = {
-            base_topic: "zigbee2mqtt",
-            include_device_information: false,
-            maximum_packet_size: 1048576,
-            keepalive: 60,
-            reject_unauthorized: true,
-            version: 4,
-            force_disable_retain: false,
-            password: "mysecretpassword",
-            server: "my.mqtt.server",
-            user: "mysecretusername",
-        };
-
-        expect(settings.get().mqtt).toStrictEqual(expected);
+        expect(settings.get().frontend.host).toStrictEqual("mysecretusername");
+        expect(settings.get().frontend.auth_token).toStrictEqual("mysecretpassword");
         expect(settings.get().advanced.network_key).toStrictEqual([1, 2, 3]);
 
         settings.testing.write();
         expect(read(configurationFile)).toStrictEqual(contentConfiguration);
         expect(read(secretFile)).toStrictEqual(contentSecret);
 
-        settings.set(["mqtt", "server"], "not.secret.server");
+        settings.set(["frontend", "base_url"], "not.secret.server");
         expect(read(configurationFile)).toStrictEqual(contentConfiguration);
         expect(read(secretFile)).toStrictEqual({...contentSecret, server: "not.secret.server"});
     });
@@ -682,28 +668,6 @@ describe("Settings", () => {
         });
     });
 
-    it("Should allow username without password", () => {
-        const contentConfiguration = {
-            mqtt: {
-                server: "my.mqtt.server",
-                user: "myusername",
-            },
-        };
-        const expected = {
-            base_topic: "zigbee2mqtt",
-            include_device_information: false,
-            maximum_packet_size: 1048576,
-            keepalive: 60,
-            reject_unauthorized: true,
-            version: 4,
-            force_disable_retain: false,
-            server: "my.mqtt.server",
-            user: "myusername",
-        };
-        write(configurationFile, contentConfiguration);
-        expect(settings.get().mqtt).toStrictEqual(expected);
-    });
-
     it("Should add groups with specific ID", () => {
         write(configurationFile, {});
 
@@ -816,29 +780,6 @@ describe("Settings", () => {
         expect(settings.validate()).toEqual(expect.arrayContaining([error]));
     });
 
-    it("Should allow retention configuration with MQTT v5", () => {
-        write(configurationFile, {
-            ...minimalConfig,
-            mqtt: {base_topic: "zigbee2mqtt", server: "localhost", version: 5},
-            devices: {"0x0017880104e45519": {friendly_name: "tain", retention: 900}},
-        });
-
-        settings.reRead();
-        expect(settings.validate()).toEqual([]);
-    });
-
-    it("Should not allow retention configuration without MQTT v5", () => {
-        write(configurationFile, {
-            ...minimalConfig,
-            devices: {"0x0017880104e45519": {friendly_name: "tain", retention: 900}},
-        });
-
-        settings.reRead();
-
-        const error = "MQTT retention requires protocol version 5";
-        expect(settings.validate()).toEqual(expect.arrayContaining([error]));
-    });
-
     it("Should validate if settings do not conform to scheme", () => {
         write(configurationFile, {
             ...minimalConfig,
@@ -859,15 +800,15 @@ describe("Settings", () => {
         expect(settings.get().blocklist).toStrictEqual(["0x123", "0x1234"]);
     });
 
-    it("Configuration shouldnt be valid when invalid QOS value is used", () => {
+    it("Configuration shouldnt be valid when invalid retain value is used", () => {
         write(configurationFile, {
             ...minimalConfig,
-            devices: {"0x0017880104e45519": {friendly_name: "myname", retain: false, qos: 3}},
+            devices: {"0x0017880104e45519": {friendly_name: "myname", retain: "yes"}},
         });
 
         settings.reRead();
 
-        const error = "devices/0x0017880104e45519/qos must be equal to one of the allowed values";
+        const error = "devices/0x0017880104e45519/retain must be boolean";
         expect(settings.validate()).toEqual(expect.arrayContaining([error]));
     });
 

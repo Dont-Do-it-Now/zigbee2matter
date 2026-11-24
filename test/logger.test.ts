@@ -324,47 +324,47 @@ describe("Logger", () => {
 
     it("Logs with namespaced levels or default - higher", () => {
         settings.set(["advanced", "log_namespaced_levels"], {
-            "z2m:mqtt": "warning",
+            "z2m:bridgeBus": "warning",
         });
         logger.init();
         logger.setLevel("debug");
-        expect(logger.getNamespacedLevels()).toStrictEqual({"z2m:mqtt": "warning"});
+        expect(logger.getNamespacedLevels()).toStrictEqual({"z2m:bridgeBus": "warning"});
         expect(logger.getLevel()).toStrictEqual("debug");
 
         const logSpy = vi.spyOn(logger.winston, "log");
 
         consoleWriteSpy.mockClear();
-        logger.info(`MQTT publish: topic 'abcd/efgh', payload '{"my": {"payload": "injson"}}'`, "z2m:mqtt");
+        logger.info(`Publish: topic 'abcd/efgh', payload '{"my": {"payload": "injson"}}'`, "z2m:bridgeBus");
         expect(logSpy).toHaveBeenCalledTimes(0);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(0);
-        logger.error("Not connected to MQTT server!", "z2m:mqtt");
+        logger.error("Not connected to bridgeBus!", "z2m:bridgeBus");
         expect(logSpy).toHaveBeenCalledTimes(1);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(1);
-        logger.info("Just another info message", "z2m:notmqtt");
+        logger.info("Just another info message", "z2m:notbridgebus");
         expect(logSpy).toHaveBeenCalledTimes(2);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(2);
     });
 
     it("Logs with namespaced levels or default - lower", () => {
         expect(logger.getNamespacedLevels()).toStrictEqual({});
-        logger.setNamespacedLevels({"z2m:mqtt": "info"});
+        logger.setNamespacedLevels({"z2m:bridgeBus": "info"});
         logger.setLevel("warning");
-        expect(logger.getNamespacedLevels()).toStrictEqual({"z2m:mqtt": "info"});
+        expect(logger.getNamespacedLevels()).toStrictEqual({"z2m:bridgeBus": "info"});
         expect(logger.getLevel()).toStrictEqual("warning");
 
         const logSpy = vi.spyOn(logger.winston, "log");
 
         consoleWriteSpy.mockClear();
-        logger.info(`MQTT publish: topic 'abcd/efgh', payload '{"my": {"payload": "injson"}}'`, "z2m:mqtt");
+        logger.info(`Publish: topic 'abcd/efgh', payload '{"my": {"payload": "injson"}}'`, "z2m:bridgeBus");
         expect(logSpy).toHaveBeenCalledTimes(1);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(1);
-        logger.error("Not connected to MQTT server!", "z2m:mqtt");
+        logger.error("Not connected to bridgeBus!", "z2m:bridgeBus");
         expect(logSpy).toHaveBeenCalledTimes(2);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(2);
-        logger.info("Just another info message", "z2m:notmqtt");
+        logger.info("Just another info message", "z2m:notbridgebus");
         expect(logSpy).toHaveBeenCalledTimes(2);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(2);
-        logger.warning("Just another warning message", "z2m:notmqtt");
+        logger.warning("Just another warning message", "z2m:notbridgebus");
         expect(logSpy).toHaveBeenCalledTimes(3);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(3);
     });
@@ -389,18 +389,18 @@ describe("Logger", () => {
         logger.error("but error should go through", "zh:zstack:unpi:writer:another:sub:ns");
         expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"zh:zstack:unpi:writer:another:sub:ns": "error"}));
         expect(consoleWriteSpy).toHaveBeenCalledTimes(2);
-        logger.warning("new unconfigured namespace warning", "z2m:mqtt");
-        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:mqtt": "warning"}));
+        logger.warning("new unconfigured namespace warning", "z2m:bridgeBus");
+        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:bridgeBus": "warning"}));
         expect(consoleWriteSpy).toHaveBeenCalledTimes(3);
-        logger.info("cached unconfigured namespace info should be supressed", "z2m:mqtt");
+        logger.info("cached unconfigured namespace info should be supressed", "z2m:bridgeBus");
         expect(getCachedNamespacedLevels()).toStrictEqual(cachedNSLevels);
         expect(consoleWriteSpy).toHaveBeenCalledTimes(3);
 
         logger.setLevel("info");
         cachedNSLevels = Object.assign({}, nsLevels);
         expect(getCachedNamespacedLevels()).toStrictEqual(cachedNSLevels);
-        logger.info("unconfigured namespace info should now pass after default level change and cache reset", "z2m:mqtt");
-        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:mqtt": "info"}));
+        logger.info("unconfigured namespace info should now pass after default level change and cache reset", "z2m:bridgeBus");
+        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:bridgeBus": "info"}));
         expect(consoleWriteSpy).toHaveBeenCalledTimes(4);
         logger.error("configured namespace hierachy should still work after the cache reset", "zh:zstack:unpi:writer:another:sub:ns");
         expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"zh:zstack:unpi:writer:another:sub:ns": "error"}));
@@ -418,8 +418,8 @@ describe("Logger", () => {
         logger.warning("warning logged", "zh:zstack");
         expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"zh:zstack": "warning"}));
         expect(consoleWriteSpy).toHaveBeenCalledTimes(7);
-        logger.info("unconfigured namespace", "z2m:mqtt");
-        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:mqtt": "info"}));
+        logger.info("unconfigured namespace", "z2m:bridgeBus");
+        expect(getCachedNamespacedLevels()).toStrictEqual(Object.assign(cachedNSLevels, {"z2m:bridgeBus": "info"}));
         expect(consoleWriteSpy).toHaveBeenCalledTimes(8);
     });
 
@@ -430,9 +430,9 @@ describe("Logger", () => {
         consoleWriteSpy.mockClear();
 
         let splatChars = "%d";
-        logger.debug(splatChars, "z2m:mqtt");
-        expect(logSpy).toHaveBeenLastCalledWith("debug", `z2m:mqtt: ${splatChars}`);
-        expect(consoleWriteSpy.mock.calls[0][0]).toMatch(new RegExp(`^.*\tz2m:mqtt: ${splatChars}`));
+        logger.debug(splatChars, "z2m:bridgeBus");
+        expect(logSpy).toHaveBeenLastCalledWith("debug", `z2m:bridgeBus: ${splatChars}`);
+        expect(consoleWriteSpy.mock.calls[0][0]).toMatch(new RegExp(`^.*\tz2m:bridgeBus: ${splatChars}`));
         splatChars = "anything %s goes here";
         logger.debug(splatChars, "z2m:test");
         expect(logSpy).toHaveBeenLastCalledWith("debug", `z2m:test: ${splatChars}`);

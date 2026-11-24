@@ -47,10 +47,6 @@ describe("Settings Migration", () => {
     describe("Migrates v1 to v2", () => {
         const BASE_CONFIG = {
             homeassistant: false,
-            mqtt: {
-                base_topic: "zigbee2mqtt",
-                server: "mqtt://localhost",
-            },
             serial: {
                 port: "/dev/dummy",
             },
@@ -76,7 +72,6 @@ describe("Settings Migration", () => {
                     friendly_name: "button_double_key",
                 },
                 "0x0017880104e45522": {
-                    qos: 1,
                     retain: false,
                     friendly_name: "weather_sensor",
                 },
@@ -684,9 +679,6 @@ describe("Settings Migration", () => {
 
     describe("Migrates v1 to v3", () => {
         const BASE_CONFIG = {
-            mqtt: {
-                server: "mqtt://localhost",
-            },
         };
 
         beforeEach(() => {
@@ -736,9 +728,6 @@ describe("Settings Migration", () => {
     describe("Migrates v2 to v3", () => {
         const BASE_CONFIG = {
             version: 2,
-            mqtt: {
-                server: "mqtt://localhost",
-            },
         };
 
         beforeEach(() => {
@@ -811,9 +800,6 @@ describe("Settings Migration", () => {
     describe("Migrates v3 to v4", () => {
         const BASE_CONFIG = {
             version: 3,
-            mqtt: {
-                server: "mqtt://localhost",
-            },
         };
 
         beforeEach(() => {
@@ -887,9 +873,6 @@ describe("Settings Migration", () => {
     describe("Migrates v4 to v5", () => {
         const BASE_CONFIG = {
             version: 4,
-            mqtt: {
-                server: "mqtt://localhost",
-            },
         };
         const DEFAULT_STATE: Record<string, unknown> = {
             "0x000b57fffec6a5b2": {

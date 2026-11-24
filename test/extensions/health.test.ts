@@ -2,7 +2,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import * as data from "../mocks/data";
 import {mockLogger} from "../mocks/logger";
-import {events as mockMQTTEvents, mockMQTTPublishAsync} from "../mocks/mqtt";
+import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/bridgeBus";
 import {flushPromises} from "../mocks/utils";
 import {devices, events as mockZHEvents, returnDevices} from "../mocks/zigbeeHerdsman";
 
@@ -11,7 +11,7 @@ import Health from "../../lib/extension/health";
 import * as settings from "../../lib/util/settings";
 import {minutes, seconds} from "../../lib/util/utils";
 
-const mocksClear = [mockMQTTPublishAsync, mockLogger.warning, mockLogger.info];
+const mocksClear = [mockBridgeBusPublish, mockLogger.warning, mockLogger.info];
 
 returnDevices.push(devices.bulb_color.ieeeAddr, devices.bulb_color_2.ieeeAddr, devices.coordinator.ieeeAddr);
 
@@ -68,10 +68,10 @@ describe("Extension: Health", () => {
         await mockZHEvents.lastSeenChanged({device: devices.bulb_color});
         await vi.advanceTimersByTimeAsync(seconds(1));
         await mockZHEvents.lastSeenChanged({device: devices.bulb_color});
-        await mockMQTTEvents.message("zigbee2mqtt/mock", "mocked");
+        await mockBridgeBusEvents.message("zigbee2matter/mock", "mocked");
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        let calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        let calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -82,7 +82,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -103,13 +103,13 @@ describe("Extension: Health", () => {
                 },
             },
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
 
-        mockMQTTPublishAsync.mockClear();
-        await mockMQTTEvents.message("zigbee2mqtt/mock2", "mocked2");
+        mockBridgeBusPublish.mockClear();
+        await mockBridgeBusEvents.message("zigbee2matter/mock2", "mocked2");
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -120,7 +120,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -141,7 +141,7 @@ describe("Extension: Health", () => {
                 },
             },
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
     });
 
     it("checks health at given interval", async () => {
@@ -149,13 +149,13 @@ describe("Extension: Health", () => {
         await resetExtension();
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        let calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        let calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(0);
 
         await vi.advanceTimersByTimeAsync(minutes(10));
 
-        calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -166,7 +166,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -174,7 +174,7 @@ describe("Extension: Health", () => {
             },
             devices: {},
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
     });
 
     it("init device health from leave", async () => {
@@ -183,7 +183,7 @@ describe("Extension: Health", () => {
         await mockZHEvents.deviceJoined({device: devices.bulb_color});
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        const calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        const calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -194,7 +194,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -209,7 +209,7 @@ describe("Extension: Health", () => {
                 },
             },
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
     });
 
     it("init device health from network address change", async () => {
@@ -217,7 +217,7 @@ describe("Extension: Health", () => {
         await mockZHEvents.deviceNetworkAddressChanged({device: devices.bulb_color});
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        const calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        const calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -228,7 +228,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -243,7 +243,7 @@ describe("Extension: Health", () => {
                 },
             },
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
     });
 
     it("checks health then resets possible stats", async () => {
@@ -254,7 +254,7 @@ describe("Extension: Health", () => {
         await mockZHEvents.lastSeenChanged({device: devices.bulb_color_2});
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        let calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        let calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -265,7 +265,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -286,12 +286,12 @@ describe("Extension: Health", () => {
                 },
             },
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
 
-        mockMQTTPublishAsync.mockClear();
+        mockBridgeBusPublish.mockClear();
         await vi.advanceTimersByTimeAsync(minutes(11));
 
-        calls = mockMQTTPublishAsync.mock.calls.filter((call) => call[0] === "zigbee2mqtt/bridge/health");
+        calls = mockBridgeBusPublish.mock.calls.filter((call) => call[0] === "zigbee2matter/bridge/health");
 
         expect(calls.length).toStrictEqual(1);
         expect(JSON.parse(calls[0][1])).toStrictEqual({
@@ -302,7 +302,7 @@ describe("Extension: Health", () => {
                 memory_percent: expect.any(Number),
             },
             process: {uptime_sec: expect.any(Number), memory_used_mb: expect.any(Number), memory_percent: expect.any(Number)},
-            mqtt: {
+            bridgeBus: {
                 connected: true,
                 queued: 0,
                 published: expect.any(Number),
@@ -310,6 +310,6 @@ describe("Extension: Health", () => {
             },
             devices: {},
         });
-        expect(calls[0][2]).toStrictEqual({retain: true, qos: 1});
+        expect(calls[0][2]).toStrictEqual({retain: true});
     });
 });

@@ -3,7 +3,7 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi} fr
 import type {Eui64} from "zigbee-herdsman/dist/zspec/tstypes";
 import * as data from "../mocks/data";
 import {mockLogger} from "../mocks/logger";
-import {events as mockMQTTEvents, mockMQTTPublishAsync} from "../mocks/mqtt";
+import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/bridgeBus";
 import * as mockSleep from "../mocks/sleep";
 import {flushPromises} from "../mocks/utils";
 import {devices, events as mockZHEvents, returnDevices} from "../mocks/zigbeeHerdsman";
@@ -24,7 +24,7 @@ returnDevices.push(
     devices.external_converter_device.ieeeAddr,
 );
 
-const mocksClear = [mockMQTTPublishAsync, mockLogger.warning, mockLogger.debug];
+const mocksClear = [mockBridgeBusPublish, mockLogger.warning, mockLogger.debug];
 
 const LQI_BASE_RSP = {
     extendedPanId: [],
@@ -152,10 +152,10 @@ describe("Extension: NetworkMap", () => {
 
     it("Output raw networkmap", async () => {
         mock();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", stringify({type: "raw", routes: true}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", stringify({type: "raw", routes: true}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync.mock.calls[0][0]).toStrictEqual("zigbee2mqtt/bridge/response/networkmap");
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish.mock.calls[0][0]).toStrictEqual("zigbee2matter/bridge/response/networkmap");
 
         const expected = {
             data: {
@@ -270,7 +270,8 @@ describe("Extension: NetworkMap", () => {
                                 description: "TRADFRI bulb E26/E27, white spectrum, globe, opal, 980 lm",
                                 model: "LED1545G12",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, level_config), effect, power_on_behavior, color_options, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, level_config), effect, power_on_behavior, " +
+                                        "color_options, identify, linkquality",
                                 vendor: "IKEA",
                             },
                             failed: [],
@@ -286,7 +287,8 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
+                                        "effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],
@@ -361,7 +363,7 @@ describe("Extension: NetworkMap", () => {
             },
             status: "ok",
         };
-        const actual = JSON.parse(mockMQTTPublishAsync.mock.calls[0][1]);
+        const actual = JSON.parse(mockBridgeBusPublish.mock.calls[0][1]);
         expect(actual).toStrictEqual(expected);
     });
 
@@ -381,10 +383,10 @@ describe("Extension: NetworkMap", () => {
             const data = {modelID: "test"};
             const payload = {data, cluster: "genOnOff", device, endpoint, type: "readResponse", linkquality: 10};
             await mockZHEvents.message(payload);
-            mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", stringify({type: "graphviz", routes: true}));
+            mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", stringify({type: "graphviz", routes: true}));
             await flushPromises();
-            expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-            expect(mockMQTTPublishAsync.mock.calls[0][0]).toStrictEqual("zigbee2mqtt/bridge/response/networkmap");
+            expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+            expect(mockBridgeBusPublish.mock.calls[0][0]).toStrictEqual("zigbee2matter/bridge/response/networkmap");
         } finally {
             z2mDevice.definition = originalDef;
         }
@@ -407,7 +409,7 @@ describe("Extension: NetworkMap", () => {
             }`;
 
         const expectedLines = expected.split("\n");
-        const actualLines = JSON.parse(mockMQTTPublishAsync.mock.calls[0][1]).data.value.split("\n");
+        const actualLines = JSON.parse(mockBridgeBusPublish.mock.calls[0][1]).data.value.split("\n");
 
         for (let i = 0; i < expectedLines.length; i++) {
             expect(actualLines[i].trim()).toStrictEqual(expectedLines[i].trim());
@@ -422,10 +424,10 @@ describe("Extension: NetworkMap", () => {
         const data = {modelID: "test"};
         const payload = {data, cluster: "genOnOff", device, endpoint, type: "readResponse", linkquality: 10};
         await mockZHEvents.message(payload);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", stringify({type: "plantuml", routes: true}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", stringify({type: "plantuml", routes: true}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync.mock.calls[0][0]).toStrictEqual("zigbee2mqtt/bridge/response/networkmap");
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish.mock.calls[0][0]).toStrictEqual("zigbee2matter/bridge/response/networkmap");
 
         const expected = `' paste into: https://www.planttext.com/
 
@@ -508,7 +510,7 @@ describe("Extension: NetworkMap", () => {
         @enduml`;
 
         const expectedLines = expected.split("\n");
-        const actualLines = JSON.parse(mockMQTTPublishAsync.mock.calls[0][1]).data.value.split("\n");
+        const actualLines = JSON.parse(mockBridgeBusPublish.mock.calls[0][1]).data.value.split("\n");
 
         for (let i = 0; i < expectedLines.length; i++) {
             expect(actualLines[i].trim()).toStrictEqual(expectedLines[i].trim());
@@ -517,11 +519,11 @@ describe("Extension: NetworkMap", () => {
 
     it("Should throw error when requesting invalid type", async () => {
         mock();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", "not_existing");
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", "not_existing");
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/networkmap",
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/networkmap",
             stringify({data: {}, status: "error", error: "Type 'not_existing' not supported, allowed are: raw,graphviz,plantuml"}),
             {},
         );
@@ -530,10 +532,10 @@ describe("Extension: NetworkMap", () => {
     it("Should exclude disabled devices from networkmap", async () => {
         settings.set(["devices", "0x000b57fffec6a5b2", "disabled"], true);
         mock();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", stringify({type: "raw", routes: true}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", stringify({type: "raw", routes: true}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync.mock.calls[0][0]).toStrictEqual("zigbee2mqtt/bridge/response/networkmap");
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish.mock.calls[0][0]).toStrictEqual("zigbee2matter/bridge/response/networkmap");
 
         const expected = {
             data: {
@@ -616,7 +618,8 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
+                                        "effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],
@@ -691,7 +694,7 @@ describe("Extension: NetworkMap", () => {
             },
             status: "ok",
         };
-        const actual = JSON.parse(mockMQTTPublishAsync.mock.calls[0][1]);
+        const actual = JSON.parse(mockBridgeBusPublish.mock.calls[0][1]);
         expect(actual).toStrictEqual(expected);
     });
 
@@ -699,10 +702,10 @@ describe("Extension: NetworkMap", () => {
         settings.set(["devices", "0x000b57fffec6a5b2", "disabled"], true);
         mock();
         devices.bulb.lqi.mockRejectedValueOnce("failed");
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/networkmap", stringify({type: "raw", routes: true}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/networkmap", stringify({type: "raw", routes: true}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync.mock.calls[0][0]).toStrictEqual("zigbee2mqtt/bridge/response/networkmap");
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish.mock.calls[0][0]).toStrictEqual("zigbee2matter/bridge/response/networkmap");
 
         const expected = {
             data: {
@@ -785,7 +788,8 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
+                                        "effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],
@@ -860,7 +864,7 @@ describe("Extension: NetworkMap", () => {
             },
             status: "ok",
         };
-        const actual = JSON.parse(mockMQTTPublishAsync.mock.calls[0][1]);
+        const actual = JSON.parse(mockBridgeBusPublish.mock.calls[0][1]);
         expect(actual).toStrictEqual(expected);
     });
 });

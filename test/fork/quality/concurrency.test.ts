@@ -180,9 +180,11 @@ describe("T069 deterministic concurrency harness", () => {
             ...terminalResult(read, "timeout"),
             retryable: true,
             autoRetryAllowed: true,
+            dispatched: false, // only guaranteed-0-RF failures are auto retried (T015)
         };
 
         expect(policy.decide(read, retryable, 1, 100)).toEqual({retry: true, delayMs: 50, reason: "allowed"});
+        expect(policy.decide(read, {...retryable, dispatched: true}, 1, 100)).toEqual({retry: false, delayMs: 0, reason: "dispatched"});
         expect(policy.decide(read, retryable, 2, 100)).toMatchObject({retry: false, reason: "attempt-limit"});
         expect(policy.decide(read, retryable, 1, 1_000)).toEqual({retry: false, delayMs: 0, reason: "deadline"});
 

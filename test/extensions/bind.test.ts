@@ -3,7 +3,7 @@ import {afterAll, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 import * as data from "../mocks/data";
 import {mockDebounce} from "../mocks/debounce";
 import {mockLogger} from "../mocks/logger";
-import {events as mockMQTTEvents, mockMQTTPublishAsync} from "../mocks/mqtt";
+import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/bridgeBus";
 import {flushPromises} from "../mocks/utils";
 import {type Device, devices, groups, events as mockZHEvents} from "../mocks/zigbeeHerdsman";
 
@@ -15,7 +15,7 @@ import {DEFAULT_BIND_GROUP_ID} from "../../lib/util/utils";
 
 const mocksClear = [
     mockDebounce,
-    mockMQTTPublishAsync,
+    mockBridgeBusPublish,
     devices.bulb_color.getEndpoint(1)!.configureReporting,
     devices.bulb_color.getEndpoint(1)!.bind,
     devices.bulb_color_2.getEndpoint(1)!.read,
@@ -77,7 +77,7 @@ describe("Extension: Bind", () => {
             throw new Error("timeout");
         });
 
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
         await flushPromises();
         expect(target.read).toHaveBeenCalledWith("lightingColorCtrl", ["colorCapabilities"]);
         expect(endpoint.bind).toHaveBeenCalledTimes(4);
@@ -97,8 +97,8 @@ describe("Extension: Bind", () => {
             {attribute: "currentX", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
             {attribute: "currentY", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
         ]);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 transaction: "1234",
                 data: {
@@ -113,7 +113,7 @@ describe("Extension: Bind", () => {
             {},
         );
 
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith("zigbee2mqtt/bridge/devices", expect.any(String), {retain: true});
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
 
         // Teardown
         target.binds = originalTargetBinds;
@@ -121,11 +121,11 @@ describe("Extension: Bind", () => {
     });
 
     it("Should throw error on invalid payload", async () => {
-        mockMQTTPublishAsync.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({fromz: "remote", to: "bulb_color"}));
+        mockBridgeBusPublish.mockClear();
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({fromz: "remote", to: "bulb_color"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Invalid payload"}),
             {},
         );
@@ -154,7 +154,7 @@ describe("Extension: Bind", () => {
             throw new Error("timeout");
         });
 
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
         await flushPromises();
 
         expect(target.read).toHaveBeenCalledWith("lightingColorCtrl", ["colorCapabilities"]);
@@ -167,14 +167,15 @@ describe("Extension: Bind", () => {
         expect(target.configureReporting).toHaveBeenCalledWith("genOnOff", [
             {attribute: "onOff", maximumReportInterval: 3600, minimumReportInterval: 0, reportableChange: 0},
         ]);
-        // expect(target.configureReporting).toHaveBeenCalledWith("genLevelCtrl",[{"attribute": "currentLevel", "maximumReportInterval": 3600, "minimumReportInterval": 5, "reportableChange": 1}]);
+        // expect(target.configureReporting).toHaveBeenCalledWith("genLevelCtrl",[{"attribute": "currentLevel", "maximumReportInterval": 3600,
+        // "minimumReportInterval": 5, "reportableChange": 1}]);
         expect(target.configureReporting).toHaveBeenCalledWith("lightingColorCtrl", [
             {attribute: "colorTemperature", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
             {attribute: "currentX", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
             {attribute: "currentY", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
         ]);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 transaction: "1234",
                 data: {
@@ -189,7 +190,7 @@ describe("Extension: Bind", () => {
             {},
         );
 
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith("zigbee2mqtt/bridge/devices", expect.any(String), {retain: true});
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
 
         // Teardown
         target.binds = originalTargetBinds;
@@ -225,7 +226,7 @@ describe("Extension: Bind", () => {
             },
         ];
 
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({transaction: "1234", from: "remote", to: "bulb_color"}));
         await flushPromises();
         expect(target.read).toHaveBeenCalledWith("lightingColorCtrl", ["colorCapabilities"]);
         expect(endpoint.bind).toHaveBeenCalledTimes(4);
@@ -237,14 +238,15 @@ describe("Extension: Bind", () => {
         expect(target.configureReporting).toHaveBeenCalledWith("genOnOff", [
             {attribute: "onOff", maximumReportInterval: 3600, minimumReportInterval: 0, reportableChange: 0},
         ]);
-        // expect(target.configureReporting).toHaveBeenCalledWith("genLevelCtrl",[{"attribute": "currentLevel", "maximumReportInterval": 3600, "minimumReportInterval": 5, "reportableChange": 1}]);
+        // expect(target.configureReporting).toHaveBeenCalledWith("genLevelCtrl",[{"attribute": "currentLevel", "maximumReportInterval": 3600,
+        // "minimumReportInterval": 5, "reportableChange": 1}]);
         expect(target.configureReporting).toHaveBeenCalledWith("lightingColorCtrl", [
             {attribute: "colorTemperature", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
             {attribute: "currentX", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
             {attribute: "currentY", minimumReportInterval: 5, maximumReportInterval: 3600, reportableChange: 1},
         ]);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 transaction: "1234",
                 data: {
@@ -259,7 +261,7 @@ describe("Extension: Bind", () => {
             {},
         );
 
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith("zigbee2mqtt/bridge/devices", expect.any(String), {retain: true});
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
 
         // Teardown
         target.configuredReportings = originalTargetCR;
@@ -272,12 +274,15 @@ describe("Extension: Bind", () => {
         const target = devices.bulb_color.getEndpoint(1)!;
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "bulb_color", clusters: ["genOnOff"]}));
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
+            stringify({from: "remote", to: "bulb_color", clusters: ["genOnOff"]}),
+        );
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {from: "remote", from_endpoint: "default", to: "bulb_color", clusters: ["genOnOff"], failed: []}, status: "ok"}),
             {},
         );
@@ -288,15 +293,15 @@ describe("Extension: Bind", () => {
         const target = devices.coordinator.getEndpoint(1)!;
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/bind",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
             stringify({from: "remote", to: devices.coordinator.ieeeAddr, clusters: ["genOnOff"]}),
         );
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {from: "remote", from_endpoint: "default", to: "0x00124b00120144ae", clusters: ["genOnOff"], failed: []}, status: "ok"}),
             {},
         );
@@ -307,11 +312,11 @@ describe("Extension: Bind", () => {
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
         mockLogger.error.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "button"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", to: "button"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(0);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Nothing to bind"}),
             {},
         );
@@ -338,7 +343,7 @@ describe("Extension: Bind", () => {
         mockClear(device);
         delete devices.bulb_color.meta.configured;
         expect(devices.bulb_color.meta.configured).toBe(undefined);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: "bulb_color"}));
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", target);
@@ -359,8 +364,8 @@ describe("Extension: Bind", () => {
             {attribute: "currentY", minimumReportInterval: 5, maximumReportInterval: 0xffff, reportableChange: 1},
         ]);
         expect(devices.bulb_color.meta.configured).toBe("0.0.0");
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/unbind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/unbind",
             stringify({
                 data: {from: "remote", from_endpoint: "default", to: "bulb_color", clusters: ["genScenes", "genOnOff", "genLevelCtrl"], failed: []},
                 status: "ok",
@@ -379,14 +384,14 @@ describe("Extension: Bind", () => {
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
         endpoint.unbind.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: "Coordinator"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: "Coordinator"}));
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genLevelCtrl", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genScenes", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/unbind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/unbind",
             stringify({
                 data: {from: "remote", from_endpoint: "default", to: "Coordinator", clusters: ["genScenes", "genOnOff", "genLevelCtrl"], failed: []},
                 status: "ok",
@@ -403,7 +408,7 @@ describe("Extension: Bind", () => {
         target.members.push(target1Member);
         target1Member.configureReporting.mockClear();
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "group_1"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", to: "group_1"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(3);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
@@ -416,8 +421,8 @@ describe("Extension: Bind", () => {
         expect(target1Member.configureReporting).toHaveBeenCalledWith("genLevelCtrl", [
             {attribute: "currentLevel", maximumReportInterval: 3600, minimumReportInterval: 5, reportableChange: 1},
         ]);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 data: {from: "remote", from_endpoint: "default", to: "group_1", clusters: ["genScenes", "genOnOff", "genLevelCtrl"], failed: []},
                 status: "ok",
@@ -427,7 +432,7 @@ describe("Extension: Bind", () => {
 
         // Should configure reporting for device added to group
         target1Member.configureReporting.mockClear();
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/group/members/add", stringify({group: "group_1", device: "bulb"}));
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/group/members/add", stringify({group: "group_1", device: "bulb"}));
         await flushPromises();
         expect(target1Member.configureReporting).toHaveBeenCalledTimes(2);
         expect(target1Member.configureReporting).toHaveBeenCalledWith("genOnOff", [
@@ -446,14 +451,14 @@ describe("Extension: Bind", () => {
         target.members.push(target1Member);
         target1Member.configureReporting.mockClear();
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: "group_1"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: "group_1"}));
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genLevelCtrl", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genScenes", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/unbind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/unbind",
             stringify({
                 data: {from: "remote", from_endpoint: "default", to: "group_1", clusters: ["genScenes", "genOnOff", "genLevelCtrl"], failed: []},
                 status: "ok",
@@ -479,7 +484,10 @@ describe("Extension: Bind", () => {
         ];
         target1Member.configureReporting.mockClear();
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: "group_1", skip_disable_reporting: true}));
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/unbind",
+            stringify({from: "remote", to: "group_1", skip_disable_reporting: true}),
+        );
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         // with skip_disable_reporting set to false, we don't expect it to reconfigure reporting
@@ -504,7 +512,10 @@ describe("Extension: Bind", () => {
         ];
         target1Member.configureReporting.mockClear();
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: "group_1", skip_disable_reporting: false}));
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/unbind",
+            stringify({from: "remote", to: "group_1", skip_disable_reporting: false}),
+        );
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         // with skip_disable_reporting set, we expect it to reconfigure reporting
@@ -523,14 +534,14 @@ describe("Extension: Bind", () => {
         const target = groups.group_1;
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "1"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", to: "1"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(3);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
         expect(endpoint.bind).toHaveBeenCalledWith("genLevelCtrl", target);
         expect(endpoint.bind).toHaveBeenCalledWith("genScenes", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 data: {from: "remote", from_endpoint: "default", to: "1", clusters: ["genScenes", "genOnOff", "genLevelCtrl"], failed: []},
                 status: "ok",
@@ -547,11 +558,11 @@ describe("Extension: Bind", () => {
         endpoint.bind.mockImplementation(() => {
             throw new Error("failed");
         });
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", to: "bulb_color"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(3);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Failed to bind"}),
             {},
         );
@@ -562,15 +573,15 @@ describe("Extension: Bind", () => {
         const target = devices.QBKG03LM.getEndpoint(3)!;
         const endpoint = device.getEndpoint(2)!;
         mockClear(device);
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/bind",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
             stringify({from: "remote", from_endpoint: "ep2", to: "wall_switch_double", to_endpoint: "right"}),
         );
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 data: {from: "remote", from_endpoint: "ep2", to: "wall_switch_double", to_endpoint: "right", clusters: ["genOnOff"], failed: []},
                 status: "ok",
@@ -584,15 +595,15 @@ describe("Extension: Bind", () => {
         const target = devices.QBKG03LM.getEndpoint(3)!;
         const endpoint = device.getEndpoint(2)!;
         mockClear(device);
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/bind",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
             stringify({from: "remote", from_endpoint: 2, to: "wall_switch_double", to_endpoint: 3}),
         );
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 data: {from: "remote", from_endpoint: 2, to: "wall_switch_double", to_endpoint: 3, clusters: ["genOnOff"], failed: []},
                 status: "ok",
@@ -606,12 +617,12 @@ describe("Extension: Bind", () => {
         const target = devices.heating_actuator.getEndpoint(1)!;
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "temperature_sensor", to: "heating_actuator"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "temperature_sensor", to: "heating_actuator"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("msTemperatureMeasurement", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({
                 data: {
                     from: "temperature_sensor",
@@ -631,12 +642,12 @@ describe("Extension: Bind", () => {
         const target = devices.QBKG04LM.getEndpoint(2)!;
         const endpoint = device.getEndpoint(2)!;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", from_endpoint: "ep2", to: "wall_switch"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", from_endpoint: "ep2", to: "wall_switch"}));
         await flushPromises();
         expect(endpoint.bind).toHaveBeenCalledTimes(1);
         expect(endpoint.bind).toHaveBeenCalledWith("genOnOff", target);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {from: "remote", from_endpoint: "ep2", to: "wall_switch", clusters: ["genOnOff"], failed: []}, status: "ok"}),
             {},
         );
@@ -647,14 +658,14 @@ describe("Extension: Bind", () => {
         const target = "default_bind_group";
         const endpoint = device.getEndpoint(1)!;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/unbind", stringify({from: "remote", to: target}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: target}));
         await flushPromises();
         expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", DEFAULT_BIND_GROUP_ID);
         expect(endpoint.unbind).toHaveBeenCalledWith("genLevelCtrl", DEFAULT_BIND_GROUP_ID);
         expect(endpoint.unbind).toHaveBeenCalledWith("genScenes", DEFAULT_BIND_GROUP_ID);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/unbind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/unbind",
             stringify({
                 data: {
                     from: "remote",
@@ -672,10 +683,10 @@ describe("Extension: Bind", () => {
     it("Error bind fails when source device does not exist", async () => {
         const device = devices.remote;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote_not_existing", to: "bulb_color"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote_not_existing", to: "bulb_color"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Source device 'remote_not_existing' does not exist"}),
             {},
         );
@@ -684,13 +695,13 @@ describe("Extension: Bind", () => {
     it("Error bind fails when source device's endpoint does not exist", async () => {
         const device = devices.remote;
         mockClear(device);
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/bind",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
             stringify({from: "remote", from_endpoint: "not_existing_endpoint", to: "bulb_color"}),
         );
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Source device 'remote' does not have endpoint 'not_existing_endpoint'"}),
             {},
         );
@@ -699,10 +710,10 @@ describe("Extension: Bind", () => {
     it("Error bind fails when target device or group does not exist", async () => {
         const device = devices.remote;
         mockClear(device);
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/bind", stringify({from: "remote", to: "bulb_color_not_existing"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/bind", stringify({from: "remote", to: "bulb_color_not_existing"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Target device or group 'bulb_color_not_existing' does not exist"}),
             {},
         );
@@ -711,13 +722,13 @@ describe("Extension: Bind", () => {
     it("Error bind fails when target device's endpoint does not exist", async () => {
         const device = devices.remote;
         mockClear(device);
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/bind",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/bind",
             stringify({from: "remote", to: "bulb_color", to_endpoint: "not_existing_endpoint"}),
         );
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/bind",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/bind",
             stringify({data: {}, status: "error", error: "Target device 'bulb_color' does not have endpoint 'not_existing_endpoint'"}),
             {},
         );
@@ -800,12 +811,12 @@ describe("Extension: Bind", () => {
         const device = devices.remote;
 
         device.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/binds/clear", stringify({transaction: "1234", target: "remote"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/binds/clear", stringify({transaction: "1234", target: "remote"}));
         await flushPromises();
 
         expect(device.clearAllBindings).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/binds/clear",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/binds/clear",
             stringify({
                 transaction: "1234",
                 data: {
@@ -816,7 +827,7 @@ describe("Extension: Bind", () => {
             }),
             {},
         );
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith("zigbee2mqtt/bridge/devices", expect.any(String), {retain: true});
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
     });
 
     it("clears targeted bindings", async () => {
@@ -824,15 +835,15 @@ describe("Extension: Bind", () => {
         const target = devices.bulb_color;
 
         device.mockClear();
-        mockMQTTEvents.message(
-            "zigbee2mqtt/bridge/request/device/binds/clear",
+        mockBridgeBusEvents.message(
+            "zigbee2matter/bridge/request/device/binds/clear",
             stringify({transaction: "1234", target: "remote", ieee_list: [target.ieeeAddr]}),
         );
         await flushPromises();
 
         expect(device.clearAllBindings).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/binds/clear",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/binds/clear",
             stringify({
                 transaction: "1234",
                 data: {
@@ -843,19 +854,19 @@ describe("Extension: Bind", () => {
             }),
             {},
         );
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith("zigbee2mqtt/bridge/devices", expect.any(String), {retain: true});
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
     });
 
     it("throw on invalid clears bindings payload", async () => {
         const device = devices.remote;
 
         device.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/binds/clear", stringify({targetz: "remote"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/binds/clear", stringify({targetz: "remote"}));
         await flushPromises();
 
         expect(device.clearAllBindings).toHaveBeenCalledTimes(0);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/binds/clear",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/binds/clear",
             stringify({data: {}, status: "error", error: "Invalid payload"}),
             {},
         );
@@ -865,12 +876,12 @@ describe("Extension: Bind", () => {
         const device = devices.remote;
 
         device.mockClear();
-        mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/binds/clear", stringify({target: "remotez"}));
+        mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/binds/clear", stringify({target: "remotez"}));
         await flushPromises();
 
         expect(device.clearAllBindings).toHaveBeenCalledTimes(0);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/binds/clear",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/binds/clear",
             stringify({data: {}, status: "error", error: "Invalid target"}),
             {},
         );

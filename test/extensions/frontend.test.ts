@@ -2,7 +2,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import * as data from "../mocks/data";
 import {mockLogger} from "../mocks/logger";
-import {events as mockMQTTEvents, mockMQTTPublishAsync} from "../mocks/mqtt";
+import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/bridgeBus";
 import {type EventHandler, flushPromises} from "../mocks/utils";
 import {devices, events as mockZHEvents} from "../mocks/zigbeeHerdsman";
 
@@ -122,7 +122,7 @@ const mocksClear = [
     mockSendNotFound,
     mockRedirectResponse.writeHead,
     mockRedirectResponse.end,
-    mockMQTTPublishAsync,
+    mockBridgeBusPublish,
     mockLogger.error,
 ];
 
@@ -238,19 +238,19 @@ describe("Extension: Frontend", () => {
         expect(mockWSClient.send).toHaveBeenCalledWith(stringify({topic: "remote", payload: {brightness: 255}}));
 
         // Message
-        mockMQTTPublishAsync.mockClear();
+        mockBridgeBusPublish.mockClear();
         mockWSClient.send.mockClear();
         mockWSClientEvents.message(stringify({topic: "bulb_color/set", payload: {state: "ON"}}), false);
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledTimes(1);
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bulb_color",
+        expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bulb_color",
             stringify({
                 state: "ON",
                 linkquality: 20,
                 update: {installed_version: -1, latest_version: -1},
             }),
-            {retain: false, qos: 0},
+            {retain: false},
         );
         mockWSClientEvents.message(undefined, false);
         mockWSClientEvents.message("", false);
@@ -290,7 +290,7 @@ describe("Extension: Frontend", () => {
         // Should send JSON state event when `output: attribute`
         mockWSClient.send.mockClear();
         settings.set(["advanced", "output"], "attribute");
-        await mockMQTTEvents.message("zigbee2mqtt/bulb_color/set", stringify({brightness: 90}));
+        await mockBridgeBusEvents.message("zigbee2matter/bulb_color/set", stringify({brightness: 90}));
         await flushPromises();
         expect(mockWSClient.send).toHaveBeenCalledTimes(1);
         expect(mockWSClient.send).toHaveBeenCalledWith(
@@ -319,6 +319,39 @@ describe("Extension: Frontend", () => {
         await mockWSEvents.connection(mockWSClient);
         expect(mockWSClient.send).toHaveBeenCalledWith(
             stringify({topic: "remote", payload: {brightness: 255, last_seen: "1970-01-01T00:00:01.000Z"}}),
+        );
+    });
+
+    it("Websocket output keeps windfront mqtt-compatible keys on bridge/info and bridge/health only", async () => {
+        controller = new Controller(vi.fn(), vi.fn());
+        await controller.start();
+        mockWSClient.readyState = "open";
+        mockWS.clients.push(mockWSClient);
+        await mockWSEvents.connection(mockWSClient);
+
+        const sent = mockWSClient.send.mock.calls.map(([m]) => JSON.parse(m));
+        const info = sent.find((m) => m.topic === "bridge/info").payload;
+        expect(info.bridgeBus).toStrictEqual({server: "in-process"});
+        expect(info.mqtt).toStrictEqual(info.bridgeBus);
+        expect(info.config.mqtt).toStrictEqual({base_topic: "zigbee2matter"});
+        expect(sent.find((m) => m.topic === "bridge/state").payload).toStrictEqual({state: "online"});
+
+        // Original retained snapshot must stay untouched (compat keys exist in WS output only)
+        const retained = JSON.parse(controller.bridgeBus.retainedMessages["zigbee2matter/bridge/info"].payload);
+        expect(retained.mqtt).toBeUndefined();
+        expect(retained.config.mqtt).toBeUndefined();
+
+        mockWSClient.send.mockClear();
+        await controller.bridgeBus.publish("bridge/health", JSON.stringify({bridgeBus: {connected: true, queued: 0, published: 1, received: 2}}));
+        await flushPromises();
+        expect(mockWSClient.send).toHaveBeenCalledWith(
+            stringify({
+                topic: "bridge/health",
+                payload: {
+                    bridgeBus: {connected: true, queued: 0, published: 1, received: 2},
+                    mqtt: {connected: true, queued: 0, published: 1, received: 2},
+                },
+            }),
         );
     });
 

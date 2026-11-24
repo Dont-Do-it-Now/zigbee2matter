@@ -22,10 +22,10 @@ describe("objectAssignDeep", () => {
     });
 
     it("Deep merges nested objects present in both", () => {
-        const target = {mqtt: {base_topic: "zigbee2mqtt", server: "old"}, advanced: {channel: 11}};
-        const result = objectAssignDeep(target, {mqtt: {server: "new"}});
+        const target = {serial: {port: "/dev/old", baudrate: 115200}, advanced: {channel: 11}};
+        const result = objectAssignDeep(target, {serial: {port: "/dev/new"}});
 
-        expect(result).toStrictEqual({mqtt: {base_topic: "zigbee2mqtt", server: "new"}, advanced: {channel: 11}});
+        expect(result).toStrictEqual({serial: {port: "/dev/new", baudrate: 115200}, advanced: {channel: 11}});
     });
 
     it("Replaces nested objects of the target instead of mutating them", () => {

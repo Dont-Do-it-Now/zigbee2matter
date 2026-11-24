@@ -2,7 +2,7 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import * as data from "../mocks/data";
 import {mockLogger} from "../mocks/logger";
-import {events as mockMQTTEvents, mockMQTTPublishAsync} from "../mocks/mqtt";
+import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/bridgeBus";
 import {flushPromises} from "../mocks/utils";
 import {devices, type Endpoint, events as mockZHEvents, type Device as ZhDevice} from "../mocks/zigbeeHerdsman";
 
@@ -14,7 +14,7 @@ import Configure from "../../lib/extension/configure";
 import * as settings from "../../lib/util/settings";
 import assert from "node:assert";
 
-const mocksClear = [mockMQTTPublishAsync, mockLogger.warning, mockLogger.debug];
+const mocksClear = [mockBridgeBusPublish, mockLogger.warning, mockLogger.debug];
 
 describe("Extension: Configure", () => {
     let controller: Controller;
@@ -192,22 +192,22 @@ describe("Extension: Configure", () => {
         expectBulbNotConfigured();
     });
 
-    it("Should allow to configure via MQTT", async () => {
+    it("Should allow to configure via bridgeBus", async () => {
         const emitDevicesChanged = vi.spyOn(controller.eventBus, "emitDevicesChanged");
         const emitExposesChanged = vi.spyOn(controller.eventBus, "emitExposesChanged");
 
         mockClear(devices.remote);
         expectRemoteNotConfigured();
         try {
-            await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", "remote");
+            await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", "remote");
             await flushPromises();
             expectRemoteConfigured();
             expect(emitDevicesChanged).toHaveBeenCalledTimes(1);
             expect(emitExposesChanged).toHaveBeenCalledWith({
                 device: controller.zigbee.resolveEntity(devices.remote),
             });
-            expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-                "zigbee2mqtt/bridge/response/device/configure",
+            expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+                "zigbee2matter/bridge/response/device/configure",
                 stringify({data: {id: "remote"}, status: "ok"}),
                 {},
             );
@@ -217,42 +217,42 @@ describe("Extension: Configure", () => {
         }
     });
 
-    it("Fail to configure via MQTT when device does not exist", async () => {
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({id: "not_existing_device"}));
+    it("Fail to configure via bridgeBus when device does not exist", async () => {
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({id: "not_existing_device"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/configure",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/configure",
             stringify({data: {}, status: "error", error: "Device 'not_existing_device' does not exist"}),
             {},
         );
     });
 
-    it("Fail to configure via MQTT when configure fails", async () => {
+    it("Fail to configure via bridgeBus when configure fails", async () => {
         devices.remote.getEndpoint(1)!.bind.mockRejectedValueOnce(new Error("Bind timeout after 10s"));
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({id: "remote"}));
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({id: "remote"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/configure",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/configure",
             stringify({data: {}, status: "error", error: "Failed to configure (Bind timeout after 10s)"}),
             {},
         );
     });
 
-    it("Fail to configure via MQTT when device has no configure", async () => {
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({id: "0x0017980134e45545", transaction: 20}));
+    it("Fail to configure via bridgeBus when device has no configure", async () => {
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({id: "0x0017980134e45545", transaction: 20}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/configure",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/configure",
             stringify({data: {}, status: "error", error: "Device '0x0017980134e45545' cannot be configured", transaction: 20}),
             {},
         );
     });
 
-    it("Handles invalid payload for configure via MQTT", async () => {
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({idx: "0x0017882104a44559"}));
+    it("Handles invalid payload for configure via bridgeBus", async () => {
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({idx: "0x0017882104a44559"}));
         await flushPromises();
-        expect(mockMQTTPublishAsync).toHaveBeenCalledWith(
-            "zigbee2mqtt/bridge/response/device/configure",
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
+            "zigbee2matter/bridge/response/device/configure",
             stringify({data: {}, status: "error", error: "Invalid payload"}),
             {},
         );
@@ -341,9 +341,9 @@ describe("Extension: Configure", () => {
         expect(endpoint.bind).toHaveBeenCalledTimes(3);
 
         endpoint.bind.mockRejectedValueOnce(new Error("BLA4"));
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({id: device.ieeeAddr}));
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({id: device.ieeeAddr}));
         await flushPromises();
-        await mockMQTTEvents.message("zigbee2mqtt/bridge/request/device/configure", stringify({id: device.ieeeAddr}));
+        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/configure", stringify({id: device.ieeeAddr}));
         await flushPromises();
 
         expect(endpoint.bind).toHaveBeenCalledTimes(4 /* fails */ + 2 /* definition */);
