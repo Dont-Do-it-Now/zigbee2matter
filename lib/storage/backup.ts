@@ -63,9 +63,9 @@ export function restoreBackup<T>(encoded: string, passphrase: string): T {
     }
 
     try {
-        const salt = decodeBase64Url(envelope.salt, 16);
-        const iv = decodeBase64Url(envelope.iv, 12);
-        const tag = decodeBase64Url(envelope.tag, 16);
+        const salt = decodeBase64Url(envelope.salt, 16, 16);
+        const iv = decodeBase64Url(envelope.iv, 12, 12);
+        const tag = decodeBase64Url(envelope.tag, 16, 16);
         const ciphertext = decodeBase64Url(envelope.ciphertext, 1);
         const key = scryptSync(passphrase, salt, KEY_LENGTH);
         const decipher = createDecipheriv(ALGORITHM, key, iv);
@@ -130,12 +130,14 @@ function isBackupEnvelope(value: unknown): value is BackupEnvelope {
     );
 }
 
-function decodeBase64Url(value: string, minimumLength: number): Buffer {
+function decodeBase64Url(value: string, minimumLength: number, exactLength?: number): Buffer {
     if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("invalid backup encoding");
 
     const decoded = Buffer.from(value, "base64url");
 
-    if (decoded.length < minimumLength) throw new Error("invalid backup encoding");
+    if (decoded.length < minimumLength || (exactLength !== undefined && decoded.length !== exactLength)) {
+        throw new Error("invalid backup encoding");
+    }
 
     return decoded;
 }

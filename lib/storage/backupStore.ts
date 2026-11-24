@@ -55,16 +55,15 @@ export class BackupFileStore {
             await mkdir(this.directory, {recursive: true, mode: 0o700});
             await chmod(this.directory, 0o700);
             const temporary = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
-            const handle = await open(temporary, "wx", 0o600);
 
             try {
-                await handle.writeFile(`${encoded}\n`, "utf8");
-                await handle.sync();
-            } finally {
-                await handle.close();
-            }
-
-            try {
+                const handle = await open(temporary, "wx", 0o600);
+                try {
+                    await handle.writeFile(`${encoded}\n`, "utf8");
+                    await handle.sync();
+                } finally {
+                    await handle.close();
+                }
                 await chmod(temporary, 0o600);
                 await rename(temporary, this.filePath);
                 await syncDirectory(this.directory);
