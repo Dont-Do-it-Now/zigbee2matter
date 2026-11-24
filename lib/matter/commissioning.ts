@@ -47,10 +47,8 @@ export class CommissioningManager {
         if (!administratorId) throw new Error("administratorId is required");
         if (!Number.isSafeInteger(durationMs) || durationMs <= 0) throw new Error("durationMs must be positive");
 
-        const openedAt = this.now();
-        if (!Number.isSafeInteger(openedAt) || !Number.isSafeInteger(openedAt + durationMs)) {
-            throw new Error("commissioning clock value is invalid");
-        }
+        const openedAt = this.clock();
+        if (!Number.isSafeInteger(openedAt + durationMs)) throw new Error("commissioning clock value is invalid");
         const code = this.codeFactory();
         if (!code || typeof code.setupCode !== "string" || code.setupCode.length === 0 || !Number.isSafeInteger(code.discriminator) || code.discriminator < 0 || code.discriminator > 4095) {
             throw new Error("Matter setup-code provider returned an invalid code");
@@ -74,7 +72,7 @@ export class CommissioningManager {
     }
 
     getActiveWindow(): CommissioningWindow | undefined {
-        if (!this.window || this.window.expiresAt <= this.now()) {
+        if (!this.window || this.window.expiresAt <= this.clock()) {
             this.window = undefined;
             return undefined;
         }
@@ -88,6 +86,7 @@ export class CommissioningManager {
 
     addFabric(fabric: FabricRecord): void {
         if (!fabric.fabricId || !fabric.administratorId) throw new Error("fabric identity is required");
+        if (!Number.isSafeInteger(fabric.addedAt) || fabric.addedAt < 0) throw new Error("fabric addedAt must be a non-negative safe integer");
         this.fabrics.set(fabric.fabricId, {...fabric});
     }
 
@@ -97,5 +96,12 @@ export class CommissioningManager {
 
     listFabrics(): FabricRecord[] {
         return [...this.fabrics.values()].map((fabric) => ({...fabric}));
+    }
+
+    private clock(): number {
+        const value = this.now();
+        if (!Number.isSafeInteger(value) || value < 0) throw new Error("commissioning clock value is invalid");
+
+        return value;
     }
 }
