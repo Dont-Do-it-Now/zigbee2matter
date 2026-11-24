@@ -56,6 +56,8 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
 export class MatterSdkRuntime {
     private module?: MatterMainModule;
     private node?: MatterServerNode;
+    private nodeId?: string;
+    private started = false;
 
     async load(): Promise<MatterMainModule> {
         if (this.module) return this.module;
@@ -71,6 +73,7 @@ export class MatterSdkRuntime {
 
     async createNode(options: MatterNodeOptions): Promise<MatterServerNode> {
         if (!options.id) throw new Error("Matter node id is required");
+        if (this.node) throw new Error(`Matter node '${this.nodeId ?? "unknown"}' has already been created`);
         if ((options.passcode === undefined) !== (options.discriminator === undefined)) {
             throw new Error("Matter passcode and discriminator must be provided together");
         }
@@ -96,6 +99,8 @@ export class MatterSdkRuntime {
             ...(basicInformation ? {basicInformation} : {}),
         });
         this.node = node;
+        this.nodeId = options.id;
+        this.started = false;
         return node;
     }
 
@@ -106,13 +111,17 @@ export class MatterSdkRuntime {
 
     async start(): Promise<void> {
         if (!this.node) throw new Error("Matter node has not been created");
+        if (this.started) return;
         await this.node.start();
+        this.started = true;
     }
 
     async stop(): Promise<void> {
         if (!this.node) return;
         await this.node.close();
         this.node = undefined;
+        this.nodeId = undefined;
+        this.started = false;
     }
 
     get currentNode(): MatterServerNode | undefined {
