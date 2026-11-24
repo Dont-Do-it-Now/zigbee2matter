@@ -113,6 +113,9 @@ export class Controller {
             new ZigbeeMatterEndpointFactory({
                 loadSdk: () => this.runtime.matter.load(),
                 resolve: (entry) => this.resolveMatterEndpointSource(entry),
+                onCommandError: (endpointId, error) => {
+                    logger.warning(`Matter command delivery failed for ${endpointId}: ${error instanceof Error ? error.message : String(error)}`);
+                },
             });
         this.runtime = new BridgeRuntime({
             matterEndpointFactory,

@@ -61,6 +61,7 @@ interface EndpointDefinitionPlan {
 interface FactoryOptions {
     loadSdk: () => Promise<MatterMainModule>;
     resolve: (entry: EndpointRegistryEntry) => Promise<ZigbeeMatterEndpointSource | undefined>;
+    onCommandError?: (endpointId: string, error: unknown) => void;
 }
 
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
@@ -228,44 +229,48 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: ZigbeeMatterEndpointSource["send"]): void {
         endpoint.events?.onOff?.onOff$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
-            void send({state: value ? "ON" : "OFF"});
+            this.sendCommand(endpointId, send, {state: value ? "ON" : "OFF"});
         });
         endpoint.events?.levelControl?.currentLevel$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
-            void send({brightness: matterLevelToZigbee(value)});
+            this.sendCommand(endpointId, send, {brightness: matterLevelToZigbee(value)});
         });
         endpoint.events?.colorControl?.colorTemperatureMireds$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
-            void send({color_temp: validateColorTemperatureMireds(value)});
+            this.sendCommand(endpointId, send, {color_temp: validateColorTemperatureMireds(value)});
         });
         endpoint.events?.colorControl?.currentHue$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             const colors = this.colorValues.get(endpointId) ?? {};
             colors.hue = value;
             this.colorValues.set(endpointId, colors);
-            if (colors.saturation !== undefined) void send({color: matterColorToZigbee(value, colors.saturation)});
+            if (colors.saturation !== undefined) this.sendCommand(endpointId, send, {color: matterColorToZigbee(value, colors.saturation)});
         });
         endpoint.events?.colorControl?.currentSaturation$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             const colors = this.colorValues.get(endpointId) ?? {};
             colors.saturation = value;
             this.colorValues.set(endpointId, colors);
-            if (colors.hue !== undefined) void send({color: matterColorToZigbee(colors.hue, value)});
+            if (colors.hue !== undefined) this.sendCommand(endpointId, send, {color: matterColorToZigbee(colors.hue, value)});
         });
         endpoint.events?.colorControl?.currentX$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             const colors = this.colorValues.get(endpointId) ?? {};
             colors.x = value;
             this.colorValues.set(endpointId, colors);
-            if (colors.y !== undefined) void send({color: matterColorXyToZigbee(value, colors.y)});
+            if (colors.y !== undefined) this.sendCommand(endpointId, send, {color: matterColorXyToZigbee(value, colors.y)});
         });
         endpoint.events?.colorControl?.currentY$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             const colors = this.colorValues.get(endpointId) ?? {};
             colors.y = value;
             this.colorValues.set(endpointId, colors);
-            if (colors.x !== undefined) void send({color: matterColorXyToZigbee(colors.x, value)});
+            if (colors.x !== undefined) this.sendCommand(endpointId, send, {color: matterColorXyToZigbee(colors.x, value)});
         });
+    }
+
+    private sendCommand(endpointId: string, send: ZigbeeMatterEndpointSource["send"], payload: Record<string, unknown>): void {
+        void send(payload).catch((error) => this.options.onCommandError?.(endpointId, error));
     }
 }
 
