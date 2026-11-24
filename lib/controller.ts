@@ -1,5 +1,6 @@
 import bind from "bind-decorator";
 import {setLogger as zhSetLogger} from "zigbee-herdsman";
+import {InterviewState} from "zigbee-herdsman/dist/controller/model/device";
 import {setLogger as zhcSetLogger} from "zigbee-herdsman-converters";
 import {BASE_TOPIC, type BridgeBus, type BridgeBusPublishOptions, InProcessBridgeBus} from "./bridgeBus"; // z2m-fork: T005/T006 replaces ./mqtt import, T006 BASE_TOPIC
 import EventBus from "./eventBus";
@@ -279,6 +280,25 @@ export class Controller {
         }
     }
 
+    private async restoreMatterEndpoints(): Promise<void> {
+        const runtime = this.runtime.currentDynamicEndpointRuntime;
+        if (!runtime) return;
+
+        for (const device of this.zigbee.devicesIterator(utils.deviceNotCoordinator)) {
+            if (device.zh.interviewState !== InterviewState.Successful) continue;
+
+            for (const endpoint of device.zh.endpoints) {
+                const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+                if (!key) continue;
+                try {
+                    await runtime.restore(key);
+                } catch (error) {
+                    logger.warning(`Matter endpoint restore failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+        }
+    }
+
     private listRestJobs(): readonly unknown[] {
         const extension = this.getExtension("OTAUpdate");
         return extension instanceof ExtensionOTAUpdate ? extension.listJobs() : [];
@@ -534,6 +554,7 @@ export class Controller {
                     ...(settings.get().matter.passcode !== undefined ? {passcode: settings.get().matter.passcode} : {}),
                     ...(settings.get().matter.discriminator !== undefined ? {discriminator: settings.get().matter.discriminator} : {}),
                 });
+                await this.restoreMatterEndpoints();
             }
             await this.runtime.start();
         } catch (error) {

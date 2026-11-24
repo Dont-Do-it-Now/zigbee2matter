@@ -33,6 +33,12 @@ export interface DynamicEndpointAdapter {
 export class DynamicEndpointCoordinator {
     constructor(private readonly registry: EndpointRegistry) {}
 
+    prepareRestore(key: RegistryKey): EndpointCreatePlan | undefined {
+        const existing = this.registry.get(key);
+
+        return existing === undefined ? undefined : {action: "reuse", entry: existing};
+    }
+
     async prepareCreate(key: RegistryKey, interviewSuccessful: boolean): Promise<EndpointCreatePlan> {
         if (!interviewSuccessful) {
             throw new Error("dynamic endpoint requires a successful interview");
@@ -77,6 +83,24 @@ export class DynamicEndpointRuntime {
         try {
             await this.coordinator.recordCreated(key, created.number);
             return {action: "create", entry: {...plan.entry, number: created.number}};
+        } catch (error) {
+            try {
+                await this.adapter.remove(plan.entry);
+            } catch {
+                // Preserve the registry error; diagnostics own cleanup reporting.
+            }
+            throw error;
+        }
+    }
+
+    async restore(key: RegistryKey): Promise<EndpointCreatePlan | undefined> {
+        const plan = this.coordinator.prepareRestore(key);
+        if (plan === undefined) return undefined;
+
+        const created = await this.adapter.create(plan.entry);
+        try {
+            await this.coordinator.recordCreated(key, created.number);
+            return {action: "reuse", entry: {...plan.entry, number: created.number}};
         } catch (error) {
             try {
                 await this.adapter.remove(plan.entry);
