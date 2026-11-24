@@ -110,7 +110,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const Endpoint = sdk.Endpoint as MatterEndpointConstructor | undefined;
         if (!Endpoint) throw new Error("Matter SDK does not expose Endpoint");
 
-        const plan = await this.definitionFor(sdk, source.exposes);
+        const plan = await this.definitionFor(sdk, source.exposes, source.send);
         const {BridgedDeviceBasicInformationServer} = await import("@matter/main/behaviors/bridged-device-basic-information");
         const endpoint = new Endpoint(plan.definition.with(BridgedDeviceBasicInformationServer), {
             id: entry.endpointId,
@@ -244,7 +244,11 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         }
     }
 
-    private async definitionFor(_sdk: MatterMainModule, exposes: readonly MappingExpose[]): Promise<EndpointDefinitionPlan> {
+    private async definitionFor(
+        _sdk: MatterMainModule,
+        exposes: readonly MappingExpose[],
+        send: ZigbeeMatterEndpointSource["send"],
+    ): Promise<EndpointDefinitionPlan> {
         const flattened = flatten(exposes);
         const light = flatten(exposes).find((expose) => expose.type === "light");
         const temperature = flattened.find((expose) => expose.type === "numeric" && expose.name === "temperature");
@@ -337,8 +341,20 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             return {definition: OccupancySensorDevice as unknown as EndpointDefinition, capability: "occupancy"};
         }
         if (lock) {
-            const {DoorLockDevice} = await import("@matter/main/devices/door-lock");
-            return {definition: DoorLockDevice as unknown as EndpointDefinition, capability: "lock"};
+            const [{DoorLockDevice}, {DoorLockServer}] = await Promise.all([
+                import("@matter/main/devices/door-lock"),
+                import("@matter/main/behaviors/door-lock"),
+            ]);
+            class ZigbeeDoorLockServer extends DoorLockServer {
+                async handleLockOperation(operation: {actuation: string}): Promise<void> {
+                    if (operation.actuation === "lock") await send({state: "LOCK"});
+                    else if (operation.actuation === "unlock" || operation.actuation === "unbolt") await send({state: "UNLOCK"});
+                }
+            }
+            return {
+                definition: DoorLockDevice.with(ZigbeeDoorLockServer) as unknown as EndpointDefinition,
+                capability: "lock",
+            };
         }
         if (thermostat) {
             const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
