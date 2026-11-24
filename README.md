@@ -9,6 +9,10 @@ Zigbee2Matter connects a Zigbee network to Matter ecosystems while keeping the p
 
 This repository is a fork and an independent project. It is not an official Zigbee2MQTT or Connectivity Standards Alliance product.
 
+### Upstream baseline
+
+The independent `main` history starts from one source snapshot: Zigbee2MQTT `2.14.3`, upstream commit `3c841fdfd66c92239921ef84fde8f039c64e1662`, released on 2026-11-01. The independent Zigbee2Matter history was created on 2026-11-24. The original upstream commit history is intentionally not part of `main`; see [`docs/evidence/T003.md`](docs/evidence/T003.md) for the exact source boundary and reproduction details.
+
 ## What it does
 
 - Keeps the Zigbee-herdsman and Zigbee converter layers as the Zigbee source of truth.

@@ -9,6 +9,10 @@ Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이
 
 이 저장소는 독립적으로 유지되는 포크입니다. 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다.
 
+### 원본 기준점
+
+독립 `main` 이력은 원본 스냅샷 하나에서 시작합니다. 기준은 Zigbee2MQTT `2.14.3`, upstream 커밋 `3c841fdfd66c92239921ef84fde8f039c64e1662`, 원본 릴리스일 `2026-11-01`입니다. Zigbee2Matter 독립 이력으로 전환한 날짜는 `2026-11-24`입니다. 원본의 긴 커밋 이력은 의도적으로 `main`에 포함하지 않았으며, 정확한 기준과 재현 방법은 [`docs/evidence/T003.md`](docs/evidence/T003.md)에서 확인할 수 있습니다.
+
 ## 제공 기능
 
 - Zigbee-herdsman과 Zigbee converter 계층을 Zigbee 상태의 원본으로 유지합니다.
