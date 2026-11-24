@@ -25,6 +25,7 @@ import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {FileApiTokenStore} from "./api/tokenStore";
 import CommandRouter from "./command/router";
+import CommandLoopGuard from "./command/loopGuard";
 import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
@@ -108,11 +109,17 @@ export class Controller {
         };
         this.commandDeduplicator = new CommandDeduplicator();
         this.commandQueue = new DeviceCommandQueue();
+        const commandLoopGuard = new CommandLoopGuard({
+            onRepeat: (diagnosis) => {
+                this.runtime.events.publish("transient", "command/loop", diagnosis, {correlationId: diagnosis.correlationId});
+            },
+        });
         this.commandRouter = new CommandRouter({
             eventBus: this.eventBus,
             bridgeBus: this.bridgeBus,
             resolver,
             authorizer,
+            loopGuard: commandLoopGuard,
             hooks: {
                 admit: this.commandDeduplicator.admit,
                 schedule: this.commandQueue.schedule,

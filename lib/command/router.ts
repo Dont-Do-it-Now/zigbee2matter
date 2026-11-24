@@ -24,6 +24,7 @@ import type {
     TargetResolver,
     ValueValidator,
 } from "./types";
+import type CommandLoopGuard from "./loopGuard";
 
 const MAX_VALUE_KEYS = 64;
 const MAX_VALUE_BYTES = 8192;
@@ -40,6 +41,7 @@ export interface CommandRouterDeps {
     hooks?: CommandHooks;
     /** Sensitive bridge requests (see `SENSITIVE_BRIDGE_REQUESTS`) explicitly allowed. Default: none. */
     allowedSensitiveRequests?: ReadonlySet<string>;
+    loopGuard?: CommandLoopGuard;
     /** Test seam. */
     now?: () => number;
 }
@@ -144,6 +146,7 @@ export default class CommandRouter {
                 return Promise.resolve(this.emit(this.build(command, validation.rejection.status ?? "failed", {...validation.rejection, terminal: true, dispatched: false})));
             }
 
+            this.deps.loopGuard?.record(command);
             const duplicate = this.deps.hooks?.admit?.(command);
 
             if (duplicate) {
