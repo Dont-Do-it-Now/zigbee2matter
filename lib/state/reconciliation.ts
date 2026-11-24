@@ -62,6 +62,7 @@ export default class StateReconciler {
 
         if (record.observedValue !== undefined && isDeepStrictEqual(record.observedValue, desired)) {
             delete record.desiredValue;
+            record.quality = record.availability === false ? "stale" : "confirmed";
         } else {
             record.desiredValue = desired;
             record.quality = record.observedValue === undefined ? "unknown" : "estimated";
