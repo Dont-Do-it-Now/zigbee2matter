@@ -16,6 +16,7 @@ import {BackupFileStore} from "../storage/backupStore";
 import type {PersistentSnapshot} from "../storage/backup";
 import StateReconciler from "../state/reconciliation";
 import StateSnapshotCoordinator from "../state/snapshot";
+import ServiceLifecycle from "../lifecycle";
 import {CommissioningManager} from "../matter/commissioning";
 import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
@@ -58,6 +59,7 @@ export class BridgeRuntime {
     readonly matter: MatterSdkRuntime;
     readonly stateReconciler: StateReconciler;
     readonly stateSnapshots: StateSnapshotCoordinator;
+    readonly lifecycle: ServiceLifecycle;
     readonly commissioning: CommissioningManager;
     readonly multiBridge?: MultiBridgeRuntime;
     private readonly api?: ApiServer;
@@ -76,6 +78,7 @@ export class BridgeRuntime {
         this.matter = new MatterSdkRuntime();
         this.stateReconciler = new StateReconciler();
         this.stateSnapshots = new StateSnapshotCoordinator(this.stateReconciler, this.events);
+        this.lifecycle = new ServiceLifecycle();
         this.commissioning = options.commissioning ?? new CommissioningManager();
         this.multiBridge = options.multiBridge
             ? new MultiBridgeRuntime(options.multiBridge.registry ?? new MultiBridgeRegistry(), options.multiBridge.factory)
@@ -103,7 +106,14 @@ export class BridgeRuntime {
     }
 
     async start(): Promise<void> {
-        await this.api?.start();
+        const components = [];
+        if (this.matter.currentNode) {
+            components.push({name: "matter", start: () => this.matter.start(), stop: () => this.matter.stop()});
+        }
+        if (this.api) {
+            components.push({name: "api", start: () => this.api!.start(), stop: () => this.api!.stop()});
+        }
+        await this.lifecycle.start(components);
     }
 
     async startMatter(options: MatterNodeOptions): Promise<void> {
@@ -115,7 +125,6 @@ export class BridgeRuntime {
         if (this.matterEndpointFactory) {
             this.dynamicEndpointRuntime = this.createSdkDynamicEndpointRuntime(this.matterEndpointFactory);
         }
-        await this.matter.start();
     }
 
     async openEndpointRegistry(bridgeId: BridgeId, options: EndpointRegistryOptions = {}): Promise<EndpointRegistry> {
@@ -178,21 +187,14 @@ export class BridgeRuntime {
         let firstError: unknown;
 
         try {
-            await this.api?.stop();
+            await this.lifecycle.stop();
         } catch (error) {
             firstError = error;
         }
-
-        try {
-            await this.matter.stop();
-        } catch (error) {
-            firstError ??= error;
-        } finally {
-            this.dynamicEndpointRuntime = undefined;
-            if (this.attachedEventBus) {
-                this.events.detach(this.attachedEventBus);
-                this.attachedEventBus = undefined;
-            }
+        this.dynamicEndpointRuntime = undefined;
+        if (this.attachedEventBus) {
+            this.events.detach(this.attachedEventBus);
+            this.attachedEventBus = undefined;
         }
 
         if (firstError !== undefined) {
