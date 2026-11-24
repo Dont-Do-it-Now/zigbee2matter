@@ -50,16 +50,15 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
         mkdirSync(directory, {recursive: true, mode: 0o700});
         chmodSync(directory, 0o700);
         const temporary = `${this.filePath}.${randomUUID()}.tmp`;
-        const descriptor = openSync(temporary, "wx", 0o600);
 
         try {
-            writeFileSync(descriptor, `${JSON.stringify({networkId: identity.networkId})}\n`, "utf8");
-            fsyncSync(descriptor);
-        } finally {
-            closeSync(descriptor);
-        }
-
-        try {
+            const descriptor = openSync(temporary, "wx", 0o600);
+            try {
+                writeFileSync(descriptor, `${JSON.stringify({networkId: identity.networkId})}\n`, "utf8");
+                fsyncSync(descriptor);
+            } finally {
+                closeSync(descriptor);
+            }
             linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));
@@ -111,16 +110,15 @@ export class FileBridgeIdentityStore {
         mkdirSync(directory, {recursive: true, mode: 0o700});
         chmodSync(directory, 0o700);
         const temporary = `${this.filePath}.${randomUUID()}.tmp`;
-        const descriptor = openSync(temporary, "wx", 0o600);
 
         try {
-            writeFileSync(descriptor, `${JSON.stringify({bridgeId})}\n`, "utf8");
-            fsyncSync(descriptor);
-        } finally {
-            closeSync(descriptor);
-        }
-
-        try {
+            const descriptor = openSync(temporary, "wx", 0o600);
+            try {
+                writeFileSync(descriptor, `${JSON.stringify({bridgeId})}\n`, "utf8");
+                fsyncSync(descriptor);
+            } finally {
+                closeSync(descriptor);
+            }
             linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));

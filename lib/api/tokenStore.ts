@@ -23,16 +23,15 @@ export class FileApiTokenStore {
         mkdirSync(directory, {recursive: true, mode: 0o700});
         chmodSync(directory, 0o700);
         const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
-        const descriptor = openSync(temporaryPath, "wx", 0o600);
 
         try {
-            writeFileSync(descriptor, JSON.stringify(records), "utf8");
-            fsyncSync(descriptor);
-        } finally {
-            closeSync(descriptor);
-        }
-
-        try {
+            const descriptor = openSync(temporaryPath, "wx", 0o600);
+            try {
+                writeFileSync(descriptor, JSON.stringify(records), "utf8");
+                fsyncSync(descriptor);
+            } finally {
+                closeSync(descriptor);
+            }
             renameSync(temporaryPath, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(directory);
