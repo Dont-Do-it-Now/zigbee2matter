@@ -62,6 +62,7 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
         try {
             renameSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
+            syncDirectory(path.dirname(this.filePath));
         } catch (error) {
             try {
                 unlinkSync(temporary);
@@ -121,6 +122,7 @@ export class FileBridgeIdentityStore {
         try {
             renameSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
+            syncDirectory(path.dirname(this.filePath));
         } catch (error) {
             try {
                 unlinkSync(temporary);
@@ -134,4 +136,21 @@ export class FileBridgeIdentityStore {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function syncDirectory(directory: string): void {
+    try {
+        const descriptor = openSync(directory, "r");
+
+        try {
+            fsyncSync(descriptor);
+        } finally {
+            closeSync(descriptor);
+        }
+    } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const unsupported = code === "EISDIR" || code === "EINVAL" || code === "ENOTSUP" || (process.platform === "win32" && code === "EPERM");
+
+        if (!unsupported) throw error;
+    }
 }
