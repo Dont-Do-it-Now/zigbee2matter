@@ -93,10 +93,9 @@ function isValidCandidate(candidate: CoordinatorCandidate): boolean {
         return true;
     }
 
-    return (
-        candidate.origin === "configured" &&
-        typeof candidate.adapter === "string" &&
-        candidate.adapter.length > 0 &&
-        /^(?:tcp|socket):\/\/[^/:]+:\d{1,5}$/.test(candidate.path)
-    );
+    if (candidate.origin !== "configured" || typeof candidate.adapter !== "string" || candidate.adapter.length === 0) return false;
+
+    const match = /^(?:tcp|socket):\/\/[^/:]+:(\d{1,5})$/.exec(candidate.path);
+
+    return match !== null && Number(match[1]) >= 1 && Number(match[1]) <= 65535;
 }
