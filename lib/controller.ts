@@ -21,7 +21,7 @@ import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
 import {diagnoseMatterNetwork} from "./matter/networkConfig";
-import type {RestDevice} from "./api/restRouter";
+import type {RestBridge, RestDevice, RestGroup} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {FileApiTokenStore} from "./api/tokenStore";
 import CommandRouter from "./command/router";
@@ -82,7 +82,9 @@ export class Controller {
                           ? {tls: {certPath: apiSettings.ssl_cert ?? "", keyPath: apiSettings.ssl_key ?? ""}}
                           : {}),
                       listDevices: () => this.listRestDevices(),
+                      listGroups: () => this.listRestGroups(),
                       listJobs: () => this.listRestJobs(),
+                      listBridges: () => this.listRestBridges(),
                       executeCommand: (input, principal) => this.executeRestCommand(input, principal),
                       snapshot: () => ({
                           epoch: this.runtime.events.epoch,
@@ -169,6 +171,26 @@ export class Controller {
     private listRestJobs(): readonly unknown[] {
         const extension = this.getExtension("OTAUpdate");
         return extension instanceof ExtensionOTAUpdate ? extension.listJobs() : [];
+    }
+
+    private listRestGroups(): readonly RestGroup[] {
+        return [...this.zigbee.groupsIterator()].map((group) => ({
+            id: group.ID,
+            name: group.name,
+            available: this.state.get(group).available !== false,
+            members: group.zh.members.map((member) => ({ieeeAddress: member.deviceIeeeAddress, endpoint: member.ID})),
+        }));
+    }
+
+    private listRestBridges(): readonly RestBridge[] {
+        return [
+            {
+                id: this.bridgeIdentity,
+                networkId: this.networkIdentity.networkId,
+                matterEnabled: settings.get().matter.enabled,
+                matterRunning: this.runtime.matter.currentNode !== undefined,
+            },
+        ];
     }
 
     private resolveCommandTarget(entityName: string, endpoint?: string): ResolvedTarget {

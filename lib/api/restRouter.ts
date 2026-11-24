@@ -10,6 +10,20 @@ export interface RestDevice {
     readonly entities?: readonly unknown[];
 }
 
+export interface RestGroup {
+    readonly id: number;
+    readonly name: string;
+    readonly available: boolean;
+    readonly members: readonly {readonly ieeeAddress: string; readonly endpoint: number}[];
+}
+
+export interface RestBridge {
+    readonly id: string;
+    readonly networkId: string;
+    readonly matterEnabled: boolean;
+    readonly matterRunning: boolean;
+}
+
 export interface RestRouterDeps {
     readonly auth: ApiAuth;
     readonly listDevices: () => readonly RestDevice[];
