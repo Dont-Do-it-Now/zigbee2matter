@@ -32,14 +32,19 @@ export default class CommandLoopGuard {
     private readonly onRepeat?: (diagnosis: LoopDiagnosis) => void;
 
     constructor(options: CommandLoopGuardOptions = {}) {
-        this.windowMs = Math.max(1, Math.floor(options.windowMs ?? 5_000));
-        this.maxEntries = Math.max(1, Math.floor(options.maxEntries ?? 1_000));
+        const windowMs = options.windowMs ?? 5_000;
+        const maxEntries = options.maxEntries ?? 1_000;
+        if (!Number.isSafeInteger(windowMs) || windowMs < 1) throw new Error("windowMs must be a positive integer");
+        if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) throw new Error("maxEntries must be a positive integer");
+        this.windowMs = windowMs;
+        this.maxEntries = maxEntries;
         this.now = options.now ?? ((): number => Date.now());
         this.onRepeat = options.onRepeat;
     }
 
     record(command: Command): LoopDiagnosis {
         const at = this.now();
+        if (!Number.isSafeInteger(at)) throw new Error("command loop clock is invalid");
         const fingerprint = fingerprintOf(command);
         const previous = this.seen.get(fingerprint);
         const repeated = previous !== undefined && at - previous.lastAt <= this.windowMs;

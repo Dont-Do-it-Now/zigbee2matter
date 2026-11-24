@@ -29,9 +29,15 @@ export class CommandRetryPolicy {
     private readonly maxDelayMs: number;
 
     constructor(options: RetryPolicyOptions = {}) {
-        this.maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS));
-        this.baseDelayMs = Math.max(0, Math.floor(options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS));
-        this.maxDelayMs = Math.max(this.baseDelayMs, Math.floor(options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS));
+        const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+        const baseDelayMs = options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
+        const maxDelayMs = options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
+        if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1) throw new Error("maxAttempts must be a positive integer");
+        if (!Number.isSafeInteger(baseDelayMs) || baseDelayMs < 0) throw new Error("baseDelayMs must be a non-negative integer");
+        if (!Number.isSafeInteger(maxDelayMs) || maxDelayMs < baseDelayMs) throw new Error("maxDelayMs must be an integer at least baseDelayMs");
+        this.maxAttempts = maxAttempts;
+        this.baseDelayMs = baseDelayMs;
+        this.maxDelayMs = maxDelayMs;
     }
 
     decide(command: Command, result: CommandResult, attempts: number, now = Date.now()): RetryDecision {
