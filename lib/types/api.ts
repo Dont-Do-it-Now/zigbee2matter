@@ -110,6 +110,13 @@ export type Zigbee2MQTTSettings = {
         enabled: boolean;
         passcode?: number;
         discriminator?: number;
+        network?: {
+            port?: number;
+            mdnsInterface?: string;
+            ipv4?: boolean;
+            listeningAddressIpv4?: string;
+            listeningAddressIpv6?: string;
+        };
     };
     availability: {
         enabled: boolean;

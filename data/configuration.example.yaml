@@ -13,6 +13,12 @@ matter:
     enabled: false
     # passcode: 20202021
     # discriminator: 3840
+    # network:
+    #     port: 5540
+    #     mdnsInterface: eth0
+    #     ipv4: true
+    #     listeningAddressIpv4: 0.0.0.0
+    #     listeningAddressIpv6: '::'
 
 # Enable the frontend, runs on port 8080 by default
 frontend:

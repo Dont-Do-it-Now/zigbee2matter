@@ -321,6 +321,7 @@ export class Controller {
             if (settings.get().matter.enabled) {
                 await this.runtime.startMatter({
                     id: this.bridgeIdentity,
+                    ...(settings.get().matter.network ? {network: settings.get().matter.network} : {}),
                     ...(settings.get().matter.passcode !== undefined ? {passcode: settings.get().matter.passcode} : {}),
                     ...(settings.get().matter.discriminator !== undefined ? {discriminator: settings.get().matter.discriminator} : {}),
                 });

@@ -71,6 +71,38 @@
                     "minimum": 0,
                     "maximum": 4095,
                     "requiresRestart": true
+                  },
+                  "network": {
+                      "type": "object",
+                      "title": "Matter network",
+                      "properties": {
+                          "port": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 65535,
+                              "requiresRestart": true
+                          },
+                          "mdnsInterface": {
+                              "type": "string",
+                              "minLength": 1,
+                              "requiresRestart": true
+                          },
+                          "ipv4": {
+                              "type": "boolean",
+                              "requiresRestart": true
+                          },
+                          "listeningAddressIpv4": {
+                              "type": "string",
+                              "minLength": 1,
+                              "requiresRestart": true
+                          },
+                          "listeningAddressIpv6": {
+                              "type": "string",
+                              "minLength": 1,
+                              "requiresRestart": true
+                          }
+                      },
+                      "additionalProperties": false
                 }
             },
             "required": []
