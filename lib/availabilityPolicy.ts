@@ -21,9 +21,16 @@ export interface AvailabilityInput {
 /** T029 maps upstream availability signals without replacing the existing ping policy. */
 export function evaluateAvailability(input: AvailabilityInput, now = Date.now()): AvailabilityDecision {
     if (input.scope === "coordinator") {
-        return input.explicitLeave
-            ? {status: "offline", reachable: false, scope: input.scope, shouldProbe: false, reason: "explicit-leave"}
-            : {status: "online", reachable: true, scope: input.scope, shouldProbe: false, reason: "recent-report"};
+        if (input.explicitLeave) {
+            return {status: "offline", reachable: false, scope: input.scope, shouldProbe: false, reason: "explicit-leave"};
+        }
+
+        const recent = input.lastSeen !== undefined && input.timeoutMs !== undefined && now - input.lastSeen < input.timeoutMs;
+        if (recent) {
+            return {status: "online", reachable: true, scope: input.scope, shouldProbe: false, reason: "recent-report"};
+        }
+
+        return {status: "unknown", scope: input.scope, shouldProbe: true, reason: "timeout"};
     }
 
     if (input.scope === "group") {

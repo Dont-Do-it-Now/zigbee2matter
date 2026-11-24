@@ -1,3 +1,5 @@
+import type EventBus from "./eventBus";
+
 export type RecoveryPhase = "connected" | "disconnected" | "recovering" | "stopped";
 
 export interface RecoveryConnector {
@@ -6,6 +8,8 @@ export interface RecoveryConnector {
 }
 
 export interface ConnectionRecoveryOptions {
+    /** When supplied, adapter disconnect events are routed into this recovery loop. */
+    eventBus?: EventBus;
     baseDelayMs?: number;
     maxDelayMs?: number;
     maxAttempts?: number;
@@ -18,6 +22,7 @@ export default class ConnectionRecovery {
     private readonly maxDelayMs: number;
     private readonly maxAttempts: number;
     private readonly onPhase?: (phase: RecoveryPhase, attempt: number) => void;
+    private readonly eventBus?: EventBus;
     private generation = 0;
     private retryPromise: Promise<void> | undefined;
     private retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -30,10 +35,12 @@ export default class ConnectionRecovery {
         private readonly connector: RecoveryConnector,
         options: ConnectionRecoveryOptions = {},
     ) {
+        this.eventBus = options.eventBus;
         this.baseDelayMs = Math.max(1, Math.floor(options.baseDelayMs ?? 250));
         this.maxDelayMs = Math.max(this.baseDelayMs, Math.floor(options.maxDelayMs ?? 10_000));
         this.maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 8));
         this.onPhase = options.onPhase;
+        this.eventBus?.onAdapterDisconnected(this, async () => this.notifyDisconnected());
     }
 
     get phase(): RecoveryPhase {
@@ -59,6 +66,7 @@ export default class ConnectionRecovery {
     }
 
     async stop(): Promise<void> {
+        this.eventBus?.removeListeners(this);
         this.setPhase("stopped");
         this.generation += 1;
         this.controller?.abort("STOPABORT");

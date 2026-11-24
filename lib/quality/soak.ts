@@ -131,6 +131,7 @@ export function validateSoakRecord(record: SoakRecord): SoakValidation {
     if (record.reconnectFailures > record.reconnectAttempts) errors.push("reconnect failures exceed attempts");
     if (record.errorCount > record.operationCount) errors.push("errors exceed operations");
     if (expected && record.durationHours < expected.durationHours) errors.push("record duration is below planned stage");
+    if (record.memory.length === 0) errors.push("memory samples must not be empty");
 
     for (const sample of record.memory) {
         if (!Number.isFinite(sample.elapsedHours) || sample.elapsedHours < 0) errors.push("memory elapsed time must be finite and non-negative");

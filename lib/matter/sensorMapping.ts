@@ -2,6 +2,14 @@
 
 export type KnownValue<T> = {known: true; value: T} | {known: false};
 
+export type BooleanSensorSemantic = "contact" | "occupancy";
+
+export interface MatterBooleanSensorValue {
+    semantic: BooleanSensorSemantic;
+    cluster: "BooleanState" | "OccupancySensing";
+    value: boolean;
+}
+
 /** Matter TemperatureMeasurement의 0.01°C 표현. */
 export function celsiusToMatter(value: number | null | undefined): KnownValue<number> {
     if (value === null || value === undefined) return {known: false};
@@ -26,6 +34,24 @@ export function booleanSensorToMatter(value: boolean | null | undefined, invert 
     if (value === null || value === undefined) return {known: false};
 
     return {known: true, value: invert ? !value : value};
+}
+
+/** Contact와 Occupancy를 서로 다른 Matter cluster 의미로 명시적으로 구분한다. */
+export function booleanSensorBySemantic(
+    semantic: BooleanSensorSemantic,
+    value: boolean | null | undefined,
+    invert = false,
+): KnownValue<MatterBooleanSensorValue> {
+    if (value === null || value === undefined) return {known: false};
+
+    return {
+        known: true,
+        value: {
+            semantic,
+            cluster: semantic === "contact" ? "BooleanState" : "OccupancySensing",
+            value: invert ? !value : value,
+        },
+    };
 }
 
 /** 센서 expose에 쓰기 명령을 보내지 않도록 호출부에서 명시적으로 검사한다. */

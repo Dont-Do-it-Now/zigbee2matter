@@ -20,6 +20,7 @@ export type ReplacementReason =
     | "network-mismatch"
     | "network-key-mismatch"
     | "frame-counter-rollback"
+    | "verification-required"
     | "approved-replacement";
 
 export interface CoordinatorReplacementDecision {
@@ -42,19 +43,26 @@ export function evaluateCoordinatorReplacement(request: CoordinatorReplacementRe
         return {allowed: false, reason: "approval-required", reuseIdentity: false, requiresRejoin: true};
     }
 
-    if (stored.extendedPanId !== undefined && live.extendedPanId !== undefined && !sameValue(stored.extendedPanId, live.extendedPanId)) {
+    if (
+        !stored.extendedPanId ||
+        !live.extendedPanId ||
+        !stored.networkKeyFingerprint ||
+        !live.networkKeyFingerprint ||
+        !isValidFrameCounter(stored.frameCounter) ||
+        !isValidFrameCounter(live.frameCounter)
+    ) {
+        return {allowed: false, reason: "verification-required", reuseIdentity: false, requiresRejoin: true};
+    }
+
+    if (!sameValue(stored.extendedPanId, live.extendedPanId)) {
         return {allowed: false, reason: "network-mismatch", reuseIdentity: false, requiresRejoin: true};
     }
 
-    if (
-        stored.networkKeyFingerprint !== undefined &&
-        live.networkKeyFingerprint !== undefined &&
-        stored.networkKeyFingerprint !== live.networkKeyFingerprint
-    ) {
+    if (stored.networkKeyFingerprint !== live.networkKeyFingerprint) {
         return {allowed: false, reason: "network-key-mismatch", reuseIdentity: false, requiresRejoin: true};
     }
 
-    if (stored.frameCounter !== undefined && live.frameCounter !== undefined && live.frameCounter < stored.frameCounter) {
+    if (live.frameCounter < stored.frameCounter) {
         return {allowed: false, reason: "frame-counter-rollback", reuseIdentity: false, requiresRejoin: true};
     }
 
@@ -72,4 +80,8 @@ function normalizeIeee(value: string): string {
 
 function sameValue(a: string, b: string): boolean {
     return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function isValidFrameCounter(value: number | undefined): value is number {
+    return value !== undefined && Number.isSafeInteger(value) && value >= 0;
 }

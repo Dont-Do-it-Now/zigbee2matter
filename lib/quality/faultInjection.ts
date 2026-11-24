@@ -115,16 +115,27 @@ export function getFaultPlan(id: string): FaultPlan | undefined {
 
 export function validateFaultPlan(plan: FaultPlan): FaultPlanReport {
     const errors: string[] = [];
-    if (plan.id.length === 0) errors.push("fault plan id is required");
-    if (plan.injectionPoint.length === 0) errors.push("injection point is required");
-    if (plan.trigger.length === 0) errors.push("trigger is required");
-    if (plan.observations.length === 0) errors.push("at least one observation is required");
-    if (plan.recovery.length === 0) errors.push("at least one recovery expectation is required");
-    if (plan.safety.length === 0) errors.push("at least one safety constraint is required");
+    if (plan.id.trim().length === 0) errors.push("fault plan id is required");
+    if (plan.injectionPoint.trim().length === 0) errors.push("injection point is required");
+    if (plan.trigger.trim().length === 0) errors.push("trigger is required");
+    validateRequiredEvidence("observation", plan.observations, errors);
+    validateRequiredEvidence("recovery expectation", plan.recovery, errors);
+    validateRequiredEvidence("safety constraint", plan.safety, errors);
     if (plan.kind === "disk" && !plan.destructive) errors.push("disk fault must be marked destructive");
     if (plan.kind !== "disk" && plan.destructive) errors.push("only disk fault may be destructive");
 
     return {valid: errors.length === 0, errors};
+}
+
+function validateRequiredEvidence(name: string, values: readonly string[], errors: string[]): void {
+    if (values.length === 0) {
+        errors.push(`at least one ${name} is required`);
+        return;
+    }
+
+    if (values.some((value) => value.trim().length === 0)) {
+        errors.push(`${name} entries must not be empty`);
+    }
 }
 
 export function validateAllFaultPlans(): FaultPlanReport {

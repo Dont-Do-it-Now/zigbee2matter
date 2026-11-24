@@ -32,8 +32,30 @@ export {
     type MappingExpose,
     type MappingRule,
 } from "./mappingRegistry";
-export {matterLevelToZigbee, validateColorTemperatureMireds, validateTransitionMilliseconds, zigbeeBrightnessToMatter} from "./lightingMapping";
-export {assertSensorReadOnly, booleanSensorToMatter, celsiusToMatter, humidityPercentToMatter, type KnownValue} from "./sensorMapping";
+export {
+    matterColorToZigbee,
+    matterColorXyToZigbee,
+    matterLevelToZigbee,
+    validateColorTemperatureMireds,
+    validateTransitionMilliseconds,
+    zigbeeBrightnessToMatter,
+    zigbeeColorToMatter,
+    zigbeeColorXyToMatter,
+    type MatterColorValue,
+    type MatterColorXyValue,
+    type ZigbeeColorValue,
+    type ZigbeeColorXyValue,
+} from "./lightingMapping";
+export {
+    assertSensorReadOnly,
+    booleanSensorBySemantic,
+    booleanSensorToMatter,
+    celsiusToMatter,
+    humidityPercentToMatter,
+    type BooleanSensorSemantic,
+    type KnownValue,
+    type MatterBooleanSensorValue,
+} from "./sensorMapping";
 export {assertButtonCommand, mapButtonAction, type ButtonActionResult, type ButtonEvent, type MatterSwitchEvent} from "./buttonMapping";
 export {mapCoverAction, mapCoverMovement, mapCoverPosition, mapCoverTilt, type CoverAction, type CoverMovement} from "./coverMapping";
 export {EnergyAccumulator, assertMatterIntegerRange, toWatts, toWattHours, type CumulativeResult, type EnergyObservation, type EnergyUnit, type PowerUnit} from "./energyMapping";

@@ -1,3 +1,5 @@
+import type EventBus from "./eventBus";
+
 export type InterviewState = "unknown" | "joined" | "started" | "successful" | "failed" | "left";
 
 export interface PairingDeviceState {
@@ -8,6 +10,7 @@ export interface PairingDeviceState {
 
 export interface PairingPolicyOptions {
     now?: () => number;
+    eventBus?: EventBus;
 }
 
 /** T027 pairing/interview policy. Upstream remains the owner of interview/configure operations. */
@@ -18,6 +21,9 @@ export default class PairingPolicy {
 
     constructor(options: PairingPolicyOptions = {}) {
         this.now = options.now ?? ((): number => Date.now());
+        options.eventBus?.onDeviceJoined(this, (data) => this.recordJoined(data.device.ieeeAddr));
+        options.eventBus?.onDeviceInterview(this, (data) => this.recordInterview(data.device.ieeeAddr, data.status));
+        options.eventBus?.onDeviceLeave(this, (data) => this.recordLeft(data.ieeeAddr));
     }
 
     setPermitJoinEnd(endAt: number | undefined): void {
