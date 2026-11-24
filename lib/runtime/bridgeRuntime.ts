@@ -15,6 +15,7 @@ import type {BridgeId} from "../identity";
 
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
+    readonly matterEndpointFactory?: MatterEndpointFactory;
     readonly auth?: AuthOptions;
     readonly initialTokens?: readonly TokenRecord[];
     readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter" | keyof RestRouterDeps> & {
@@ -31,6 +32,8 @@ export class BridgeRuntime {
     readonly diagnostics: DiagnosticRegistry;
     readonly matter: MatterSdkRuntime;
     private readonly api?: ApiServer;
+    private readonly matterEndpointFactory?: MatterEndpointFactory;
+    private dynamicEndpointRuntime?: DynamicEndpointRuntime;
     private endpointRegistry?: EndpointRegistry;
     private attachedEventBus?: EventBus;
 
@@ -39,6 +42,7 @@ export class BridgeRuntime {
         this.auth = new ApiAuth(options.auth, options.initialTokens);
         this.diagnostics = new DiagnosticRegistry();
         this.matter = new MatterSdkRuntime();
+        this.matterEndpointFactory = options.matterEndpointFactory;
         if (options.api) {
             const limiter = new AuthFailureRateLimiter();
             this.api = new ApiServer({
@@ -62,7 +66,14 @@ export class BridgeRuntime {
     }
 
     async startMatter(options: MatterNodeOptions): Promise<void> {
+        if (!this.endpointRegistry) {
+            throw new Error("endpoint registry must be opened before starting Matter");
+        }
+
         await this.matter.createNode(options);
+        if (this.matterEndpointFactory) {
+            this.dynamicEndpointRuntime = this.createSdkDynamicEndpointRuntime(this.matterEndpointFactory);
+        }
         await this.matter.start();
     }
 
@@ -92,6 +103,10 @@ export class BridgeRuntime {
         return this.createDynamicEndpointRuntime(new MatterSdkEndpointAdapter(this.matter, factory));
     }
 
+    get currentDynamicEndpointRuntime(): DynamicEndpointRuntime | undefined {
+        return this.dynamicEndpointRuntime;
+    }
+
     async stop(): Promise<void> {
         let firstError: unknown;
 
@@ -106,6 +121,7 @@ export class BridgeRuntime {
         } catch (error) {
             firstError ??= error;
         } finally {
+            this.dynamicEndpointRuntime = undefined;
             if (this.attachedEventBus) {
                 this.events.detach(this.attachedEventBus);
                 this.attachedEventBus = undefined;
