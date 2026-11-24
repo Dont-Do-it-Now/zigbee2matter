@@ -361,8 +361,12 @@ function applyEnvironmentVariables(settings: Partial<Settings>): void {
                 if (key !== "properties" && obj[key]) {
                     const type = (obj[key].type || "object").toString();
                     const envPart = path.reduce((acc, val) => `${acc}${val}_`, "");
-                    const envVariableName = `ZIGBEE2MQTT_CONFIG_${envPart}${key}`.toUpperCase();
-                    const envVariable = process.env[envVariableName];
+                    const envVariableNames = [
+                        `ZIGBEE2MATTER_CONFIG_${envPart}${key}`.toUpperCase(),
+                        `ZIGBEE2MQTT_CONFIG_${envPart}${key}`.toUpperCase(),
+                    ];
+                    const envVariableName = envVariableNames.find((name) => process.env[name] !== undefined);
+                    const envVariable = envVariableName === undefined ? undefined : process.env[envVariableName];
 
                     if (envVariable) {
                         const setting = path.reduce((acc, val) => {

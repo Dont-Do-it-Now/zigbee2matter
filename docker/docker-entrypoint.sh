@@ -1,7 +1,9 @@
 #!/bin/sh
 set -e
 
-if [ ! -z "$ZIGBEE2MQTT_DATA" ]; then
+if [ ! -z "$ZIGBEE2MATTER_DATA" ]; then
+    DATA="$ZIGBEE2MATTER_DATA"
+elif [ ! -z "$ZIGBEE2MQTT_DATA" ]; then
     DATA="$ZIGBEE2MQTT_DATA"
 else
     DATA="/app/data"
