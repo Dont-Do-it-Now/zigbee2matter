@@ -39,6 +39,7 @@ import type {Zigbee2MQTTAPI} from "./types/api";
 import {
     FileBridgeIdentityStore,
     FileNetworkIdentityStore,
+    deviceKeyOf,
     formatDeviceKey,
     formatGroupKey,
     parseEntityKey,
@@ -156,6 +157,12 @@ export class Controller {
             const kind = data.entity.isDevice() ? "device" : "group";
             this.runtime.stateSnapshots.observe(`${kind}:${data.entity.ID}`, data.to);
         });
+        this.eventBus.onDeviceInterview(this, (data) => {
+            if (data.status === "successful") void this.syncMatterEndpoints(data.device, true);
+        });
+        this.eventBus.onEntityRemoved(this, (data) => {
+            if (data.entity.isDevice()) void this.syncMatterEndpoints(data.entity, false);
+        });
         const resolver: TargetResolver = {
             resolve: (target) => this.resolveCommandTarget(target),
         };
@@ -228,6 +235,22 @@ export class Controller {
             name: device.name,
             available: this.state.get(device).available !== false,
         }));
+    }
+
+    private async syncMatterEndpoints(device: import("./model/device").default, create: boolean): Promise<void> {
+        const runtime = this.runtime.currentDynamicEndpointRuntime;
+        if (!runtime) return;
+
+        for (const endpoint of device.zh.endpoints) {
+            const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+            if (!key) continue;
+            try {
+                if (create) await runtime.create(key, true);
+                else await runtime.remove(key);
+            } catch (error) {
+                logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
     }
 
     private listRestJobs(): readonly unknown[] {
