@@ -44,6 +44,8 @@ interface EndpointEvents {
         systemMode$Changed?: {on(listener: (value: number) => void): void};
         occupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
         occupiedCoolingSetpoint$Changed?: {on(listener: (value: number) => void): void};
+        unoccupiedHeatingSetpoint$Changed?: {on(listener: (value: number) => void): void};
+        unoccupiedCoolingSetpoint$Changed?: {on(listener: (value: number) => void): void};
     };
     switch?: {
         initialPress?: {on(listener: (value: unknown) => void): void};
@@ -212,6 +214,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             if (heatingSetpoint !== undefined) thermostat.occupiedHeatingSetpoint = heatingSetpoint;
             const coolingSetpoint = celsiusToMatterValue(state.occupied_cooling_setpoint);
             if (coolingSetpoint !== undefined) thermostat.occupiedCoolingSetpoint = coolingSetpoint;
+            const unoccupiedHeatingSetpoint = celsiusToMatterValue(state.unoccupied_heating_setpoint);
+            if (unoccupiedHeatingSetpoint !== undefined) thermostat.unoccupiedHeatingSetpoint = unoccupiedHeatingSetpoint;
+            const unoccupiedCoolingSetpoint = celsiusToMatterValue(state.unoccupied_cooling_setpoint);
+            if (unoccupiedCoolingSetpoint !== undefined) thermostat.unoccupiedCoolingSetpoint = unoccupiedCoolingSetpoint;
             const systemMode = matterSystemMode(state.system_mode);
             if (systemMode !== undefined) thermostat.systemMode = systemMode;
             if (Object.keys(thermostat).length > 0) patch.thermostat = thermostat;
@@ -327,8 +333,19 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 import("@matter/main/devices/thermostat"),
                 import("@matter/main/behaviors/thermostat"),
             ]);
+            const systemMode = thermostat.features?.find((feature) => feature.type === "enum" && feature.name === "system_mode");
+            const modes = systemMode?.values ?? [];
+            const supportsHeating = modes.includes("heat") || modes.includes("emergency_heating") || thermostat.features?.some((feature) => feature.name === "occupied_heating_setpoint") === true;
+            const supportsCooling = modes.includes("cool") || thermostat.features?.some((feature) => feature.name === "occupied_cooling_setpoint") === true;
+            const supportsOccupancy = thermostat.features?.some((feature) => feature.name?.startsWith("unoccupied_")) === true;
+            const features: string[] = [];
+            if (supportsHeating) features.push("Heating");
+            if (supportsCooling) features.push("Cooling");
+            if (supportsOccupancy) features.push("Occupancy");
+            if (modes.includes("auto") && supportsHeating && supportsCooling) features.push("AutoMode");
+            if (features.length === 0) throw new Error("Matter thermostat mapping requires heating or cooling support");
             return {
-                definition: ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "Occupancy", "AutoMode")) as unknown as EndpointDefinition,
+                definition: ThermostatDevice.with(ThermostatServer.with(...features)) as unknown as EndpointDefinition,
                 capability: "thermostat",
             };
         }
@@ -402,6 +419,14 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         endpoint.events?.thermostat?.occupiedCoolingSetpoint$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
             this.sendCommand(endpointId, send, {occupied_cooling_setpoint: value / 100});
+        });
+        endpoint.events?.thermostat?.unoccupiedHeatingSetpoint$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            this.sendCommand(endpointId, send, {unoccupied_heating_setpoint: value / 100});
+        });
+        endpoint.events?.thermostat?.unoccupiedCoolingSetpoint$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId)) return;
+            this.sendCommand(endpointId, send, {unoccupied_cooling_setpoint: value / 100});
         });
         endpoint.events?.switch?.initialPress?.on(() => this.sendButtonAction(endpointId, send, "initial_press"));
         endpoint.events?.switch?.shortRelease?.on(() => this.sendButtonAction(endpointId, send, "short_release"));

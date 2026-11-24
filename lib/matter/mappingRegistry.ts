@@ -12,6 +12,7 @@ export interface MappingExpose {
     unit?: string;
     value_min?: number;
     value_max?: number;
+    values?: readonly string[];
     endpoint?: string;
     features?: readonly MappingExpose[];
 }
