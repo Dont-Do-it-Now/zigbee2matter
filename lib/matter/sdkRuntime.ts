@@ -207,9 +207,15 @@ interface ProcessEnvironmentState {
 }
 
 const processEnvironmentState = new Map<string, ProcessEnvironmentState>();
+function processEnvironmentName(name: string): string {
+    if (name === "mdns.networkInterface") return "MATTER_MDNS_NETWORKINTERFACE";
+    if (name === "mdns.ipv4") return "MATTER_MDNS_IPV4";
+    throw new Error(`unsupported Matter environment variable '${name}'`);
+}
+
 const processMatterEnvironment: MatterEnvironment = {
     set(name, value): void {
-        const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
+        const processName = processEnvironmentName(name);
         const nextValue = String(value);
         const current = processEnvironmentState.get(processName);
         if (current) {
@@ -222,7 +228,7 @@ const processMatterEnvironment: MatterEnvironment = {
         process.env[processName] = nextValue;
     },
     unset(name): void {
-        const processName = name === "mdns.networkInterface" ? "MATTER_MDNS_NETWORKINTERFACE" : "MATTER_MDNS_IPV4";
+        const processName = processEnvironmentName(name);
         const current = processEnvironmentState.get(processName);
         if (!current) return;
         current.owners -= 1;
