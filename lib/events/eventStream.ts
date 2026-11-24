@@ -21,7 +21,11 @@ export class EventStream {
     private dispatching = false;
     readonly stats: EventStreamStats = {published: 0, evicted: 0, listenerErrors: 0};
 
-    constructor(private readonly capacity: number = DEFAULT_CAPACITY) {}
+    constructor(private readonly capacity: number = DEFAULT_CAPACITY) {
+        if (!Number.isSafeInteger(capacity) || capacity < 1) {
+            throw new Error("event stream capacity must be a positive integer");
+        }
+    }
 
     get epoch(): string {
         return this.epochId;
