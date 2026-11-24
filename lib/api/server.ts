@@ -1,6 +1,7 @@
 /** 독립 API 서버 수명주기(T053/T056/T057). */
 import {createServer, type IncomingMessage, type Server} from "node:http";
 import {createServer as createSecureServer} from "node:https";
+import {readFileSync} from "node:fs";
 import type {Socket} from "node:net";
 import WebSocket from "ws";
 import type {EventStream} from "../events";
@@ -13,7 +14,7 @@ export interface ApiServerOptions extends RestRouterDeps {
     readonly snapshot?: () => WsSnapshot;
     readonly host?: string;
     readonly port: number;
-    readonly tls?: {readonly cert: string; readonly key: string};
+    readonly tls?: {readonly certPath: string; readonly keyPath: string};
 }
 
 export class ApiServer {
@@ -26,11 +27,11 @@ export class ApiServer {
     constructor(private readonly options: ApiServerOptions) {
         this.rest = new RestApiRouter(options);
         this.ws = new WsApiRouter({auth: options.auth, stream: options.stream, origin: options.origin, maxQueue: 100, snapshot: options.snapshot});
-        if (options.tls !== undefined && (!options.tls.cert || !options.tls.key)) {
+        if (options.tls !== undefined && (!options.tls.certPath || !options.tls.keyPath)) {
             throw new Error("API TLS requires both cert and key");
         }
         this.http = options.tls
-            ? createSecureServer({cert: options.tls.cert, key: options.tls.key}, (req, res) => this.rest.handle(req, res))
+            ? createSecureServer({cert: readFileSync(options.tls.certPath), key: readFileSync(options.tls.keyPath)}, (req, res) => this.rest.handle(req, res))
             : createServer((req, res) => this.rest.handle(req, res));
         this.websocket = new WebSocket.Server({noServer: true});
         this.ws.attach(this.websocket);

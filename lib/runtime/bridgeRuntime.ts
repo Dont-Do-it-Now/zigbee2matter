@@ -17,7 +17,7 @@ export interface BridgeRuntimeOptions {
         readonly listDevices: () => readonly RestDevice[];
         readonly snapshot?: () => WsSnapshot;
         readonly executeCommand?: (input: unknown, principal: Principal) => Promise<unknown>;
-        readonly tls?: {readonly cert: string; readonly key: string};
+        readonly tls?: {readonly certPath: string; readonly keyPath: string};
     };
 }
 
