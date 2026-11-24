@@ -35,3 +35,13 @@ export {
 } from "./lockThermostatMapping";
 export {classifyExposes, featureKey, type FeatureDecision, type FeatureDisposition, type FeatureReference, type UnsupportedExpose} from "./unsupportedFeatures";
 export {HaIntegrationRouter, type HaCommand, type HaIntegrationAdapter, type HaIntegrationMode} from "../api/haIntegration";
+export {
+    diagnoseMatterNetwork,
+    probeUdpPortFree,
+    toMatterEnvVars,
+    toServerNodeNetworkState,
+    type InterfaceMap,
+    type MatterNetworkConfig,
+    type NetworkCheckEnv,
+    type NetworkDiagnostic,
+} from "./networkConfig";
