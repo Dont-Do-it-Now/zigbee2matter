@@ -39,7 +39,7 @@ export class BackupFileStore {
     }
 
     async read<T>(passphrase: string): Promise<T> {
-        return restoreBackup<T>(await readFile(this.filePath, "utf8"), passphrase);
+        return await this.coordinator.run(async () => restoreBackup<T>(await readFile(this.filePath, "utf8"), passphrase));
     }
 
     async writeSnapshot(snapshot: PersistentSnapshot, passphrase: string): Promise<void> {
@@ -47,7 +47,7 @@ export class BackupFileStore {
     }
 
     async readSnapshot(passphrase: string): Promise<PersistentSnapshot> {
-        return restoreSnapshotBackup(await readFile(this.filePath, "utf8"), passphrase);
+        return await this.coordinator.run(async () => restoreSnapshotBackup(await readFile(this.filePath, "utf8"), passphrase));
     }
 
     private async writeEncoded(encoded: string): Promise<void> {
