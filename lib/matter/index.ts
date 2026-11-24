@@ -24,6 +24,7 @@ export {
     type MatterNodeOptions,
     type MatterServerNode,
 } from "./sdkRuntime";
+export {ZigbeeMatterEndpointFactory} from "./zigbeeEndpointFactory";
 export {DynamicEndpointCoordinator, DynamicEndpointRuntime, planPartsList, type DynamicEndpointAdapter, type EndpointCreatePlan, type EndpointRemovePlan, type PartsListChange} from "./dynamicEndpoints";
 export {
     MappingRegistry,

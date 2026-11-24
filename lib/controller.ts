@@ -38,6 +38,7 @@ import CommandLoopGuard from "./command/loopGuard";
 import CommandDeduplicator from "./command/deduplication";
 import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
+import {buildEntityTopic} from "./command/mapping";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import {
     FileBridgeIdentityStore,
@@ -57,6 +58,7 @@ import * as settings from "./util/settings";
 import {stringify} from "./util/stringify";
 import utils from "./util/utils";
 import Zigbee from "./zigbee";
+import {ZigbeeMatterEndpointFactory} from "./matter/zigbeeEndpointFactory";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -106,8 +108,14 @@ export class Controller {
         const apiTokenStore = new FileApiTokenStore(data.joinPath("api-tokens.json"));
         this.networkIdentity = new FileNetworkIdentityStore().getOrCreate();
         this.bridgeIdentity = new FileBridgeIdentityStore().getOrCreate();
+        const matterEndpointFactory =
+            options.matterEndpointFactory ??
+            new ZigbeeMatterEndpointFactory({
+                loadSdk: () => this.runtime.matter.load(),
+                resolve: (entry) => this.resolveMatterEndpointSource(entry),
+            });
         this.runtime = new BridgeRuntime({
-            matterEndpointFactory: options.matterEndpointFactory,
+            matterEndpointFactory,
             matterFabricStore: options.matterFabricStore,
             commissioning: options.commissioning,
             backup: {
@@ -284,6 +292,24 @@ export class Controller {
                 logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
+    }
+
+    private async resolveMatterEndpointSource(entry: import("./matter/endpointRegistry").EndpointRegistryEntry) {
+        const key = parseEntityKey(entry.key);
+        if (!key || key.kind !== "device" || key.networkId !== this.networkIdentity.networkId) return undefined;
+
+        const device = this.zigbee.resolveEntity(toHerdsmanIeee(key.ieee));
+        if (!device || !device.isDevice()) return undefined;
+        const endpoint = device.zh.getEndpoint(key.endpoint);
+        if (!endpoint) return undefined;
+
+        return {
+            name: device.name,
+            exposes: device.exposes() as never,
+            send: async (payload: Record<string, unknown>) => {
+                this.bridgeBus.onMessage(buildEntityTopic(device.name, String(endpoint.ID), "set"), JSON.stringify(payload));
+            },
+        };
     }
 
     private async restoreMatterEndpoints(): Promise<void> {
