@@ -1,6 +1,6 @@
 /** T061 파일 기반 네트워크 식별자 저장소. Matter fabric/키 저장소와 분리한다. */
 import {randomUUID} from "node:crypto";
-import {chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync} from "node:fs";
+import {chmodSync, closeSync, existsSync, fsyncSync, linkSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync} from "node:fs";
 import path from "node:path";
 import data from "../util/data";
 import type {NetworkIdentity, NetworkIdentityStore} from "./adapter";
@@ -60,7 +60,7 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
         }
 
         try {
-            renameSync(temporary, this.filePath);
+            linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));
         } catch (error) {
@@ -120,7 +120,7 @@ export class FileBridgeIdentityStore {
         }
 
         try {
-            renameSync(temporary, this.filePath);
+            linkSync(temporary, this.filePath);
             chmodSync(this.filePath, 0o600);
             syncDirectory(path.dirname(this.filePath));
         } catch (error) {
