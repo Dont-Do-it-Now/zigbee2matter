@@ -211,18 +211,27 @@ function decodeTokenId(value: string): string {
 function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
     return new Promise((resolve, reject) => {
         let size = 0;
+        let settled = false;
         const chunks: Buffer[] = [];
+        const fail = (error: ApiError): void => {
+            if (settled) return;
+            settled = true;
+            reject(error);
+        };
         req.on("data", (chunk: Buffer | string) => {
+            if (settled) return;
             const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
             size += buffer.length;
             if (size > maxBytes) {
-                reject(new ApiError("INVALID_ARGUMENT", "Request body is too large"));
+                fail(new ApiError("INVALID_ARGUMENT", "Request body is too large"));
                 req.destroy();
                 return;
             }
             chunks.push(buffer);
         });
         req.on("end", () => {
+            if (settled) return;
+            settled = true;
             try {
                 const body = Buffer.concat(chunks).toString("utf8");
                 resolve(body.length === 0 ? {} : JSON.parse(body));
@@ -230,6 +239,7 @@ function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
                 reject(new ApiError("INVALID_ARGUMENT", "Invalid JSON body"));
             }
         });
-        req.on("error", () => reject(new ApiError("INVALID_ARGUMENT", "Request body could not be read")));
+        req.on("aborted", () => fail(new ApiError("INVALID_ARGUMENT", "Request body was aborted")));
+        req.on("error", () => fail(new ApiError("INVALID_ARGUMENT", "Request body could not be read")));
     });
 }
