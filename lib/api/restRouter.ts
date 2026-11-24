@@ -61,7 +61,7 @@ export class RestApiRouter {
     private async dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
         const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
         const prefix = "/api/v1";
-        if (!url.pathname.startsWith(prefix)) {
+        if (url.pathname !== prefix && !url.pathname.startsWith(`${prefix}/`)) {
             this.writeError(res, new ApiError("NOT_FOUND", "Not found"));
             return;
         }
