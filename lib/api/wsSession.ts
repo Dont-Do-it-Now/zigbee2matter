@@ -28,6 +28,7 @@ export default class WsEventSession {
     private lastSequence?: number;
     private lastHeartbeat: number;
     private resyncRequired = false;
+    private resyncReason?: Extract<WsFrame, {type: "resync"}>["reason"];
 
     constructor(options: WsSessionOptions = {}) {
         const maxQueue = options.maxQueue ?? 100;
@@ -69,13 +70,14 @@ export default class WsEventSession {
         this.epoch = snapshot.epoch;
         this.lastSequence = snapshot.sequence;
         this.resyncRequired = false;
+        this.resyncReason = undefined;
         this.queue.push({type: "snapshot", epoch: snapshot.epoch, sequence: snapshot.sequence, payload: snapshot.payload});
     }
 
     drain(): WsFrame[] {
         const frames = this.queue.splice(0);
         if (this.resyncRequired && frames.every((frame) => frame.type !== "resync")) {
-            frames.push({type: "resync", reason: "overflow"});
+            frames.push({type: "resync", reason: this.resyncReason ?? "invalid"});
         }
 
         return frames;
@@ -98,6 +100,7 @@ export default class WsEventSession {
         this.epoch = epoch;
         this.lastSequence = sequence;
         this.resyncRequired = false;
+        this.resyncReason = undefined;
     }
 
     get requiresResync(): boolean {
@@ -110,6 +113,7 @@ export default class WsEventSession {
 
     private requireResync(reason: "gap" | "epoch" | "invalid" | "overflow" | "order"): void {
         this.resyncRequired = true;
+        this.resyncReason = reason;
         this.queue.length = 0;
         this.queue.push({type: "resync", reason});
     }
