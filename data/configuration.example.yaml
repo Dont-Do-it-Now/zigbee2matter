@@ -1,5 +1,5 @@
-# Zigbee2MQTT configuration
-#   Please stop Zigbee2MQTT before editing this file, otherwise your changes will be overwritten.
+# Zigbee2Matter configuration
+#   Please stop Zigbee2Matter before editing this file, otherwise your changes will be overwritten.
 
 # Indicates the configuration version (used by configuration migrations)
 version: 5
@@ -12,6 +12,13 @@ homeassistant:
 frontend:
     enabled: true
     # port: 8080
+
+# Enable the local management REST/WebSocket API
+api:
+    enabled: true
+    host: 127.0.0.1
+    port: 8090
+    # auth_token: !secret zigbee2matter_api_token
 
 # Serial settings, only required when Zigbee2MQTT fails to start with:
 #   USB adapter discovery error (No valid USB adapter found).

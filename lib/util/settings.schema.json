@@ -367,6 +367,42 @@
             },
             "required": []
         },
+        "api": {
+            "type": "object",
+            "title": "Management API",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "title": "Enabled",
+                    "description": "Enable the Zigbee2Matter REST and WebSocket management API",
+                    "default": true,
+                    "requiresRestart": true
+                },
+                "host": {
+                    "type": "string",
+                    "title": "Bind host",
+                    "description": "Management API bind host",
+                    "default": "127.0.0.1",
+                    "requiresRestart": true
+                },
+                "port": {
+                    "type": "number",
+                    "title": "Port",
+                    "description": "Management API binding port",
+                    "default": 8090,
+                    "minimum": 1,
+                    "maximum": 65535,
+                    "requiresRestart": true
+                },
+                "auth_token": {
+                    "type": ["string", "null"],
+                    "title": "Auth token",
+                    "description": "Bearer token for management API requests",
+                    "requiresRestart": true
+                }
+            },
+            "required": []
+        },
         "devices": {
             "type": "object",
             "propertyNames": {

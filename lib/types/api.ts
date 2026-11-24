@@ -166,6 +166,12 @@ export type Zigbee2MQTTSettings = {
         notification_filter?: string[];
         disable_ui_serving?: boolean;
     };
+    api: {
+        enabled: boolean;
+        host?: string;
+        port: number;
+        auth_token?: string;
+    };
     devices: {[s: string]: Zigbee2MQTTDeviceOptions};
     groups: {[s: string]: Omit<Zigbee2MQTTGroupOptions, "ID">};
     device_options: KeyValue;

@@ -20,6 +20,7 @@ import ExtensionPublish from "./extension/publish";
 import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
+import type {RestDevice} from "./api/restRouter";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
@@ -47,7 +48,17 @@ export class Controller {
         zhSetLogger(logger);
         zhcSetLogger(logger);
         this.eventBus = new EventBus();
-        this.runtime = new BridgeRuntime();
+        const apiSettings = settings.get().api;
+        this.runtime = new BridgeRuntime({
+            auth: {legacyToken: apiSettings.auth_token},
+            api: apiSettings.enabled
+                ? {
+                      host: apiSettings.host,
+                      port: apiSettings.port,
+                      listDevices: () => this.listRestDevices(),
+                  }
+                : undefined,
+        });
         this.runtime.attachEventBus(this.eventBus);
         this.zigbee = new Zigbee(this.eventBus);
         this.bridgeBus = new InProcessBridgeBus(this.eventBus, BASE_TOPIC); // z2m-fork: T005/T006 in-process bridgeBus, T006 base topic is an internal constant
@@ -88,6 +99,14 @@ export class Controller {
         if (settings.get().advanced.enable_external_js) {
             this.extensions.add(new ExtensionExternalExtensions(...this.extensionArgs));
         }
+    }
+
+    private listRestDevices(): readonly RestDevice[] {
+        return [...this.zigbee.devicesIterator(utils.deviceNotCoordinator)].map((device) => ({
+            id: device.ID,
+            name: device.name,
+            available: this.state.get(device).available !== false,
+        }));
     }
 
     async start(): Promise<void> {

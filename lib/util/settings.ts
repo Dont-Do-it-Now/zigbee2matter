@@ -44,6 +44,11 @@ export const defaults = {
         port: 8080,
         base_url: "/",
     },
+    api: {
+        enabled: true,
+        host: "127.0.0.1",
+        port: 8090,
+    },
     serial: {
         disable_led: false,
     },
@@ -161,6 +166,11 @@ export function writeMinimalDefaults(): void {
             enabled: defaults.frontend.enabled,
             port: defaults.frontend.port,
         },
+        api: {
+            enabled: defaults.api.enabled,
+            host: defaults.api.host,
+            port: defaults.api.port,
+        },
         homeassistant: {
             enabled: defaults.homeassistant.enabled,
         },
@@ -229,6 +239,7 @@ export function write(): void {
     for (const [ns, key] of [
         ["advanced", "network_key"],
         ["frontend", "auth_token"],
+        ["api", "auth_token"],
     ]) {
         if (actual[ns]?.[key]) {
             const ref = parseValueRef(actual[ns][key]);
@@ -334,6 +345,10 @@ function read(): Partial<Settings> {
 
     if (s.frontend?.auth_token) {
         s.frontend.auth_token = interpretValue(s.frontend.auth_token);
+    }
+
+    if (s.api?.auth_token) {
+        s.api.auth_token = interpretValue(s.api.auth_token);
     }
 
     // Read devices/groups configuration from separate file if specified.
