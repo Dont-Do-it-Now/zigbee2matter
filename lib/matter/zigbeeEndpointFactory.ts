@@ -8,6 +8,7 @@ import type {MappingExpose} from "./mappingRegistry";
 import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
 import {matterLevelToZigbee, zigbeeBrightnessToMatter} from "./lightingMapping";
+import {celsiusToMatter, humidityPercentToMatter} from "./sensorMapping";
 
 interface EndpointDefinition {
     with(behavior: unknown): unknown;
@@ -35,6 +36,13 @@ interface ZigbeeMatterEndpointSource {
     send: (payload: Record<string, unknown>) => Promise<void>;
 }
 
+type MatterCapability = "light" | "temperature" | "humidity" | "contact" | "occupancy";
+
+interface EndpointDefinitionPlan {
+    definition: EndpointDefinition;
+    capability: MatterCapability;
+}
+
 interface FactoryOptions {
     loadSdk: () => Promise<MatterMainModule>;
     resolve: (entry: EndpointRegistryEntry) => Promise<ZigbeeMatterEndpointSource | undefined>;
@@ -42,6 +50,7 @@ interface FactoryOptions {
 
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly endpoints = new Map<string, MatterEndpointInstance>();
+    private readonly capabilities = new Map<string, MatterCapability>();
     private readonly stateUpdates = new Set<string>();
 
     constructor(private readonly options: FactoryOptions) {}
@@ -54,9 +63,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const Endpoint = sdk.Endpoint as MatterEndpointConstructor | undefined;
         if (!Endpoint) throw new Error("Matter SDK does not expose Endpoint");
 
-        const definition = await this.definitionFor(sdk, source.exposes);
+        const plan = await this.definitionFor(sdk, source.exposes);
         const {BridgedDeviceBasicInformationServer} = await import("@matter/main/behaviors/bridged-device-basic-information");
-        const endpoint = new Endpoint(definition.with(BridgedDeviceBasicInformationServer), {
+        const endpoint = new Endpoint(plan.definition.with(BridgedDeviceBasicInformationServer), {
             id: entry.endpointId,
             bridgedDeviceBasicInformation: {
                 nodeLabel: source.name,
@@ -69,6 +78,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
 
         this.bindCommands(endpoint, entry.endpointId, source.send);
         this.endpoints.set(entry.endpointId, endpoint);
+        this.capabilities.set(entry.endpointId, plan.capability);
 
         return {endpoint};
     }
@@ -93,6 +103,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         } finally {
             this.endpoints.delete(entry.endpointId);
             this.stateUpdates.delete(entry.endpointId);
+            this.capabilities.delete(entry.endpointId);
         }
     }
 
@@ -100,12 +111,23 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const endpoint = this.endpoints.get(entry.endpointId);
         if (endpoint === undefined) return;
 
+        const capability = this.capabilities.get(entry.endpointId);
+        if (!capability) return;
+
         const patch: Record<string, unknown> = {};
-        if (state.state === "ON" || state.state === "OFF") {
-            patch.onOff = {onOff: state.state === "ON"};
-        }
-        if (typeof state.brightness === "number") {
-            patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
+        if (capability === "light") {
+            if (state.state === "ON" || state.state === "OFF") patch.onOff = {onOff: state.state === "ON"};
+            if (typeof state.brightness === "number") patch.levelControl = {currentLevel: zigbeeBrightnessToMatter(state.brightness).level};
+        } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
+            const value = celsiusToMatter(state.temperature);
+            if (value.known) patch.temperatureMeasurement = {measuredValue: value.value};
+        } else if (capability === "humidity" && (typeof state.humidity === "number" || state.humidity === null)) {
+            const value = humidityPercentToMatter(state.humidity);
+            if (value.known) patch.relativeHumidityMeasurement = {measuredValue: value.value};
+        } else if (capability === "contact" && typeof state.contact === "boolean") {
+            patch.booleanState = {booleanStateValue: state.contact};
+        } else if (capability === "occupancy" && typeof state.occupancy === "boolean") {
+            patch.occupancySensing = {occupancy: state.occupancy ? 1 : 0};
         }
         if (Object.keys(patch).length === 0) return;
 
@@ -117,18 +139,45 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         }
     }
 
-    private async definitionFor(_sdk: MatterMainModule, exposes: readonly MappingExpose[]): Promise<EndpointDefinition> {
+    private async definitionFor(_sdk: MatterMainModule, exposes: readonly MappingExpose[]): Promise<EndpointDefinitionPlan> {
+        const flattened = flatten(exposes);
         const light = flatten(exposes).find((expose) => expose.type === "light");
-        if (!light) throw new Error("Matter mapping is unsupported: expose is not a light");
+        const temperature = flattened.find((expose) => expose.type === "numeric" && expose.name === "temperature");
+        const humidity = flattened.find((expose) => expose.type === "numeric" && expose.name === "humidity");
+        const contact = flattened.find((expose) => expose.type === "binary" && expose.name === "contact");
+        const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
+        const matches = [light, temperature, humidity, contact, occupancy].filter((value) => value !== undefined);
+        if (matches.length !== 1) throw new Error("Matter mapping is unsupported: endpoint must expose exactly one approved capability");
 
-        const hasBrightness = light.features?.some((feature) => feature.type === "numeric" && feature.name === "brightness") ?? false;
-        if (hasBrightness) {
-            const {DimmableLightDevice} = await import("@matter/main/devices/dimmable-light");
-            return DimmableLightDevice as unknown as EndpointDefinition;
+        if (light) {
+            const hasBrightness = light.features?.some((feature) => feature.type === "numeric" && feature.name === "brightness") ?? false;
+            if (hasBrightness) {
+                const {DimmableLightDevice} = await import("@matter/main/devices/dimmable-light");
+                return {definition: DimmableLightDevice as unknown as EndpointDefinition, capability: "light"};
+            }
+
+            const {OnOffLightDevice} = await import("@matter/main/devices/on-off-light");
+            return {definition: OnOffLightDevice as unknown as EndpointDefinition, capability: "light"};
+        }
+        if (temperature) {
+            const {TemperatureSensorDevice} = await import("@matter/main/devices/temperature-sensor");
+            return {definition: TemperatureSensorDevice as unknown as EndpointDefinition, capability: "temperature"};
+        }
+        if (humidity) {
+            const {HumiditySensorDevice} = await import("@matter/main/devices/humidity-sensor");
+            return {definition: HumiditySensorDevice as unknown as EndpointDefinition, capability: "humidity"};
+        }
+        if (contact) {
+            const {ContactSensorDevice} = await import("@matter/main/devices/contact-sensor");
+            return {definition: ContactSensorDevice as unknown as EndpointDefinition, capability: "contact"};
         }
 
-        const {OnOffLightDevice} = await import("@matter/main/devices/on-off-light");
-        return OnOffLightDevice as unknown as EndpointDefinition;
+        if (occupancy) {
+            const {OccupancySensorDevice} = await import("@matter/main/devices/occupancy-sensor");
+            return {definition: OccupancySensorDevice as unknown as EndpointDefinition, capability: "occupancy"};
+        }
+
+        throw new Error("Matter mapping is unsupported");
     }
 
     private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: ZigbeeMatterEndpointSource["send"]): void {
