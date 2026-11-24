@@ -24,6 +24,8 @@ import type {RestDevice} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {FileApiTokenStore} from "./api/tokenStore";
 import CommandRouter from "./command/router";
+import CommandDeduplicator from "./command/deduplication";
+import DeviceCommandQueue from "./command/queue";
 import type {Command, CommandAuthorizer, ResolvedTarget, TargetResolver} from "./command/types";
 import type {Zigbee2MQTTAPI} from "./types/api";
 import logger from "./util/logger";
@@ -46,6 +48,8 @@ export class Controller {
     public readonly state: State;
     public readonly runtime: BridgeRuntime;
     private readonly commandRouter: CommandRouter;
+    private readonly commandDeduplicator: CommandDeduplicator;
+    private readonly commandQueue: DeviceCommandQueue;
     public readonly bridgeBus: BridgeBus; // z2m-fork: T006 renamed from mqtt
     private restartCallback: () => Promise<void>;
     private exitCallback: (code: number, restart: boolean) => Promise<void>;
@@ -93,7 +97,22 @@ export class Controller {
         const authorizer: CommandAuthorizer = {
             authorize: (command) => this.authorizeCommand(command),
         };
-        this.commandRouter = new CommandRouter({eventBus: this.eventBus, bridgeBus: this.bridgeBus, resolver, authorizer});
+        this.commandDeduplicator = new CommandDeduplicator();
+        this.commandQueue = new DeviceCommandQueue();
+        this.commandRouter = new CommandRouter({
+            eventBus: this.eventBus,
+            bridgeBus: this.bridgeBus,
+            resolver,
+            authorizer,
+            hooks: {
+                admit: this.commandDeduplicator.admit,
+                schedule: this.commandQueue.schedule,
+                onResult: (result) => {
+                    this.commandDeduplicator.onResult(result);
+                    this.commandQueue.onResult(result);
+                },
+            },
+        });
         this.restartCallback = restartCallback;
         this.exitCallback = exitCallback;
         // Initialize extensions.
@@ -278,6 +297,7 @@ export class Controller {
         // BridgeBus // z2m-fork: T006
         try {
             await this.bridgeBus.connect();
+            this.commandQueue.start();
             this.commandRouter.start();
         } catch (error) {
             logger.error(`BridgeBus failed to connect, exiting... (${(error as Error).message})`);
@@ -477,6 +497,7 @@ export class Controller {
 
         this.eventBus.removeListeners(this);
         this.commandRouter.stop();
+        this.commandQueue.stop();
         try {
             await this.runtime.stop();
         } catch (error) {

@@ -39,6 +39,10 @@ export default class DeviceCommandQueue {
             ((command) => [command.operation === "request" ? `bridge:${command.target.request}` : command.target.entity]);
     }
 
+    start(): void {
+        this.stopped = false;
+    }
+
     /** Hook-compatible scheduler. False means BUSY and guarantees that `run` was not called. */
     schedule = (command: Command, run: () => void): boolean => {
         if (this.stopped || this.pendingCount >= this.maxPending) {
