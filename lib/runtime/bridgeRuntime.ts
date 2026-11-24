@@ -7,12 +7,14 @@ import {AuthFailureRateLimiter} from "../api/rateLimit";
 import {DiagnosticRegistry} from "../api/diagnostics";
 import {MatterSdkRuntime, type MatterNodeOptions} from "../matter/sdkRuntime";
 import type {RestDevice} from "../api/restRouter";
+import type {WsSnapshot} from "../api/wsSession";
 
 export interface BridgeRuntimeOptions {
     readonly eventCapacity?: number;
     readonly auth?: AuthOptions;
     readonly api?: Omit<ApiServerOptions, "auth" | "stream" | "listDevices" | "listDiagnostics" | "authFailureRateLimiter"> & {
         readonly listDevices: () => readonly RestDevice[];
+        readonly snapshot?: () => WsSnapshot;
         readonly executeCommand?: (input: unknown) => Promise<unknown>;
     };
 }

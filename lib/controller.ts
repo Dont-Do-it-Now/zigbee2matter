@@ -56,6 +56,11 @@ export class Controller {
                       host: apiSettings.host,
                       port: apiSettings.port,
                       listDevices: () => this.listRestDevices(),
+                      snapshot: () => ({
+                          epoch: this.runtime.events.epoch,
+                          sequence: this.runtime.events.lastSequence,
+                          payload: {devices: this.listRestDevices()},
+                      }),
                   }
                 : undefined,
         });

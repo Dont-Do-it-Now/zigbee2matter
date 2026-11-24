@@ -5,9 +5,11 @@ import WebSocket from "ws";
 import type {EventStream} from "../events";
 import {RestApiRouter, type RestRouterDeps} from "./restRouter";
 import {WsApiRouter} from "./wsRouter";
+import type {WsSnapshot} from "./wsSession";
 
 export interface ApiServerOptions extends RestRouterDeps {
     readonly stream: EventStream;
+    readonly snapshot?: () => WsSnapshot;
     readonly host?: string;
     readonly port: number;
 }
@@ -21,7 +23,7 @@ export class ApiServer {
 
     constructor(private readonly options: ApiServerOptions) {
         this.rest = new RestApiRouter(options);
-        this.ws = new WsApiRouter({auth: options.auth, stream: options.stream, origin: options.origin, maxQueue: 100});
+        this.ws = new WsApiRouter({auth: options.auth, stream: options.stream, origin: options.origin, maxQueue: 100, snapshot: options.snapshot});
         this.http = createServer((req, res) => this.rest.handle(req, res));
         this.websocket = new WebSocket.Server({noServer: true});
         this.ws.attach(this.websocket);

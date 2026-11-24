@@ -3,13 +3,14 @@ import type {IncomingMessage} from "node:http";
 import WebSocket from "ws";
 import type {EventStream} from "../events";
 import {authorizeWebSocket, type ApiAuth} from "./auth";
-import WsEventSession from "./wsSession";
+import WsEventSession, {type WsSnapshot} from "./wsSession";
 
 export interface WsRouterOptions {
     readonly auth: ApiAuth;
     readonly stream: EventStream;
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
     readonly maxQueue?: number;
+    readonly snapshot?: () => WsSnapshot;
 }
 
 export class WsApiRouter {
@@ -27,10 +28,18 @@ export class WsApiRouter {
             }
 
             const session = new WsEventSession({maxQueue: this.options.maxQueue});
+            const snapshot = this.options.snapshot?.() ?? {
+                epoch: this.options.stream.epoch,
+                sequence: this.options.stream.lastSequence,
+                payload: {},
+            };
+            session.acceptSnapshot(snapshot);
             const unsubscribe = this.options.stream.subscribe((event) => {
                 session.accept(event);
                 this.flush(socket, session);
             });
+            session.acceptReplay(this.options.stream.replay(snapshot.sequence, snapshot.epoch));
+            this.flush(socket, session);
             const heartbeat = setInterval(() => {
                 const frame = session.heartbeat();
                 if (frame && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame));

@@ -3,8 +3,15 @@ import type {BridgeEvent, ReplayResult} from "../events";
 
 export type WsFrame =
     | {type: "event"; event: BridgeEvent}
+    | {type: "snapshot"; epoch: string; sequence: number; payload: unknown}
     | {type: "resync"; reason: "gap" | "epoch" | "invalid" | "overflow" | "order"}
     | {type: "ping"};
+
+export interface WsSnapshot {
+    readonly epoch: string;
+    readonly sequence: number;
+    readonly payload: unknown;
+}
 
 export interface WsSessionOptions {
     maxQueue?: number;
@@ -45,6 +52,18 @@ export default class WsEventSession {
     acceptReplay(result: ReplayResult): void {
         if (result.resync) return this.requireResync(result.reason);
         for (const event of result.events) this.accept(event);
+    }
+
+    acceptSnapshot(snapshot: WsSnapshot): void {
+        if (!Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0 || snapshot.epoch.length === 0) {
+            return this.requireResync("invalid");
+        }
+
+        this.queue.length = 0;
+        this.epoch = snapshot.epoch;
+        this.lastSequence = snapshot.sequence;
+        this.resyncRequired = false;
+        this.queue.push({type: "snapshot", epoch: snapshot.epoch, sequence: snapshot.sequence, payload: snapshot.payload});
     }
 
     drain(): WsFrame[] {
