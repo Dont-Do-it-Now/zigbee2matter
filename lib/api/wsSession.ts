@@ -30,10 +30,16 @@ export default class WsEventSession {
     private resyncRequired = false;
 
     constructor(options: WsSessionOptions = {}) {
-        this.maxQueue = Math.max(1, Math.floor(options.maxQueue ?? 100));
-        this.heartbeatMs = Math.max(1, Math.floor(options.heartbeatMs ?? 30_000));
+        const maxQueue = options.maxQueue ?? 100;
+        const heartbeatMs = options.heartbeatMs ?? 30_000;
+        if (!Number.isSafeInteger(maxQueue) || maxQueue < 1) throw new Error("maxQueue must be a positive integer");
+        if (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1) throw new Error("heartbeatMs must be a positive integer");
         this.now = options.now ?? Date.now;
-        this.lastHeartbeat = this.now();
+        const initialNow = this.now();
+        if (!Number.isSafeInteger(initialNow)) throw new Error("WebSocket clock is invalid");
+        this.maxQueue = maxQueue;
+        this.heartbeatMs = heartbeatMs;
+        this.lastHeartbeat = initialNow;
     }
 
     accept(event: BridgeEvent): void {
@@ -77,6 +83,7 @@ export default class WsEventSession {
 
     heartbeat(): WsFrame | undefined {
         const now = this.now();
+        if (!Number.isSafeInteger(now)) throw new Error("WebSocket clock is invalid");
         if (now - this.lastHeartbeat < this.heartbeatMs) return undefined;
 
         this.lastHeartbeat = now;
