@@ -35,6 +35,7 @@ export class FileApiTokenStore {
         try {
             renameSync(temporaryPath, this.filePath);
             chmodSync(this.filePath, 0o600);
+            syncDirectory(directory);
         } catch (error) {
             try {
                 unlinkSync(temporaryPath);
@@ -43,5 +44,20 @@ export class FileApiTokenStore {
             }
             throw error;
         }
+    }
+}
+
+function syncDirectory(directory: string): void {
+    try {
+        const descriptor = openSync(directory, "r");
+        try {
+            fsyncSync(descriptor);
+        } finally {
+            closeSync(descriptor);
+        }
+    } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const unsupported = code === "EISDIR" || code === "EINVAL" || code === "ENOTSUP" || (process.platform === "win32" && code === "EPERM");
+        if (!unsupported) throw error;
     }
 }
