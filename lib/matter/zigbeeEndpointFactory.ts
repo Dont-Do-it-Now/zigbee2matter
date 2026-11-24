@@ -35,7 +35,10 @@ interface EndpointEvents {
         currentX$Changed?: {on(listener: (value: number) => void): void};
         currentY$Changed?: {on(listener: (value: number) => void): void};
     };
-    windowCovering?: {targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void}};
+    windowCovering?: {
+        targetPositionLiftPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
+        targetPositionTiltPercent100ths$Changed?: {on(listener: (value: number | null) => void): void};
+    };
     doorLock?: {lockState$Changed?: {on(listener: (value: number) => void): void}};
     thermostat?: {
         systemMode$Changed?: {on(listener: (value: number) => void): void};
@@ -73,6 +76,7 @@ type MatterCapability = "light" | "color" | "colorTemperature" | "cover" | "butt
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
     capability: MatterCapability;
+    supportsTilt?: boolean;
 }
 
 interface FactoryOptions {
@@ -84,6 +88,7 @@ interface FactoryOptions {
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly endpoints = new Map<string, MatterEndpointInstance>();
     private readonly capabilities = new Map<string, MatterCapability>();
+    private readonly coverTilts = new Map<string, boolean>();
     private readonly stateUpdates = new Set<string>();
     private readonly colorValues = new Map<string, {hue?: number; saturation?: number; x?: number; y?: number}>();
 
@@ -113,6 +118,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         this.bindCommands(endpoint, entry.endpointId, source.send);
         this.endpoints.set(entry.endpointId, endpoint);
         this.capabilities.set(entry.endpointId, plan.capability);
+        this.coverTilts.set(entry.endpointId, plan.supportsTilt === true);
         this.colorValues.set(entry.endpointId, {});
 
         return {endpoint};
@@ -139,6 +145,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             this.endpoints.delete(entry.endpointId);
             this.stateUpdates.delete(entry.endpointId);
             this.capabilities.delete(entry.endpointId);
+            this.coverTilts.delete(entry.endpointId);
             this.colorValues.delete(entry.endpointId);
         }
     }
@@ -170,8 +177,15 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                     patch.colorControl = {currentX: mapped.x, currentY: mapped.y};
                 }
             }
-        } else if (capability === "cover" && typeof state.position === "number") {
-            patch.windowCovering = {currentPositionLiftPercent100ths: Math.round(mapCoverPosition(state.position) * 100)};
+        } else if (capability === "cover") {
+            const windowCovering: Record<string, unknown> = {};
+            if (typeof state.position === "number") {
+                windowCovering.currentPositionLiftPercent100ths = Math.round(mapCoverPosition(state.position) * 100);
+            }
+            if (this.coverTilts.get(entry.endpointId) && typeof state.tilt === "number") {
+                windowCovering.currentPositionTiltPercent100ths = Math.round(mapCoverPosition(state.tilt) * 100);
+            }
+            if (Object.keys(windowCovering).length > 0) patch.windowCovering = windowCovering;
         } else if (capability === "energy") {
             if (typeof state.power === "number") patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
             if (typeof state.energy === "number") {
@@ -253,9 +267,12 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 import("@matter/main/devices/window-covering"),
                 import("@matter/main/behaviors/window-covering"),
             ]);
+            const supportsTilt = cover.features?.some((feature) => feature.type === "numeric" && feature.name === "tilt") ?? false;
+            const features = supportsTilt ? ["Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt"] : ["Lift", "PositionAwareLift"];
             return {
-                definition: WindowCoveringDevice.with(WindowCoveringServer.with("Lift", "PositionAwareLift")) as unknown as EndpointDefinition,
+                definition: WindowCoveringDevice.with(WindowCoveringServer.with(...features)) as unknown as EndpointDefinition,
                 capability: "cover",
+                supportsTilt,
             };
         }
         if (button) {
@@ -363,6 +380,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         endpoint.events?.windowCovering?.targetPositionLiftPercent100ths$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId) || value === null) return;
             this.sendCommand(endpointId, send, {position: mapCoverPosition(value / 100)});
+        });
+        endpoint.events?.windowCovering?.targetPositionTiltPercent100ths$Changed?.on((value) => {
+            if (this.stateUpdates.has(endpointId) || value === null || !this.coverTilts.get(endpointId)) return;
+            this.sendCommand(endpointId, send, {tilt: mapCoverPosition(value / 100)});
         });
         endpoint.events?.doorLock?.lockState$Changed?.on((value) => {
             if (this.stateUpdates.has(endpointId)) return;
