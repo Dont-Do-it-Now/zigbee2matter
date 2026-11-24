@@ -31,6 +31,7 @@ export class HaHybridPolicy {
     }
 
     async dispatchCommand(mode: Exclude<HaIntegrationMode, "hybrid">, command: HaCommand): Promise<void> {
+        if (mode !== "direct" && mode !== "matter") throw new Error(`unsupported HA command mode: ${mode}`);
         if (!this.callbacks) throw new Error("HA hybrid callbacks are not configured");
         const key = command.entity.kind === "device" ? formatDeviceKey(command.entity) : formatGroupKey(command.entity);
         if (!this.list(mode).some((binding) => binding.key === key)) {
@@ -51,6 +52,7 @@ export class HaHybridPolicy {
     }
 
     list(mode = this.mode): HybridEntityBinding[] {
+        if (mode !== "direct" && mode !== "matter" && mode !== "hybrid") throw new Error(`unsupported HA hybrid mode: ${mode}`);
         return [...this.bindings.values()].filter((binding) => {
             if (mode === "hybrid") return true;
             return mode === "direct" ? binding.directUniqueId !== undefined : binding.matterEndpoint !== undefined;
