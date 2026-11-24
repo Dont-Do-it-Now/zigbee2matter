@@ -59,6 +59,7 @@ interface MatterEndpointInstance {
     events?: EndpointEvents;
     set(values: Record<string, unknown>): Promise<void>;
     close(): Promise<void>;
+    delete?(): Promise<void>;
 }
 
 interface MatterEndpointConstructor {
@@ -78,6 +79,8 @@ interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
     capability: MatterCapability;
     supportsTilt?: boolean;
+    supportsPower?: boolean;
+    supportsEnergy?: boolean;
 }
 
 interface CoverPositionState {
@@ -96,6 +99,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly capabilities = new Map<string, MatterCapability>();
     private readonly coverTilts = new Map<string, boolean>();
     private readonly coverPositions = new Map<string, CoverPositionState>();
+    private readonly energyPower = new Map<string, boolean>();
+    private readonly energyCumulative = new Map<string, boolean>();
     private readonly stateUpdates = new Set<string>();
     private readonly colorValues = new Map<string, {hue?: number; saturation?: number; x?: number; y?: number}>();
 
@@ -127,6 +132,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         this.capabilities.set(entry.endpointId, plan.capability);
         this.coverTilts.set(entry.endpointId, plan.supportsTilt === true);
         this.coverPositions.set(entry.endpointId, {});
+        this.energyPower.set(entry.endpointId, plan.supportsPower === true);
+        this.energyCumulative.set(entry.endpointId, plan.supportsEnergy === true);
         this.colorValues.set(entry.endpointId, {});
 
         return {endpoint};
@@ -143,18 +150,26 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         return number;
     }
 
-    async remove(entry: EndpointRegistryEntry): Promise<void> {
+    async remove(entry: EndpointRegistryEntry): Promise<{permanent: boolean}> {
         const endpoint = this.endpoints.get(entry.endpointId);
-        if (endpoint === undefined) return;
+        if (endpoint === undefined) return {permanent: true};
 
         try {
+            if (endpoint.delete !== undefined) {
+                await endpoint.delete();
+                return {permanent: true};
+            }
+
             await endpoint.close();
+            return {permanent: false};
         } finally {
             this.endpoints.delete(entry.endpointId);
             this.stateUpdates.delete(entry.endpointId);
             this.capabilities.delete(entry.endpointId);
             this.coverTilts.delete(entry.endpointId);
             this.coverPositions.delete(entry.endpointId);
+            this.energyPower.delete(entry.endpointId);
+            this.energyCumulative.delete(entry.endpointId);
             this.colorValues.delete(entry.endpointId);
         }
     }
@@ -200,8 +215,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             this.coverPositions.set(entry.endpointId, positions);
             if (Object.keys(windowCovering).length > 0) patch.windowCovering = windowCovering;
         } else if (capability === "energy") {
-            if (typeof state.power === "number") patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
-            if (typeof state.energy === "number") {
+            if (this.energyPower.get(entry.endpointId) && typeof state.power === "number") {
+                patch.electricalPowerMeasurement = {activePower: Math.round(toWatts(state.power, "W") * 1000)};
+            }
+            if (this.energyCumulative.get(entry.endpointId) && typeof state.energy === "number") {
                 patch.electricalEnergyMeasurement = {cumulativeEnergyImported: {energy: Math.round(toWattHours(state.energy, "Wh") * 1000)}};
             }
         } else if (capability === "temperature" && (typeof state.temperature === "number" || state.temperature === null)) {
@@ -256,7 +273,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const occupancy = flattened.find((expose) => expose.type === "binary" && expose.name === "occupancy");
         const cover = flattened.find((expose) => expose.type === "cover");
         const button = flattened.find((expose) => expose.type === "enum" && expose.name === "action");
-        const energy = flattened.find((expose) => expose.type === "numeric" && (expose.name === "power" || expose.name === "energy"));
+        const power = flattened.find((expose) => expose.type === "numeric" && expose.name === "power");
+        const cumulativeEnergy = flattened.find((expose) => expose.type === "numeric" && expose.name === "energy");
+        const energy = power ?? cumulativeEnergy;
         const lock = flattened.find((expose) => expose.type === "lock");
         const thermostat = flattened.find((expose) => expose.type === "climate");
         const matches = [light, cover, button, energy, temperature, humidity, contact, occupancy, lock, thermostat].filter((value) => value !== undefined);
@@ -316,10 +335,12 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             ]);
             return {
                 definition: ElectricalMeterDevice.with(
-                    ElectricalPowerMeasurementServer,
-                    ElectricalEnergyMeasurementServer.with("ImportedEnergy", "CumulativeEnergy"),
+                    ...(power ? [ElectricalPowerMeasurementServer] : []),
+                    ...(cumulativeEnergy ? [ElectricalEnergyMeasurementServer.with("ImportedEnergy", "CumulativeEnergy")] : []),
                 ) as unknown as EndpointDefinition,
                 capability: "energy",
+                supportsPower: power !== undefined,
+                supportsEnergy: cumulativeEnergy !== undefined,
             };
         }
         if (temperature) {

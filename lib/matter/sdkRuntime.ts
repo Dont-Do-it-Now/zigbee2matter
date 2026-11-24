@@ -46,7 +46,7 @@ export interface MatterEnvironment {
 export interface MatterEndpointFactory {
     create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown}>;
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
-    remove(entry: EndpointRegistryEntry): Promise<void>;
+    remove(entry: EndpointRegistryEntry): Promise<void | {permanent: boolean}>;
     updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void>;
 }
 
@@ -78,8 +78,8 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter {
         }
     }
 
-    async remove(entry: EndpointRegistryEntry): Promise<void> {
-        await this.factory.remove(entry);
+    async remove(entry: EndpointRegistryEntry): Promise<void | {permanent: boolean}> {
+        return await this.factory.remove(entry);
     }
 }
 
