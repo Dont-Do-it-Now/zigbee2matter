@@ -20,6 +20,7 @@ import ExtensionPublish from "./extension/publish";
 import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import {BridgeRuntime} from "./runtime";
+import {diagnoseMatterNetwork} from "./matter/networkConfig";
 import type {RestDevice} from "./api/restRouter";
 import {ApiError, type Principal} from "./api/auth";
 import {FileApiTokenStore} from "./api/tokenStore";
@@ -319,6 +320,16 @@ export class Controller {
         try {
             await this.runtime.openEndpointRegistry(this.bridgeIdentity);
             if (settings.get().matter.enabled) {
+                const networkDiagnostics = diagnoseMatterNetwork(settings.get().matter.network ?? {});
+                for (const diagnostic of networkDiagnostics) {
+                    const message = `Matter network [${diagnostic.code}]: ${diagnostic.message}`;
+                    if (diagnostic.level === "error") logger.error(message);
+                    else if (diagnostic.level === "warn") logger.warning(message);
+                    else logger.info(message);
+                }
+                const networkError = networkDiagnostics.find((diagnostic) => diagnostic.level === "error");
+                if (networkError) throw new Error(`Matter network preflight failed: ${networkError.message}`);
+
                 await this.runtime.startMatter({
                     id: this.bridgeIdentity,
                     ...(settings.get().matter.network ? {network: settings.get().matter.network} : {}),
