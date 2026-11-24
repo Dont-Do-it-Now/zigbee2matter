@@ -119,6 +119,9 @@ export class ReportingRegistry {
 
 /** SDK runtime이 소유하는 fabric별 구독·보고 orchestration 경계. */
 export class MatterReportingRuntime {
+    private timer?: ReturnType<typeof setTimeout>;
+    private running = false;
+
     constructor(
         private readonly adapter?: MatterReportingAdapter,
         readonly registry = new ReportingRegistry(),
@@ -153,6 +156,7 @@ export class MatterReportingRuntime {
 
         // The registry subscription succeeds together with the adapter subscription.
         if (!subscription) throw new Error("report subscription was not created");
+        this.scheduleDrain();
         return subscription;
     }
 
@@ -161,18 +165,57 @@ export class MatterReportingRuntime {
         if (!subscription) return false;
 
         this.adapter?.unsubscribe(subscription);
-        return this.registry.unsubscribe(id);
+        const removed = this.registry.unsubscribe(id);
+        this.scheduleDrain();
+        return removed;
     }
 
     publish(id: string, value: unknown, now = Date.now()): boolean {
-        return this.registry.publish(id, value, now);
+        const accepted = this.registry.publish(id, value, now);
+        this.scheduleDrain();
+        return accepted;
     }
 
     drainDue(now = Date.now()): ReportUpdate[] {
-        return this.registry.drainDue(now);
+        const updates = this.registry.drainDue(now);
+        this.scheduleDrain();
+        return updates;
     }
 
     list(fabricId?: string): ReportSubscription[] {
         return this.registry.list(fabricId);
+    }
+
+    start(): void {
+        if (this.running) return;
+        this.running = true;
+        this.scheduleDrain();
+    }
+
+    stop(): void {
+        this.running = false;
+        if (this.timer) clearTimeout(this.timer);
+        this.timer = undefined;
+    }
+
+    private scheduleDrain(): void {
+        if (!this.running) return;
+        if (this.timer) clearTimeout(this.timer);
+
+        const nextDueAt = this.registry.list().reduce<number | undefined>(
+            (next, subscription) => (next === undefined ? subscription.nextDueAt : Math.min(next, subscription.nextDueAt)),
+            undefined,
+        );
+        if (nextDueAt === undefined) {
+            this.timer = undefined;
+            return;
+        }
+
+        const delay = Math.max(0, Math.min(2 ** 31 - 1, nextDueAt - Date.now()));
+        this.timer = setTimeout(() => {
+            this.timer = undefined;
+            this.drainDue();
+        }, delay);
+        this.timer.unref();
     }
 }

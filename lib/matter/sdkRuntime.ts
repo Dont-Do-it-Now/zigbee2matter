@@ -224,12 +224,14 @@ export class MatterSdkRuntime {
         if (!this.node) throw new Error("Matter node has not been created");
         if (this.started) return;
         await this.node.start();
+        this.reporting.start();
         this.started = true;
     }
 
     async stop(): Promise<void> {
         if (!this.node) return;
         try {
+            this.reporting.stop();
             await this.node.close();
         } finally {
             this.node = undefined;
@@ -237,6 +239,7 @@ export class MatterSdkRuntime {
             this.endpointContainer = undefined;
             this.started = false;
             this.clearAppliedEnvironment();
+            this.reporting.stop();
         }
     }
 
