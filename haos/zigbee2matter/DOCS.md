@@ -7,7 +7,7 @@ For the Korean installation guide, see the [localized documentation](https://don
 ## Home Assistant OS installation
 1. Select **Add Zigbee2Matter repository to Home Assistant** to add the prefilled repository URL.
 2. Close the dialog, refresh the App store, and install **Zigbee2Matter**.
-3. Open the app configuration, select the coordinator's `serial_port` and `serial_adapter`, then start the app.
+3. In the app configuration, choose the detected coordinator under **Coordinator device** and select its adapter. For a network coordinator, leave the device empty and enter `tcp://host:port` under **Manual port (advanced)**.
 
 The repository publishes amd64 and aarch64 images. No file copying or local image build is required.
 
@@ -22,7 +22,7 @@ The repository publishes amd64 and aarch64 images. No file copying or local imag
 - Advanced device and group settings can be written to `/data/configuration.yaml`. App options are passed as environment variables and take precedence.
 
 ## Coordinator connection
-Set `serial_port` to `/dev/serial/by-id/...` or `tcp://host:port`. A TCP coordinator also requires `serial_adapter`.
+Choose the USB/serial coordinator from **Coordinator device**. For a network coordinator or custom path, set **Manual port (advanced)** to `tcp://host:port` or `/dev/serial/by-id/...`. A TCP coordinator also requires `serial_adapter`.
 
 ## Local development
 For local development, run `haos/prepare-local.sh` (Windows: `haos/prepare-local.ps1`), then copy `haos/zigbee2matter` to `/addons/zigbee2matter` on Home Assistant OS and install it as a local app.

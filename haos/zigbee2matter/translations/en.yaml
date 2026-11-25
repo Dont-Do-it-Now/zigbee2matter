@@ -1,7 +1,10 @@
 configuration:
+  serial_device:
+    name: Coordinator device
+    description: Choose the detected USB/serial coordinator. Leave empty for automatic discovery or a network coordinator.
   serial_port:
-    name: Serial port
-    description: Coordinator path (e.g. /dev/serial/by-id/usb-...) or tcp://host:port. Leave empty for auto-discovery.
+    name: Manual port (advanced)
+    description: Optional custom path or network port (tcp://host:port). The selected coordinator device takes precedence.
   serial_adapter:
     name: Adapter
     description: Coordinator adapter type. Required for tcp:// and when auto-discovery fails.

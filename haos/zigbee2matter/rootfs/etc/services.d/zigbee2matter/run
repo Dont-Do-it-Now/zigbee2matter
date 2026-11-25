@@ -28,7 +28,9 @@ fi
 if bashio::config.has_value 'matter_port'; then
     export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_PORT="$(bashio::config 'matter_port')"
 fi
-if bashio::config.has_value 'serial_port'; then
+if bashio::config.has_value 'serial_device'; then
+    export ZIGBEE2MATTER_CONFIG_SERIAL_PORT="$(bashio::config 'serial_device')"
+elif bashio::config.has_value 'serial_port'; then
     export ZIGBEE2MATTER_CONFIG_SERIAL_PORT="$(bashio::config 'serial_port')"
 fi
 if bashio::config.has_value 'serial_adapter'; then
