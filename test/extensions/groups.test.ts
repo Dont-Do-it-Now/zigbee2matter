@@ -245,8 +245,7 @@ describe("Extension: Groups", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bulb_color", stringify({state: "OFF"}), {retain: false});
     });
 
-    it("Should publish state change off if any lights within are still on when changed via device " +
-        "when off_state: last_member_state is used", async () => {
+    it("Should publish state change off if any lights within are still on when changed via device when off_state: last_member_state is used", async () => {
         const device_1 = devices.bulb_color;
         const device_2 = devices.bulb;
         const endpoint_1 = device_1.getEndpoint(1)!;

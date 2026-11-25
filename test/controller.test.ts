@@ -586,8 +586,7 @@ describe("Controller", () => {
         await flushPromises();
         expect(mockLogger.log).toHaveBeenCalledWith(
             "debug",
-            `Received Zigbee message from 'bulb', type 'attributeReport', cluster 'genBasic', ` +
-                `data '{"modelId":"TRADFRI bulb E27 WS opal 980lm"}' from endpoint 1`,
+            `Received Zigbee message from 'bulb', type 'attributeReport', cluster 'genBasic', data '{"modelId":"TRADFRI bulb E27 WS opal 980lm"}' from endpoint 1`,
             "z2m",
         );
     });
@@ -608,8 +607,7 @@ describe("Controller", () => {
         await flushPromises();
         expect(mockLogger.log).toHaveBeenCalledWith(
             "debug",
-            `Received Zigbee message from 'bulb', type 'attributeReport', cluster 'genBasic', ` +
-                `data '{"modelId":"TRADFRI bulb E27 WS opal 980lm"}' from endpoint 1 with groupID 0`,
+            `Received Zigbee message from 'bulb', type 'attributeReport', cluster 'genBasic', data '{"modelId":"TRADFRI bulb E27 WS opal 980lm"}' from endpoint 1 with groupID 0`,
             "z2m",
         );
     });
@@ -1136,8 +1134,7 @@ describe("Controller", () => {
         await flushPromises();
         expect(mockLogger.log).toHaveBeenCalledWith(
             "debug",
-            `Received Zigbee message from 'Coordinator', type 'attributeReport', cluster 'genBasic', ` +
-                `data '{}' from endpoint 1, ignoring since it is from coordinator`,
+            `Received Zigbee message from 'Coordinator', type 'attributeReport', cluster 'genBasic', data '{}' from endpoint 1, ignoring since it is from coordinator`,
             "z2m",
         );
     });

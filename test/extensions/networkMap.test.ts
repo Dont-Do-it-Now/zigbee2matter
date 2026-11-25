@@ -270,8 +270,7 @@ describe("Extension: NetworkMap", () => {
                                 description: "TRADFRI bulb E26/E27, white spectrum, globe, opal, 980 lm",
                                 model: "LED1545G12",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, level_config), effect, power_on_behavior, " +
-                                        "color_options, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, level_config), effect, power_on_behavior, color_options, identify, linkquality",
                                 vendor: "IKEA",
                             },
                             failed: [],
@@ -287,8 +286,7 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
-                                        "effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],
@@ -618,8 +616,7 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
-                                        "effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],
@@ -788,8 +785,7 @@ describe("Extension: NetworkMap", () => {
                                 description: "Hue Go",
                                 model: "7146060PH",
                                 supports:
-                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, " +
-                                        "effect_speed, effect_color, identify, linkquality",
+                                    "light (state, brightness, color_temp, color_temp_startup, color_xy, color_hs), power_on_behavior, effect, effect_speed, effect_color, identify, linkquality",
                                 vendor: "Philips",
                             },
                             failed: [],

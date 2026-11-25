@@ -535,9 +535,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color " +
-                                        "(if " +
-                                        "applicable) changes. Defaults to `0` (no transition).",
+                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
                                 label: "Transition",
                                 name: "transition",
                                 property: "transition",
@@ -548,9 +546,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze " +
-                                        "support, " +
-                                        "true: unfreeze support (default true).",
+                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze support, true: unfreeze support (default true).",
                                 label: "Unfreeze support",
                                 name: "unfreeze_support",
                                 property: "unfreeze_support",
@@ -561,9 +557,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a " +
-                                        "conversion from " +
-                                        "color x/y to color temperature will be done when setting the x/y color (default true).",
+                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a conversion from color x/y to color temperature will be done when setting the x/y color (default true).",
                                 label: "Color sync",
                                 name: "color_sync",
                                 property: "color_sync",
@@ -574,9 +568,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The " +
-                                        "value ranges " +
-                                        "from 1 to 30 seconds (default: 3).",
+                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The value ranges from 1 to 30 seconds (default: 3).",
                                 label: "Identify timeout",
                                 name: "identify_timeout",
                                 property: "identify_timeout",
@@ -811,13 +803,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Control this light using a Philips-specific protocol instead of standard Zigbee commands. When enabled, " +
-                                        "on/off, " +
-                                        "brightness, color, and color temperature are combined into single atomic commands. This is required to " +
-                                            "use the Effect " +
-                                        "color update mode. When disabled (default), standard Zigbee commands are used, which preserves the usual " +
-                                            "behavior, " +
-                                        "including simulating on/off transitions.",
+                                    "Control this light using a Philips-specific protocol instead of standard Zigbee commands. When enabled, on/off, brightness, color, and color temperature are combined into single atomic commands. This is required to use the Effect color update mode. When disabled (default), standard Zigbee commands are used, which preserves the usual behavior, including simulating on/off transitions.",
                                 label: "Hue native control",
                                 name: "hue_native_control",
                                 property: "hue_native_control",
@@ -828,10 +814,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls what happens when color is changed while an effect is active (requires Hue native control). 'stop' " +
-                                        "(default): " +
-                                        "color change stops the effect (Hue app behavior). 'update': color change re-sends the effect with the new " +
-                                        "color.",
+                                    "Controls what happens when color is changed while an effect is active (requires Hue native control). 'stop' (default): color change stops the effect (Hue app behavior). 'update': color change re-sends the effect with the new color.",
                                 label: "Effect color mode",
                                 name: "effect_color_mode",
                                 property: "effect_color_mode",
@@ -841,9 +824,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color " +
-                                        "(if " +
-                                        "applicable) changes. Defaults to `0` (no transition).",
+                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
                                 label: "Transition",
                                 name: "transition",
                                 property: "transition",
@@ -854,9 +835,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The " +
-                                        "value ranges " +
-                                        "from 1 to 30 seconds (default: 3).",
+                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The value ranges from 1 to 30 seconds (default: 3).",
                                 label: "Identify timeout",
                                 name: "identify_timeout",
                                 property: "identify_timeout",
@@ -877,9 +856,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a " +
-                                        "conversion from " +
-                                        "color x/y to color temperature will be done when setting the x/y color (default true).",
+                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a conversion from color x/y to color temperature will be done when setting the x/y color (default true).",
                                 label: "Color sync",
                                 name: "color_sync",
                                 property: "color_sync",
@@ -989,10 +966,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it " +
-                                        "is possible " +
-                                        "to specify the update interval and delta. The action_brightness_delta indicates the delta for each " +
-                                            "interval.",
+                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it is possible to specify the update interval and delta. The action_brightness_delta indicates the delta for each interval.",
                                 features: [
                                     {
                                         access: 2,
@@ -1157,10 +1131,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it " +
-                                        "is possible " +
-                                        "to specify the update interval and delta. The action_brightness_delta indicates the delta for each " +
-                                            "interval.",
+                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it is possible to specify the update interval and delta. The action_brightness_delta indicates the delta for each interval.",
                                 features: [
                                     {
                                         access: 2,
@@ -1271,9 +1242,7 @@ describe("Extension: Bridge", () => {
                                 access: 2,
                                 category: "config",
                                 description:
-                                    "Initiate device identification. This device is asleep by default.You may need to wake it up first before " +
-                                        "sending the " +
-                                        "identify command.",
+                                    "Initiate device identification. This device is asleep by default.You may need to wake it up first before sending the identify command.",
                                 label: "Identify",
                                 name: "identify",
                                 property: "identify",
@@ -1317,9 +1286,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The " +
-                                        "value ranges " +
-                                        "from 1 to 30 seconds (default: 3).",
+                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The value ranges from 1 to 30 seconds (default: 3).",
                                 label: "Identify timeout",
                                 name: "identify_timeout",
                                 property: "identify_timeout",
@@ -1441,9 +1408,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Number of digits after decimal point for temperature, takes into effect on next report of device. This " +
-                                        "option can only " +
-                                        "decrease the precision, not increase it.",
+                                    "Number of digits after decimal point for temperature, takes into effect on next report of device. This option can only decrease the precision, not increase it.",
                                 label: "Temperature precision",
                                 name: "temperature_precision",
                                 property: "temperature_precision",
@@ -1463,9 +1428,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Number of digits after decimal point for humidity, takes into effect on next report of device. This option " +
-                                        "can only " +
-                                        "decrease the precision, not increase it.",
+                                    "Number of digits after decimal point for humidity, takes into effect on next report of device. This option can only decrease the precision, not increase it.",
                                 label: "Humidity precision",
                                 name: "humidity_precision",
                                 property: "humidity_precision",
@@ -1485,9 +1448,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Number of digits after decimal point for pressure, takes into effect on next report of device. This option " +
-                                        "can only " +
-                                        "decrease the precision, not increase it.",
+                                    "Number of digits after decimal point for pressure, takes into effect on next report of device. This option can only decrease the precision, not increase it.",
                                 label: "Pressure precision",
                                 name: "pressure_precision",
                                 property: "pressure_precision",
@@ -1600,9 +1561,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Number of digits after decimal point for power, takes into effect on next report of device. This option can " +
-                                        "only " +
-                                        "decrease the precision, not increase it.",
+                                    "Number of digits after decimal point for power, takes into effect on next report of device. This option can only decrease the precision, not increase it.",
                                 label: "Power precision",
                                 name: "power_precision",
                                 property: "power_precision",
@@ -1622,9 +1581,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Number of digits after decimal point for energy, takes into effect on next report of device. This option can " +
-                                        "only " +
-                                        "decrease the precision, not increase it.",
+                                    "Number of digits after decimal point for energy, takes into effect on next report of device. This option can only decrease the precision, not increase it.",
                                 label: "Energy precision",
                                 name: "energy_precision",
                                 property: "energy_precision",
@@ -2072,9 +2029,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a " +
-                                        "conversion from " +
-                                        "color x/y to color temperature will be done when setting the x/y color (default true).",
+                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a conversion from color x/y to color temperature will be done when setting the x/y color (default true).",
                                 label: "Color sync",
                                 name: "color_sync",
                                 property: "color_sync",
@@ -2085,9 +2040,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color " +
-                                        "(if " +
-                                        "applicable) changes. Defaults to `0` (no transition).",
+                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
                                 label: "Transition",
                                 name: "transition",
                                 property: "transition",
@@ -2108,9 +2061,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Inverts the reported cover position and the state derived from it, false: open=100,close=0, true: " +
-                                        "open=0,close=100 " +
-                                        "(default false).",
+                                    "Inverts the reported cover position and the state derived from it, false: open=100,close=0, true: open=0,close=100 (default false).",
                                 label: "Invert cover",
                                 name: "invert_cover",
                                 property: "invert_cover",
@@ -2358,9 +2309,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color " +
-                                        "(if " +
-                                        "applicable) changes. Defaults to `0` (no transition).",
+                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
                                 label: "Transition",
                                 name: "transition",
                                 property: "transition",
@@ -2371,9 +2320,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze " +
-                                        "support, " +
-                                        "true: unfreeze support (default true).",
+                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze support, true: unfreeze support (default true).",
                                 label: "Unfreeze support",
                                 name: "unfreeze_support",
                                 property: "unfreeze_support",
@@ -2384,9 +2331,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a " +
-                                        "conversion from " +
-                                        "color x/y to color temperature will be done when setting the x/y color (default true).",
+                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a conversion from color x/y to color temperature will be done when setting the x/y color (default true).",
                                 label: "Color sync",
                                 name: "color_sync",
                                 property: "color_sync",
@@ -2397,9 +2342,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The " +
-                                        "value ranges " +
-                                        "from 1 to 30 seconds (default: 3).",
+                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The value ranges from 1 to 30 seconds (default: 3).",
                                 label: "Identify timeout",
                                 name: "identify_timeout",
                                 property: "identify_timeout",
@@ -2690,8 +2633,7 @@ describe("Extension: Bridge", () => {
                                         features: [
                                             {
                                                 access: 7,
-                                                description:
-                                                    `this setting can affect the "on_level", "current_level_startup" or "brightness" setting`,
+                                                description: `this setting can affect the "on_level", "current_level_startup" or "brightness" setting`,
                                                 label: "Execute if off",
                                                 name: "execute_if_off",
                                                 property: "execute_if_off",
@@ -2790,9 +2732,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color " +
-                                        "(if " +
-                                        "applicable) changes. Defaults to `0` (no transition).",
+                                    "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
                                 label: "Transition",
                                 name: "transition",
                                 property: "transition",
@@ -2803,9 +2743,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze " +
-                                        "support, " +
-                                        "true: unfreeze support (default true).",
+                                    "Whether to unfreeze IKEA lights (that are known to be frozen) before issuing a command, false: no unfreeze support, true: unfreeze support (default true).",
                                 label: "Unfreeze support",
                                 name: "unfreeze_support",
                                 property: "unfreeze_support",
@@ -2816,9 +2754,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a " +
-                                        "conversion from " +
-                                        "color x/y to color temperature will be done when setting the x/y color (default true).",
+                                    "When enabled colors will be synced, e.g. if the light supports both color x/y and color temperature a conversion from color x/y to color temperature will be done when setting the x/y color (default true).",
                                 label: "Color sync",
                                 name: "color_sync",
                                 property: "color_sync",
@@ -2829,9 +2765,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The " +
-                                        "value ranges " +
-                                        "from 1 to 30 seconds (default: 3).",
+                                    "Sets the duration of the identification procedure in seconds (i.e., how long the device would flash).The value ranges from 1 to 30 seconds (default: 3).",
                                 label: "Identify timeout",
                                 name: "identify_timeout",
                                 property: "identify_timeout",
@@ -2965,10 +2899,7 @@ describe("Extension: Bridge", () => {
                             {
                                 access: 2,
                                 description:
-                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it " +
-                                        "is possible " +
-                                        "to specify the update interval and delta. The action_brightness_delta indicates the delta for each " +
-                                            "interval.",
+                                    "Simulate a brightness value. If this device provides a brightness_move_up or brightness_move_down action it is possible to specify the update interval and delta. The action_brightness_delta indicates the delta for each interval.",
                                 features: [
                                     {
                                         access: 2,
