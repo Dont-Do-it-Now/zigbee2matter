@@ -260,7 +260,10 @@ describe("planEndpointMapping", () => {
 
         expect(plan.capabilities.illuminance).toBe(illuminance);
         expect(plan.capabilities.waterLeak).toBe(waterLeak);
-        expect(plan.mappings.find((mapping) => mapping.ruleId === "water-leak")).toMatchObject({matterDeviceType: "WaterLeakDetector", supported: true});
+        expect(plan.mappings.find((mapping) => mapping.ruleId === "water-leak")).toMatchObject({
+            matterDeviceType: "WaterLeakDetector",
+            supported: true,
+        });
         expect(planEndpointMapping([{...illuminance, unit: "raw"}]).capabilities.illuminance).toBeUndefined();
     });
 });

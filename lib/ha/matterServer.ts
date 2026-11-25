@@ -210,10 +210,15 @@ function removeNodeOnHost(host: string, nodeId: string, timeoutMs: number): Prom
             else resolve();
         };
         const timer = setTimeout(
-            () => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server did not remove node ${nodeId} in time.`)),
+            () =>
+                finish(
+                    new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server did not remove node ${nodeId} in time.`),
+                ),
             timeoutMs,
         );
-        ws.on("error", (error) => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server ${host}: ${error.message}`)));
+        ws.on("error", (error) =>
+            finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server ${host}: ${error.message}`)),
+        );
         ws.on("close", () => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", "Matter Server closed the connection.")));
         ws.on("message", (raw) => {
             let message: Record<string, unknown>;

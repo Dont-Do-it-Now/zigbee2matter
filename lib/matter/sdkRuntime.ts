@@ -1,6 +1,7 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
 import {readFile} from "node:fs/promises";
 import {join} from "node:path";
+import logger from "../util/logger";
 import type {ResolvedAttestation} from "./attestation";
 import {guardMatterBigIntJson, repairBigIntStorage} from "./bigintJson";
 import type {CommissioningBackend, CommissioningCode, FabricChangeAction, FabricRecord} from "./commissioning";
@@ -9,7 +10,6 @@ import type {EndpointRegistryEntry} from "./endpointRegistry";
 import type {BridgeNodeConfig, BridgeNodeRuntime, BridgeNodeRuntimeFactory} from "./multiBridge";
 import {type MatterNetworkConfig, toMatterEnvVars, toServerNodeNetworkState} from "./networkConfig";
 import type {FeatureDecision} from "./unsupportedFeatures";
-import logger from "../util/logger";
 
 /**
  * 구독/보고(T040)는 SDK가 소유한다. 상태는 `endpoint.set(...)`(MatterEndpointFactory.updateState)로만 갱신하고,

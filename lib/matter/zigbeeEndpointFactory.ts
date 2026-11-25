@@ -358,7 +358,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             plan.capabilities.occupancy === undefined
                 ? {}
                 : {occupancySensing: {occupancySensorType: 0, occupancySensorTypeBitmap: {passiveInfrared: true}}};
-        const contactInit = plan.capabilities.contact === undefined && plan.capabilities.waterLeak === undefined ? {} : {booleanState: {stateValue: false}};
+        const contactInit =
+            plan.capabilities.contact === undefined && plan.capabilities.waterLeak === undefined ? {} : {booleanState: {stateValue: false}};
         const buttons = new Map<string, ButtonRuntime>();
         const parts: MatterEndpointInstance[] = [];
         if (plan.switchDefinition !== undefined) {
@@ -569,7 +570,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (caps.contact !== undefined && typeof state.contact === "boolean") patch.booleanState = {stateValue: state.contact};
         if (caps.waterLeak !== undefined && typeof state.water_leak === "boolean") patch.booleanState = {stateValue: state.water_leak};
         if (caps.illuminance !== undefined && typeof state.illuminance === "number" && Number.isFinite(state.illuminance)) {
-            patch.illuminanceMeasurement = {measuredValue: state.illuminance <= 0 ? 0 : Math.max(1, Math.round(10000 * Math.log10(state.illuminance) + 1))};
+            patch.illuminanceMeasurement = {
+                measuredValue: state.illuminance <= 0 ? 0 : Math.max(1, Math.round(10000 * Math.log10(state.illuminance) + 1)),
+            };
         }
         // occupancy capability는 `occupancy` 또는 `presence`(mmWave) expose에서 온다.
         const occupied = state[caps.occupancy?.name ?? "occupancy"];
@@ -673,7 +676,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (caps.lock) return this.lockDefinition(base, source, await loadExtraBehaviors(caps));
         if (caps.thermostat) return thermostatDefinition(base, caps.thermostat, await loadExtraBehaviors(caps));
 
-        const sensor = (["temperature", "humidity", "contact", "occupancy", "illuminance", "waterLeak"] as const).find((id) => caps[id] !== undefined);
+        const sensor = (["temperature", "humidity", "contact", "occupancy", "illuminance", "waterLeak"] as const).find(
+            (id) => caps[id] !== undefined,
+        );
         if (sensor !== undefined) {
             const device = await loadDevice(SENSOR_DEVICES[sensor]);
             return {...base, definition: device.with(...(await loadExtraBehaviors(caps, sensor))) as EndpointDefinition};
