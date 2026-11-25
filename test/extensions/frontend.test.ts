@@ -6,6 +6,7 @@ import {events as mockBridgeBusEvents, mockBridgeBusPublish} from "../mocks/brid
 import {type EventHandler, flushPromises} from "../mocks/utils";
 import {devices, events as mockZHEvents} from "../mocks/zigbeeHerdsman";
 
+import fs from "node:fs";
 import path from "node:path";
 import {stringify} from "../../lib/util/stringify";
 import type {Mock} from "vitest";
@@ -67,7 +68,7 @@ const mockWS = {
     close: vi.fn<(code?: number, data?: string | Buffer) => void>(),
 };
 
-const frontendPath = "frontend-path";
+const frontendPath = path.join(data.mockDir, "frontend");
 const deviceIconsPath = path.join(data.mockDir, "device_icons");
 let mockNodeStatic: {[s: string]: Mock} = {};
 
@@ -148,6 +149,8 @@ describe("Extension: Frontend", () => {
         mockNodeStatic = {};
         mockWS.clients = [];
         data.writeDefaultConfiguration();
+        fs.mkdirSync(frontendPath, {recursive: true});
+        fs.writeFileSync(path.join(frontendPath, "index.html"), "<!doctype html><html><head></head><body></body></html>");
         data.writeDefaultState();
         settings.reRead();
         settings.set(["frontend"], {enabled: true, port: 8081, host: "127.0.0.1"});
@@ -165,6 +168,7 @@ describe("Extension: Frontend", () => {
         delete devices.bulb.linkquality;
         await controller?.stop();
         await flushPromises();
+        fs.rmSync(frontendPath, {force: true, recursive: true});
     });
 
     it("Start/stop with defaults", async () => {
