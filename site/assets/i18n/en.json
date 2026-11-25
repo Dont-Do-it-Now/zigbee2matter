@@ -4,6 +4,7 @@
         "guide": "Guide",
         "devices": "Devices",
         "configuration": "Configuration",
+        "support": "Support",
         "license": "License",
         "github": "GitHub"
     },
@@ -71,12 +72,21 @@
         "title": "Supported Zigbee devices",
         "lead": "Search the converter definitions bundled with this release.",
         "search": "Search model, brand, device ID or feature",
+        "searchLabel": "Search devices",
+        "vendor": "Vendor",
+        "exposesFilter": "Exposes",
+        "filterSearch": "Filter options",
+        "all": "All",
+        "selected": "{count} selected",
         "loading": "Loading device catalogue…",
         "failed": "Could not load the catalogue. Reload the page or browse the upstream list.",
         "count": "{count} matches · showing {shown}",
         "empty": "No matching devices. Try a model number or brand name.",
         "limit": "Showing the first {shown} of {count}. Search to narrow the list.",
         "note": "This list means a Zigbee converter definition exists. It does not guarantee Matter exposure or feature parity; check the device in the frontend after pairing.",
+        "notListed": "Device not listed or missing a feature?",
+        "supportLink": "See how to add device support.",
+        "openDetails": "Open details for {model}",
         "exposes": "Zigbee features",
         "ids": "Device IDs",
         "attribution": "Catalogue data: zigbee-herdsman-converters {version} · MIT license",
@@ -116,6 +126,37 @@
                 "example",
                 "Full example",
                 "<p>See the <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">complete example configuration</a> in the source repository.</p>"
+            ]
+        ]
+    },
+    "support": {
+        "title": "Support a new device",
+        "lead": "Check the bundled converter first, collect device details, then test a converter or request a permanent upstream definition.",
+        "sections": [
+            [
+                "check",
+                "1. Check existing support",
+                "<p>Search the <a href=\"#devices\">device catalogue</a> by brand, model or Zigbee model. A match means a Zigbee converter definition is included in this release; it does not promise that every feature maps to Matter. Check the latest upstream development branch if the device is missing from this release.</p>"
+            ],
+            [
+                "identify",
+                "2. Pair and collect details",
+                "<ol><li>Enable permit-join briefly and pair the device according to its reset/pairing instructions.</li><li>Wait for the interview to finish. Record the reported model, manufacturer, Zigbee model, available exposes and relevant logs.</li><li>Check that reported values update and controllable features work in the Zigbee frontend.</li></ol><p>Remove personal network details and redact device identifiers before posting logs publicly.</p>"
+            ],
+            [
+                "temporary",
+                "3. Test a temporary converter",
+                "<p>For development, place a JavaScript converter in <code>/data/external_converters/</code> and restart Zigbee2Matter. The converter must follow the installed <code>zigbee-herdsman-converters</code> API. External converters are for local testing; they are not a substitute for a maintained release definition.</p><p>See the upstream <a href=\"https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html\">step-by-step device guide</a> for pairing, inspecting clusters/exposes and writing a converter.</p>"
+            ],
+            [
+                "matter",
+                "4. Check Matter exposure",
+                "<p>If Zigbee values work but do not appear in Matter, the converter may already be correct. Report the device model, its exposes, expected Matter behavior and relevant logs in the <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/issues\">Zigbee2Matter issue tracker</a> so the Matter mapping can be reviewed.</p>"
+            ],
+            [
+                "contribute",
+                "5. Request permanent support",
+                "<p>To make a newly discovered Zigbee device available out of the box, contribute its definition to <a href=\"https://github.com/Koenkk/zigbee-herdsman-converters\">zigbee-herdsman-converters</a>. Follow its existing vendor file patterns and submit a pull request. Zigbee2Matter will include it when its converter dependency is updated.</p>"
             ]
         ]
     },

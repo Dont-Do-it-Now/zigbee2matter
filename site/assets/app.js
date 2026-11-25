@@ -1,6 +1,6 @@
 const messageCache = new Map();
 
-const menuKeys = ["overview", "guide", "devices", "configuration", "license"];
+const menuKeys = ["overview", "guide", "devices", "configuration", "support", "license"];
 const localeSelect = document.querySelector("#language");
 const escapeHTML = (value = "") =>
     String(value).replace(/[&<>"']/g, (char) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[char]);
@@ -26,7 +26,7 @@ function renderDocs(t, page) {
 }
 
 function renderDevices(t) {
-    return `<div class="docs-heading"><div class="eyebrow">${t.nav.devices}</div><h1>${t.devices.title}</h1><p class="lead">${t.devices.lead}</p></div><p class="note">${t.devices.note}</p><label class="search-label" for="device-search">${t.devices.search}</label><input id="device-search" type="search" autocomplete="off" placeholder="${t.devices.search}"><p id="device-status" class="muted" role="status">${t.devices.loading}</p><div id="device-results" class="device-grid"></div><p id="device-attribution" class="attribution">${t.devices.attribution.replace("{version}", "")} · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.images}</a> · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.upstream}</a></p>`;
+    return `<div class="docs-heading"><div class="eyebrow">${t.nav.devices}</div><h1>${t.devices.title}</h1><p class="lead">${t.devices.lead}</p></div><p class="note">${t.devices.note}</p><p>${t.devices.notListed} <a href="#support">${t.devices.supportLink}</a></p><div class="device-filters"><details class="device-facet"><summary>${t.devices.vendor}<span id="vendor-selection">${t.devices.all}</span></summary><label class="visually-hidden" for="vendor-search">${t.devices.filterSearch}</label><input id="vendor-search" class="facet-search" type="search" autocomplete="off" placeholder="${t.devices.filterSearch}"><div id="vendor-options" class="facet-options"></div></details><details class="device-facet"><summary>${t.devices.exposesFilter}<span id="exposes-selection">${t.devices.all}</span></summary><label class="visually-hidden" for="exposes-search">${t.devices.filterSearch}</label><input id="exposes-search" class="facet-search" type="search" autocomplete="off" placeholder="${t.devices.filterSearch}"><div id="exposes-options" class="facet-options"></div></details><label class="device-search-field"><span>${t.devices.searchLabel}</span><input id="device-search" type="search" autocomplete="off" placeholder="${t.devices.search}"></label></div><p id="device-status" class="muted" role="status">${t.devices.loading}</p><div id="device-results" class="device-grid"></div><p id="device-attribution" class="attribution">${t.devices.attribution.replace("{version}", "")} · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.images}</a> · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.upstream}</a></p>`;
 }
 
 function deviceImageUrls(device) {
@@ -46,7 +46,13 @@ async function setupDeviceSearch(t) {
     const input = document.querySelector("#device-search");
     const output = document.querySelector("#device-results");
     const status = document.querySelector("#device-status");
-    if (!input || !output || !status) return;
+    const vendorOptions = document.querySelector("#vendor-options");
+    const exposesOptions = document.querySelector("#exposes-options");
+    const vendorSearch = document.querySelector("#vendor-search");
+    const exposesSearch = document.querySelector("#exposes-search");
+    const vendorSelection = document.querySelector("#vendor-selection");
+    const exposesSelection = document.querySelector("#exposes-selection");
+    if (!input || !output || !status || !vendorOptions || !exposesOptions || !vendorSearch || !exposesSearch || !vendorSelection || !exposesSelection) return;
     let devices;
     try {
         const response = await fetch("assets/devices.json");
@@ -58,15 +64,45 @@ async function setupDeviceSearch(t) {
         status.textContent = t.devices.failed;
         return;
     }
+    const selectedVendors = new Set();
+    const selectedExposes = new Set();
+    const updateSelectionLabels = () => {
+        vendorSelection.textContent = selectedVendors.size ? t.devices.selected.replace("{count}", selectedVendors.size) : t.devices.all;
+        exposesSelection.textContent = selectedExposes.size ? t.devices.selected.replace("{count}", selectedExposes.size) : t.devices.all;
+    };
+    const populateOptions = (container, search, values, selected) => {
+        container.replaceChildren();
+        const query = search.value.trim().toLocaleLowerCase();
+        values.filter((value) => value.toLocaleLowerCase().includes(query)).forEach((value) => {
+            const label = document.createElement("label");
+            label.className = "facet-option";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = selected.has(value);
+            checkbox.addEventListener("change", () => {
+                if (checkbox.checked) selected.add(value);
+                else selected.delete(value);
+                updateSelectionLabels();
+                showResults();
+            });
+            const text = document.createElement("span");
+            text.textContent = value;
+            label.append(checkbox, text);
+            container.append(label);
+        });
+    };
     const showResults = () => {
         const query = input.value.trim().toLocaleLowerCase();
-        const matches = devices.filter((device) =>
-            `${device.model} ${device.vendor} ${device.description} ${(device.zigbeeModel || []).join(" ")} ${(device.whiteLabel || []).map((item) => `${item.vendor} ${item.model}`).join(" ")} ${(device.exposes || []).join(" ")}`
-                .toLocaleLowerCase()
-                .includes(query),
-        );
+        const matches = devices.filter((device) => {
+            const searchText = `${device.model} ${device.vendor} ${device.description} ${(device.zigbeeModel || []).join(" ")} ${(device.whiteLabel || []).map((item) => `${item.vendor} ${item.model}`).join(" ")} ${(device.exposes || []).join(" ")}`;
+            return (
+                (!selectedVendors.size || selectedVendors.has(device.vendor)) &&
+                [...selectedExposes].every((expose) => device.exposes?.includes(expose)) &&
+                searchText.toLocaleLowerCase().includes(query)
+            );
+        });
         const visible = matches.slice(0, 80);
-        status.textContent = query
+        status.textContent = query || selectedVendors.size || selectedExposes.size
             ? t.devices.count.replace("{count}", matches.length).replace("{shown}", visible.length)
             : t.devices.limit.replace("{count}", matches.length).replace("{shown}", visible.length);
         if (!matches.length) {
@@ -77,7 +113,8 @@ async function setupDeviceSearch(t) {
             .map(
                 (device) => {
                     const [imageUrl, ...fallbacks] = deviceImageUrls(device);
-                    return `<article class="device-card"><h2>${escapeHTML(device.model)}</h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p><div class="device-image-frame"><img class="device-image" src="${escapeHTML(imageUrl)}" data-fallbacks="${escapeHTML(JSON.stringify(fallbacks))}" alt="${escapeHTML(`${device.vendor} ${device.model}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`;
+                    const detailsUrl = `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(device.model)}.html`;
+                    return `<article class="device-card"><h2><a href="${detailsUrl}" target="_blank" rel="noopener">${escapeHTML(device.model)}</a></h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p><a class="device-image-frame" href="${detailsUrl}" target="_blank" rel="noopener" aria-label="${escapeHTML(t.devices.openDetails.replace("{model}", device.model))}"><img class="device-image" src="${escapeHTML(imageUrl)}" data-fallbacks="${escapeHTML(JSON.stringify(fallbacks))}" alt="${escapeHTML(`${device.vendor} ${device.model}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`;
                 },
             )
             .join("");
@@ -93,6 +130,12 @@ async function setupDeviceSearch(t) {
             });
         });
     };
+    const vendors = [...new Set(devices.map((device) => device.vendor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const exposes = [...new Set(devices.flatMap((device) => device.exposes || []))].sort((a, b) => a.localeCompare(b));
+    populateOptions(vendorOptions, vendorSearch, vendors, selectedVendors);
+    populateOptions(exposesOptions, exposesSearch, exposes, selectedExposes);
+    vendorSearch.addEventListener("input", () => populateOptions(vendorOptions, vendorSearch, vendors, selectedVendors));
+    exposesSearch.addEventListener("input", () => populateOptions(exposesOptions, exposesSearch, exposes, selectedExposes));
     input.addEventListener("input", showResults);
     showResults();
 }
@@ -133,7 +176,7 @@ async function render() {
     const [page = "overview", anchor] = location.hash.slice(1).split("/");
     const app = document.querySelector("#app");
     if (page === "overview") app.innerHTML = renderOverview(t);
-    else if (page === "guide" || page === "configuration") app.innerHTML = renderDocs(t, page);
+    else if (page === "guide" || page === "configuration" || page === "support") app.innerHTML = renderDocs(t, page);
     else if (page === "devices") {
         app.innerHTML = renderDevices(t);
         void setupDeviceSearch(t);

@@ -4,6 +4,7 @@
         "guide": "설치 가이드",
         "devices": "지원 장치",
         "configuration": "설정",
+        "support": "지원",
         "license": "라이선스",
         "github": "GitHub"
     },
@@ -67,12 +68,21 @@
         "title": "지원 Zigbee 장치",
         "lead": "현재 릴리스에 포함된 converter 정의를 검색합니다.",
         "search": "모델, 브랜드, 장치 ID, 기능 검색",
+        "searchLabel": "장치 검색",
+        "vendor": "제조사",
+        "exposesFilter": "기능",
+        "filterSearch": "항목 필터",
+        "all": "전체",
+        "selected": "{count}개 선택",
         "loading": "장치 목록을 불러오는 중…",
         "failed": "장치 목록을 불러오지 못했습니다. 새로고침하거나 원본 목록을 확인하세요.",
         "count": "검색 결과 {count}개 · {shown}개 표시",
         "empty": "일치하는 장치가 없습니다. 모델명이나 브랜드로 다시 검색하세요.",
         "limit": "검색 결과 {count}개 중 처음 {shown}개입니다. 검색어를 입력해 범위를 좁히세요.",
         "note": "이 목록은 Zigbee converter 정의가 있다는 뜻입니다. Matter 노출이나 기능 일치를 보장하지 않으므로 페어링 후 frontend에서 확인하세요.",
+        "notListed": "장치가 없거나 기능이 누락되었나요?",
+        "supportLink": "새 장치 지원 방법을 확인하세요.",
+        "openDetails": "{model} 상세 정보 열기",
         "exposes": "Zigbee 기능",
         "ids": "장치 ID",
         "attribution": "장치 데이터: zigbee-herdsman-converters {version} · MIT 라이선스",
@@ -112,6 +122,37 @@
                 "example",
                 "전체 예제",
                 "<p>저장소의 <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">전체 예제 설정 파일</a>을 확인하세요.</p>"
+            ]
+        ]
+    },
+    "support": {
+        "title": "새 장치 지원하기",
+        "lead": "현재 포함된 converter를 확인하고 장치 정보를 수집한 뒤 임시 converter로 시험하거나 upstream에 정식 지원을 요청하세요.",
+        "sections": [
+            [
+                "check",
+                "1. 기존 지원 확인",
+                "<p><a href=\"#devices\">장치 카탈로그</a>에서 브랜드, 모델 또는 Zigbee 모델을 검색하세요. 검색 결과는 이 릴리스에 Zigbee converter 정의가 포함되어 있다는 뜻이며 모든 기능의 Matter 지원을 보장하지 않습니다. 카탈로그에 없다면 upstream 개발 브랜치에 이미 추가됐는지도 확인하세요.</p>"
+            ],
+            [
+                "identify",
+                "2. 페어링하고 장치 정보 수집",
+                "<ol><li>permit-join을 잠시 켜고 제조사 안내에 따라 장치를 페어링 모드로 전환합니다.</li><li>인터뷰가 끝나면 모델, 제조사, Zigbee 모델, 노출된 기능(exposes), 관련 로그를 기록합니다.</li><li>Zigbee frontend에서 값이 갱신되고 제어 기능이 동작하는지 확인합니다.</li></ol><p>공개 게시 전에 네트워크 정보와 개인을 식별할 수 있는 장치 ID를 가리세요.</p>"
+            ],
+            [
+                "temporary",
+                "3. 임시 converter로 시험",
+                "<p>개발 중에는 JavaScript converter를 <code>/data/external_converters/</code>에 넣고 Zigbee2Matter를 재시작할 수 있습니다. converter는 설치된 <code>zigbee-herdsman-converters</code> API를 따라야 합니다. 외부 converter는 로컬 시험용이며 정식 릴리스 정의를 대신하지 않습니다.</p><p>페어링, 클러스터·exposes 확인, converter 작성은 upstream의 <a href=\"https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html\">새 장치 단계별 안내</a>를 참고하세요.</p>"
+            ],
+            [
+                "matter",
+                "4. Matter 노출 확인",
+                "<p>Zigbee 값은 정상인데 Matter에 나타나지 않는다면 converter보다 Matter 매핑 문제일 수 있습니다. 장치 모델, exposes, 기대하는 Matter 동작과 관련 로그를 <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/issues\">Zigbee2Matter 이슈</a>에 올려 매핑을 검토할 수 있게 해주세요.</p>"
+            ],
+            [
+                "contribute",
+                "5. 정식 지원 요청",
+                "<p>새 Zigbee 장치를 기본 지원하려면 <a href=\"https://github.com/Koenkk/zigbee-herdsman-converters\">zigbee-herdsman-converters</a>에 장치 정의를 기여하세요. 기존 제조사 파일의 형식을 따르고 pull request를 제출하면 됩니다. Zigbee2Matter는 converter 의존성을 업데이트할 때 해당 정의를 포함합니다.</p>"
             ]
         ]
     },
