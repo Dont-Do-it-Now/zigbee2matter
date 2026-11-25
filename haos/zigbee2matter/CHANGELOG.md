@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.25.7
+- Fix the Matter bridge failing to start in the add-on because the Matter Node.js platform package was not installed.
+
 ## 2026.11.25.6
 - Reflect Zigbee device rename, removal and capability changes live in every connected Matter ecosystem.
 - Make Matter state updates faster and non-blocking.
