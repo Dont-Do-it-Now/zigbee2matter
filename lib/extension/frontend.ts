@@ -375,6 +375,7 @@ var windowDeadline = 0;
 var windowOpen = false;
 var haConnecting = false;
 var haHasFabric = false;
+var hasLoadedState = false;
 var pollTimer;
 
 function errorText(e) { var key = "err." + (e.code || "UNKNOWN"); return I18N[LANG][key] ? t(key) : (e.message || t("err.UNKNOWN")); }
@@ -492,6 +493,7 @@ async function refresh() {
       el("fabric-list").textContent = t("platformsUnavailable");
       return;
     }
+    hasLoadedState = true;
     el("status").textContent = t("running");
     el("pair").classList.remove("hidden");
     el("guide").classList.toggle("hidden", !data.fabrics.length);
@@ -516,14 +518,21 @@ async function refresh() {
       })(data.fabrics[i]);
     }
     renderWindow(data.window, data.fabrics.length > 0);
-    if (!haConnecting) renderHa(await call("ha/status"));
+    if (!haConnecting) {
+      try { renderHa(await call("ha/status")); }
+      catch (haError) { showError(haError); }
+    }
   } catch (e) {
     var auth = e.status === 401 || e.status === 403;
     var notRunning = e.code === "MATTER_NOT_RUNNING" || e.code === "NODE_NOT_STARTED" || e.code === "MATTER_UNAVAILABLE";
-    setLocked(t(auth ? "needAuth" : notRunning ? "notRunning" : "statusFailed"));
-    el("fabric-list").textContent = t(notRunning ? "platformsUnavailable" : "platformsFailed");
-    el("fabrics").classList.toggle("hidden", auth);
-    if (auth) el("auth").classList.remove("hidden");
+    if (auth || notRunning) {
+      setLocked(t(auth ? "needAuth" : "notRunning"));
+      el("fabric-list").textContent = t("platformsUnavailable");
+      el("fabrics").classList.toggle("hidden", auth);
+      if (auth) el("auth").classList.remove("hidden");
+    } else if (!hasLoadedState) {
+      el("status").textContent = t("statusFailed");
+    }
     if (!notRunning) showError(e);
   } finally {
     // Poll faster while a pairing window is open so a successful pairing shows up quickly.

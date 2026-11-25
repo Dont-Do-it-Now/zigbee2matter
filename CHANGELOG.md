@@ -4,7 +4,8 @@
 
 ### Bug Fixes
 
-* Select the only non-virtual IPv6 interface for Matter mDNS when no interface is configured.
+* Advertise Matter mDNS on all external network interfaces and remove the interface selection option.
+* Keep the Matter platform list visible when a status request fails, and isolate Home Assistant status errors.
 * Show Matter fabrics only after the commissioning fail-safe ends, and prevent retries from treating a pending fabric as an existing platform.
 * Remove the Home Assistant Matter Server node before deleting its local fabric.
 * Open an enhanced commissioning window with fresh pairing codes when adding another Matter platform.

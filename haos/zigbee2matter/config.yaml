@@ -1,6 +1,6 @@
 name: Zigbee2Matter
 slug: zigbee2matter
-version: "2026.11.25.17"
+version: "2026.11.25.18"
 description: Zigbee to Matter bridge without MQTT broker
 url: https://github.com/Dont-Do-it-Now/zigbee2matter
 image: ghcr.io/dont-do-it-now/zigbee2matter-addon
@@ -49,7 +49,6 @@ schema:
   serial_port: str?
   serial_adapter: list(zstack|ember|deconz|zigate|zboss|ezsp|zoh)?
   matter_enabled: bool
-  matter_mdns_interface: str?
   matter_ipv4: bool
   matter_passcode: int(1,99999998)?
   matter_discriminator: int(0,4095)?

@@ -1,8 +1,13 @@
 # Changelog
 
+## 2026.11.25.18
+- Advertise Matter mDNS on all external network interfaces by default.
+- Remove the Matter mDNS interface selector from add-on options.
+- Keep the Matter platform list visible when a status request fails, and handle Home Assistant status errors separately.
+
 ## 2026.11.25.17
-- Select the only non-virtual IPv6 network interface for Matter mDNS when no interface is configured, avoiding advertisements on Docker and Home Assistant bridges.
-- Update the interface setting description to document automatic selection and fallback behavior.
+- Select the only non-virtual IPv6 network interface for Matter mDNS when no interface is configured.
+- Document automatic interface selection and fallback behavior.
 
 ## 2026.11.25.16
 - Show only committed Matter platforms and hide fabrics from canceled commissioning attempts.

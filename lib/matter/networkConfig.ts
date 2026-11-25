@@ -70,22 +70,11 @@ export function toServerNodeNetworkState(config: MatterNetworkConfig): {
     return state;
 }
 
-const VIRTUAL_NAME = /^(docker\d*|br-|veth|hassio$|virbr|lo$|tun|tap|wg|tailscale|zt|vmnet|vEthernet)/i;
+const VIRTUAL_NAME = /^(docker\d*|br-|veth|virbr|lo$|tun|tap|wg|tailscale|zt|vmnet|vEthernet)/i;
 const VLAN_NAME = /\.\d+$|vlan/i;
 
 function externalIpv6(infos: NetworkInterfaceInfo[] | undefined): NetworkInterfaceInfo[] {
     return (infos ?? []).filter((i) => i.family === "IPv6" && !i.internal);
-}
-
-/** Select the only non-virtual IPv6 interface when the host has one unambiguous LAN interface. */
-export function selectMatterMdnsInterface(config: MatterNetworkConfig, env: NetworkCheckEnv = defaultEnv): MatterNetworkConfig {
-    if (config.mdnsInterface) return config;
-
-    const interfaces = env.interfaces();
-    const candidates = Object.keys(interfaces).filter(
-        (name) => externalIpv6(interfaces[name]).length > 0 && !VIRTUAL_NAME.test(name),
-    );
-    return candidates.length === 1 ? {...config, mdnsInterface: candidates[0]} : config;
 }
 
 /** SDK 기동 전 동기 진단. error가 하나라도 있으면 SDK 기동은 실패할 것이므로 호출자가 중단/보고한다. 성공을 위조하지 않는다. */
@@ -133,13 +122,11 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
             );
         }
     } else if (withIpv6.length > 1) {
-        const phys = withIpv6.filter((n) => !VIRTUAL_NAME.test(n));
         add(
             "warn",
             "MULTI_NIC",
             `Multiple IPv6-capable interfaces (${withIpv6.join(", ")}) and no mdnsInterface set. ` +
-                "mDNS/UDP is served on all of them; if commissioning fails set mdnsInterface to the LAN-facing NIC" +
-                (phys.length === 1 ? ` (likely "${phys[0]}")` : ""),
+                "mDNS/UDP is served on all of them; controllers must be reachable on one of these networks.",
         );
     }
 

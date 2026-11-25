@@ -46,7 +46,7 @@ import type {DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
 import type {EndpointRegistryDocument, EndpointRegistryEntry, RegistryKey} from "../matter/endpointRegistry";
 import {FileMatterFabricStore} from "../matter/fabricStore";
 import {type MappingExpose, planEndpointMapping} from "../matter/mappingRegistry";
-import {diagnoseMatterNetwork, selectMatterMdnsInterface} from "../matter/networkConfig";
+import {diagnoseMatterNetwork} from "../matter/networkConfig";
 import {type MatterEndpointFactory, type MatterFabricStore, MatterSdkBridgeNodeRuntimeFactory} from "../matter/sdkRuntime";
 import {ZigbeeMatterEndpointFactory} from "../matter/zigbeeEndpointFactory";
 import {type MigrationOperationsInput, runMigrationOperations} from "../migration/operations";
@@ -471,11 +471,7 @@ export default class Matter extends Extension {
 
     private async startMatter(): Promise<void> {
         const matterSettings = settings.get().matter;
-        const requestedNetwork = matterSettings.network ?? {};
-        const network = selectMatterMdnsInterface(requestedNetwork);
-        if (!requestedNetwork.mdnsInterface && network.mdnsInterface) {
-            logger.info(`Matter mDNS automatically selected network interface: ${network.mdnsInterface}`);
-        }
+        const network = matterSettings.network ?? {};
         const networkDiagnostics = diagnoseMatterNetwork(network);
         for (const diagnostic of networkDiagnostics) {
             const message = `Matter network [${diagnostic.code}]: ${diagnostic.message}`;
