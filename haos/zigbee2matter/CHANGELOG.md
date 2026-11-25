@@ -1,13 +1,17 @@
 # Changelog
 
 ## 2026.11.25.3
-- HAOS 앱 설정에서 Zigbee 코디네이터 장치 선택을 필수로 표시.
+- Require selecting a Zigbee coordinator device in the HAOS app configuration.
+- HAOS 앱 구성에서 Zigbee 코디네이터 장치를 필수로 선택하도록 변경.
 
 ## 2026.11.25.2
-- HAOS에서 Matter 브리지를 기본 활성화하고 HA Matter 연결 절차를 문서화.
+- Enable the Matter bridge by default in HAOS and document pairing it with Home Assistant Matter.
+- HAOS에서 Matter 브리지를 기본 활성화하고 Home Assistant Matter 페어링 절차를 문서화.
 
 ## 2026.11.25.1
-- Zigbee 코디네이터 선택을 선택 사항으로 처리하고 HA 앱 설정 설명을 명확히 함.
+- Make coordinator selection optional and clarify the HAOS app configuration descriptions.
+- Zigbee 코디네이터 선택을 선택 사항으로 처리하고 HAOS 앱 설정 설명을 명확히 함.
 
 ## 2026.11.25
-- Zigbee2Matter 날짜 기반 독립 버전. 기존 Zigbee2MQTT 기반 버전에서 업그레이드할 수 있도록 상향.
+- Start an independent Zigbee2Matter version line above the inherited Zigbee2MQTT version.
+- 기존 Zigbee2MQTT 버전보다 높은 독립 Zigbee2Matter 버전 체계를 시작.
