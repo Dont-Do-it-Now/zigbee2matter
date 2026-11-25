@@ -472,7 +472,8 @@ export default class Matter extends Extension {
     private async startMatter(): Promise<void> {
         const matterSettings = settings.get().matter;
         const requestedNetwork = matterSettings.network ?? {};
-        const network = selectMatterMdnsInterface({...requestedNetwork, ipv4: true, ipv6: true});
+        // Matter.js requires IPv6 by default; MatterNetworkConfig only exposes IPv4 as an optional toggle.
+        const network = selectMatterMdnsInterface({...requestedNetwork, ipv4: true});
         if (!requestedNetwork.mdnsInterface && network.mdnsInterface) {
             logger.info(`Matter mDNS automatically selected network interface: ${network.mdnsInterface}`);
         }
