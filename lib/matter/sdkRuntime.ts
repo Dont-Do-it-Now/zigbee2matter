@@ -113,7 +113,8 @@ export interface MatterEndpointFactory {
     create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; unsupported?: readonly FeatureDecision[]}>;
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
     remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}>;
-    updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void>;
+    /** `part`: composed(multi-gang) device에서 상태를 반영할 gang(Zigbee endpoint ID). */
+    updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>, part?: string): Promise<void>;
     /** Applies a renamed friendly name to the live bridged endpoint (all fabrics see it via attribute reporting). */
     updateLabel?(entry: EndpointRegistryEntry, name: string): Promise<void>;
     /** True when the live endpoint no longer matches the Matter device type/clusters derived from current exposes. */

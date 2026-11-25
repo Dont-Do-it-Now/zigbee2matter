@@ -89,6 +89,19 @@ interface ZigbeeMatterEndpointSource {
     lockCommandsAllowed?: boolean;
     /** 기기의 대표(가장 작은 Zigbee endpoint ID) endpoint면 true(기본 true). 컨트롤러가 채운다. */
     isPrimaryEndpoint?: boolean;
+    /**
+     * 여러 on/off Zigbee endpoint(예: 3구 스위치)를 한 장치로 묶을 때의 gang 목록. 있으면 root는 BridgedNode이고
+     * 각 gang이 child part가 된다. 이 source 자체의 exposes/send는 쓰이지 않고 name/available만 root에 쓰인다.
+     */
+    composed?: readonly ZigbeeMatterPartSource[];
+}
+
+interface ZigbeeMatterPartSource {
+    /** Zigbee endpoint ID(문자열). part endpoint id(`gang-<id>`)와 상태 라우팅 키로 쓴다. */
+    id: string;
+    /** 컨트롤러가 gang을 구분하도록 FixedLabel로 노출할 이름(예: left/center/right). */
+    label: string;
+    source: ZigbeeMatterEndpointSource;
 }
 
 type Capabilities = Partial<Record<CapabilityId, MappingExpose>>;
@@ -136,6 +149,8 @@ interface EndpointRuntime {
     lockOutcome?: LockOutcome;
     /** Signature of the plan the SDK endpoint was built from; used to detect expose changes that need a rebuild. */
     signature: string;
+    /** 합성(composed) root일 때만: Zigbee endpoint ID -> gang runtime. */
+    parts?: Map<string, EndpointRuntime>;
 }
 
 interface FactoryOptions {
@@ -215,6 +230,24 @@ function fitMatterString(value: string, maxBytes: number): string {
     return out;
 }
 
+function bridgedBasicInformation(source: ZigbeeMatterEndpointSource, serialNumber: string): Record<string, unknown> {
+    return {
+        nodeLabel: fitMatterString(source.name, 32),
+        productName: fitMatterString(source.name, 32),
+        productLabel: fitMatterString(source.name, 64),
+        serialNumber,
+        reachable: source.available,
+    };
+}
+
+/** Matter "Common Number" semantic tag namespace (tag value = gang position, 1-based). */
+const COMMON_NUMBER_NAMESPACE = 7;
+
+/** gang(Zigbee endpoint) -> child endpoint id. 같은 root 아래에서만 유일하면 된다. */
+function gangPartId(zigbeeEndpoint: string): string {
+    return `gang-${zigbeeEndpoint}`;
+}
+
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly runtimes = new Map<string, EndpointRuntime>();
     private readonly stateUpdates = new Set<string>();
@@ -230,8 +263,93 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (!Endpoint) throw new Error("Matter SDK does not expose Endpoint");
 
         const report = (error: unknown): void => this.options.onCommandError?.(entry.endpointId, error);
+        if (source.composed !== undefined && source.composed.length > 0) return await this.createComposed(entry, source, Endpoint, report);
+
         const plan = await this.definitionFor(source, report);
         const {BridgedDeviceBasicInformationServer} = await import("@matter/main/behaviors/bridged-device-basic-information");
+        const runtime = this.instantiate(Endpoint, plan, source, {
+            id: entry.endpointId,
+            definition: plan.definition.with(BridgedDeviceBasicInformationServer),
+            options: {bridgedDeviceBasicInformation: bridgedBasicInformation(source, entry.endpointId)},
+        });
+        this.bindCommands(runtime.instance, entry.endpointId, source.send, runtime);
+        this.runtimes.set(entry.endpointId, runtime);
+
+        return {endpoint: runtime.instance, unsupported: plan.unsupported};
+    }
+
+    /**
+     * 여러 on/off gang -> 하나의 BridgedNode(root, BridgedDeviceBasicInformation) + gang별 child part.
+     * root에는 nodeLabel/reachable/serialNumber만 있고, 각 part는 해당 Zigbee endpoint의 OnOff device type(+FixedLabel)이다.
+     */
+    private async createComposed(
+        entry: EndpointRegistryEntry,
+        source: ZigbeeMatterEndpointSource,
+        Endpoint: MatterEndpointConstructor,
+        report: (error: unknown) => void,
+    ): Promise<{endpoint: unknown; unsupported: readonly FeatureDecision[]}> {
+        const [{BridgedNodeEndpoint}, {FixedLabelServer}, {DescriptorServer}] = await Promise.all([
+            import("@matter/main/endpoints/bridged-node"),
+            import("@matter/main/behaviors/fixed-label"),
+            import("@matter/main/behaviors/descriptor"),
+        ]);
+        const parts = new Map<string, EndpointRuntime>();
+        const unsupported: FeatureDecision[] = [];
+        const signatures: string[] = [];
+        for (const [index, part] of (source.composed ?? []).entries()) {
+            const plan = await this.definitionFor(part.source, report);
+            // Sibling parts share a device type, so the spec requires a TagList (Common Number namespace) to tell them apart.
+            const gang = this.instantiate(Endpoint, plan, part.source, {
+                id: gangPartId(part.id),
+                definition: plan.definition.with(FixedLabelServer, DescriptorServer.with("TagList")),
+                options: {
+                    fixedLabel: {labelList: [{label: "label", value: fitMatterString(part.label, 16)}]},
+                    descriptor: {
+                        tagList: [{mfgCode: null, namespaceId: COMMON_NUMBER_NAMESPACE, tag: index + 1, label: fitMatterString(part.label, 64)}],
+                    },
+                },
+            });
+            this.bindCommands(gang.instance, `${entry.endpointId}/${part.id}`, part.source.send, gang);
+            parts.set(part.id, gang);
+            unsupported.push(...plan.unsupported);
+            signatures.push(`${part.id}:${gang.signature}`);
+        }
+        const plan: EndpointDefinitionPlan = {
+            definition: BridgedNodeEndpoint as unknown as EndpointDefinition,
+            capabilities: {},
+            unsupported,
+            supportsTilt: false,
+            buttons: [],
+            setpointRanges: {},
+            supportedModes: [],
+        };
+        const endpoint = new Endpoint(BridgedNodeEndpoint, {
+            id: entry.endpointId,
+            parts: [...parts.values()].map((gang) => gang.instance),
+            bridgedDeviceBasicInformation: bridgedBasicInformation(source, entry.endpointId),
+        });
+        this.runtimes.set(entry.endpointId, {
+            instance: endpoint,
+            buttons: new Map(),
+            buttonQueue: Promise.resolve(),
+            plan,
+            source,
+            coverPositions: {},
+            colorValues: {},
+            signature: JSON.stringify(signatures),
+            parts,
+        });
+
+        return {endpoint, unsupported};
+    }
+
+    /** plan으로 endpoint(+버튼 part)를 만든다. root/gang 공통. */
+    private instantiate(
+        Endpoint: MatterEndpointConstructor,
+        plan: EndpointDefinitionPlan,
+        source: ZigbeeMatterEndpointSource,
+        target: {id: string; definition: unknown; options: Record<string, unknown>},
+    ): EndpointRuntime {
         const occupancyInit =
             plan.capabilities.occupancy === undefined
                 ? {}
@@ -246,22 +364,17 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 buttons.set(button, {instance: part, longActive: false});
             }
         }
-        const endpoint = new Endpoint(plan.definition.with(BridgedDeviceBasicInformationServer), {
-            id: entry.endpointId,
+        const endpoint = new Endpoint(target.definition, {
+            id: target.id,
             ...(parts.length > 0 ? {parts} : {}),
             ...occupancyInit,
             ...initialClusterState(plan.capabilities, plan.rootButton !== undefined),
-            bridgedDeviceBasicInformation: {
-                nodeLabel: fitMatterString(source.name, 32),
-                productName: fitMatterString(source.name, 32),
-                productLabel: fitMatterString(source.name, 64),
-                serialNumber: entry.endpointId,
-                reachable: source.available,
-            },
+            ...target.options,
         });
 
         if (plan.rootButton !== undefined) buttons.set(plan.rootButton, {instance: endpoint, longActive: false});
-        const runtime: EndpointRuntime = {
+
+        return {
             instance: endpoint,
             buttons,
             buttonQueue: Promise.resolve(),
@@ -271,10 +384,6 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             colorValues: {},
             signature: planSignature(plan),
         };
-        this.bindCommands(endpoint, entry.endpointId, source.send, runtime);
-        this.runtimes.set(entry.endpointId, runtime);
-
-        return {endpoint, unsupported: plan.unsupported};
     }
 
     /** 생성된 endpoint에서 Matter로 노출하지 못한 expose 목록(2차 통합에서 API/UI에 연결). */
@@ -308,6 +417,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         else await runtime.instance.close();
         this.runtimes.delete(entry.endpointId);
         this.stateUpdates.delete(entry.endpointId);
+        for (const id of runtime.parts?.keys() ?? []) this.stateUpdates.delete(`${entry.endpointId}/${id}`);
 
         return {permanent};
     }
@@ -329,6 +439,14 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const source = await this.options.resolve(entry);
         if (source === undefined) return false;
         try {
+            if (source.composed !== undefined && source.composed.length > 0) {
+                if (runtime.parts === undefined) return true;
+                const signatures: string[] = [];
+                for (const part of source.composed) signatures.push(`${part.id}:${planSignature(await this.definitionFor(part.source, () => {}))}`);
+
+                return JSON.stringify(signatures) !== runtime.signature;
+            }
+            if (runtime.parts !== undefined) return true; // composed -> single (gangs went away)
             const plan = await this.definitionFor(source, () => {});
 
             return planSignature(plan) !== runtime.signature;
@@ -337,11 +455,38 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         }
     }
 
-    async updateState(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void> {
+    /** `part`(Zigbee endpoint ID)는 합성 장치에서 상태를 반영할 gang을 고른다. 없으면 첫 gang. */
+    async updateState(entry: EndpointRegistryEntry, state: Record<string, unknown>, part?: string): Promise<void> {
         const runtime = this.runtimes.get(entry.endpointId);
         if (runtime === undefined) return;
 
         const report = (error: unknown): void => this.options.onCommandError?.(entry.endpointId, error);
+        if (runtime.parts === undefined) {
+            await this.applyState(runtime, entry.endpointId, state, report);
+
+            return;
+        }
+
+        // reachable은 root(BridgedNode)에, 나머지 상태는 해당 gang에 반영한다.
+        const {available, ...rest} = state;
+        if (typeof available === "boolean") {
+            try {
+                await runtime.instance.set({bridgedDeviceBasicInformation: {reachable: available}});
+            } catch (error) {
+                report(error);
+            }
+        }
+        const partId = part ?? runtime.parts.keys().next().value;
+        const gang = partId === undefined ? undefined : runtime.parts.get(partId);
+        if (gang !== undefined) await this.applyState(gang, `${entry.endpointId}/${partId}`, rest, report);
+    }
+
+    private async applyState(
+        runtime: EndpointRuntime,
+        guardKey: string,
+        state: Record<string, unknown>,
+        report: (error: unknown) => void,
+    ): Promise<void> {
         // 버튼 action은 순간 이벤트다. 속성 patch와 병합하지 않고, patch 계산보다 먼저 별도로 발생시킨다.
         if (runtime.buttons.size > 0 && typeof state.action === "string" && state.action !== "") {
             await this.emitButtonEvent(runtime, state, report);
@@ -349,7 +494,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const patch = this.buildPatch(runtime, state, report);
         if (Object.keys(patch).length === 0) return;
 
-        this.stateUpdates.add(entry.endpointId);
+        this.stateUpdates.add(guardKey);
         try {
             try {
                 await runtime.instance.set(patch);
@@ -370,7 +515,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 }
             }
         } finally {
-            this.stateUpdates.delete(entry.endpointId);
+            this.stateUpdates.delete(guardKey);
         }
     }
 

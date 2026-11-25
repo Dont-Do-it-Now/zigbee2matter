@@ -45,7 +45,7 @@ import type {CommissioningManager, FabricChangeAction} from "../matter/commissio
 import type {DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
 import type {EndpointRegistryDocument, EndpointRegistryEntry, RegistryKey} from "../matter/endpointRegistry";
 import {FileMatterFabricStore} from "../matter/fabricStore";
-import type {MappingExpose} from "../matter/mappingRegistry";
+import {type MappingExpose, planEndpointMapping} from "../matter/mappingRegistry";
 import {diagnoseMatterNetwork} from "../matter/networkConfig";
 import {type MatterEndpointFactory, type MatterFabricStore, MatterSdkBridgeNodeRuntimeFactory} from "../matter/sdkRuntime";
 import {ZigbeeMatterEndpointFactory} from "../matter/zigbeeEndpointFactory";
@@ -593,10 +593,10 @@ export default class Matter extends Extension {
 
     private async deliverAction(device: Device, actions: Record<string, unknown>): Promise<void> {
         for (const endpoint of device.zh.endpoints) {
-            const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
-            if (!key) continue;
+            const route = this.matterRoute(device, endpoint.ID);
+            if (!route) continue;
             try {
-                await this.runtime.updateMatterEndpoint(key, actions);
+                await this.updateMatter(route.key, actions, route.part);
             } catch (error) {
                 logger.warning(`Matter action delivery failed for ${device.name}: ${errorMessage(error)}`);
             }
@@ -671,9 +671,48 @@ export default class Matter extends Extension {
         }
         if (value === undefined) return;
 
-        const matterKey = makeDeviceKey(key.networkId, key.ieee, key.endpoint, "matter");
-        if (!matterKey) return;
-        void this.pushToMatter(formatDeviceKey(matterKey), matterKey, value, eventKey);
+        const device = this.zigbee.resolveEntity(toHerdsmanIeee(key.ieee));
+        const route = device?.isDevice() ? this.matterRoute(device, key.endpoint) : undefined;
+        const ownKey = makeDeviceKey(key.networkId, key.ieee, key.endpoint, "matter");
+        const matterKey = route?.key ?? ownKey;
+        if (!ownKey || !matterKey) return;
+        // Slot per Zigbee endpoint (not per composed parent) so gangs keep writing concurrently.
+        void this.pushToMatter(formatDeviceKey(ownKey), matterKey, value, eventKey, route?.part);
+    }
+
+    /** Zigbee endpoint IDs of the on/off gangs exposed as ONE composed Matter device (ascending); empty unless the device has 2+ such endpoints. */
+    private composedGroup(device: Device): number[] {
+        if (device.zh.endpoints.length < 2) return [];
+        const minId = Math.min(...device.zh.endpoints.map((item) => item.ID));
+        const gangs = device.zh.endpoints
+            .filter((endpoint) => {
+                const plan = planEndpointMapping(this.endpointExposes(device, endpoint), {isPrimaryEndpoint: endpoint.ID === minId});
+
+                return plan.capabilities.light !== undefined || plan.capabilities.switch !== undefined;
+            })
+            .map((endpoint) => endpoint.ID)
+            .sort((a, b) => a - b);
+
+        return gangs.length >= 2 ? gangs : [];
+    }
+
+    /** Registry (parent) key + gang id a Zigbee endpoint's Matter traffic goes through. Gangs share the first gang's key. */
+    private matterRoute(device: Device, endpointId: number): {key: NonNullable<ReturnType<typeof makeDeviceKey>>; part?: string} | undefined {
+        const group = this.composedGroup(device);
+        const gang = group.includes(endpointId);
+        const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, gang ? (group[0] as number) : endpointId, "matter");
+
+        return key === undefined ? undefined : gang ? {key, part: String(endpointId)} : {key};
+    }
+
+    private async updateMatter(key: NonNullable<ReturnType<typeof makeDeviceKey>>, state: Record<string, unknown>, part?: string): Promise<void> {
+        if (part === undefined) {
+            await this.runtime.updateMatterEndpoint(key, state);
+
+            return;
+        }
+        const entry = this.runtime.currentEndpointRegistry?.get(key);
+        if (entry) await this.endpointFactory.updateState?.(entry, state, part);
     }
 
     /**
@@ -685,6 +724,7 @@ export default class Matter extends Extension {
         matterKey: NonNullable<ReturnType<typeof makeDeviceKey>>,
         value: Record<string, unknown>,
         eventKey: string,
+        part?: string,
     ): Promise<void> {
         const running = this.matterWrites.get(slotId);
         if (running) {
@@ -700,7 +740,7 @@ export default class Matter extends Extension {
             while (next !== undefined) {
                 slot.pending = undefined;
                 try {
-                    await this.runtime.updateMatterEndpoint(matterKey, next);
+                    await this.updateMatter(matterKey, next, part);
                 } catch (error) {
                     logger.warning(`Matter state update failed for ${eventKey}: ${errorMessage(error)}`);
                 }
@@ -750,7 +790,7 @@ export default class Matter extends Extension {
                     ieee: device.ieeeAddr,
                     endpointId: (label) => device.endpoint(label)?.ID,
                     matterCovered: (definition) => {
-                        const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, definition.endpointId, "matter");
+                        const key = this.matterRoute(device, definition.endpointId)?.key;
 
                         return key !== undefined && registry?.get(key) !== undefined;
                     },
@@ -778,7 +818,10 @@ export default class Matter extends Extension {
             const runtime = this.runtime.currentDynamicEndpointRuntime;
             if (!runtime) return;
 
+            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
+                // Gangs of a composed device live under the first gang's endpoint when creating; removal covers every endpoint (legacy entries too).
+                if (create && group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
@@ -789,7 +832,26 @@ export default class Matter extends Extension {
                     logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
+            if (create) await this.retireGangEntries(device, runtime, group);
         });
+    }
+
+    /**
+     * Migration: a multi-gang device used to get one Matter endpoint per Zigbee endpoint. Once it is composed, the old per-gang
+     * entries are tombstoned (their SDK endpoints are never recreated); the first gang's entry keeps its id and becomes the composed root.
+     */
+    private async retireGangEntries(device: Device, runtime: DynamicEndpointRuntime, group: readonly number[]): Promise<void> {
+        const registry = this.runtime.currentEndpointRegistry;
+        for (const id of group.slice(1)) {
+            const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, id, "matter");
+            if (!key || registry?.get(key) === undefined) continue;
+            try {
+                await this.removeWithRetry(runtime, key);
+                logger.info(`Matter endpoint of gang ${id} of ${device.name} merged into the composed device`);
+            } catch (error) {
+                logger.warning(`Matter gang endpoint cleanup failed for ${device.name}: ${errorMessage(error)}`);
+            }
+        }
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
@@ -815,7 +877,9 @@ export default class Matter extends Extension {
             const registry = this.runtime.currentEndpointRegistry;
             if (!runtime || !registry || device.zh.interviewState !== InterviewState.Successful) return;
 
+            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
+                if (group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
@@ -830,6 +894,7 @@ export default class Matter extends Extension {
                     logger.warning(`Matter endpoint rebuild failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
+            await this.retireGangEntries(device, runtime, group);
         });
     }
 
@@ -859,7 +924,9 @@ export default class Matter extends Extension {
         for (const device of this.zigbee.devicesIterator(utils.deviceNotCoordinator)) {
             if (device.zh.interviewState !== InterviewState.Successful) continue;
 
+            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
+                if (group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
@@ -871,6 +938,7 @@ export default class Matter extends Extension {
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
+            await this.retireGangEntries(device, runtime, group);
         }
 
         await this.sweepOrphanEndpoints(runtime);
@@ -901,6 +969,17 @@ export default class Matter extends Extension {
         }
     }
 
+    /** Exposes that belong to one Zigbee endpoint (labelled for it, or unlabelled shared ones). */
+    private endpointExposes(device: Device, endpoint: Device["zh"]["endpoints"][number]): MappingExpose[] {
+        const endpointName = device.endpointName(endpoint);
+
+        return device
+            .exposes()
+            .filter(
+                (expose) => expose.endpoint === undefined || expose.endpoint === endpointName || expose.endpoint === String(endpoint.ID),
+            ) as MappingExpose[];
+    }
+
     private resolveMatterEndpointSource(entry: EndpointRegistryEntry) {
         const key = parseEntityKey(entry.key);
         if (key?.kind !== "device" || key.networkId !== this.networkIdentity.networkId) return undefined;
@@ -909,17 +988,34 @@ export default class Matter extends Extension {
         if (!device?.isDevice()) return undefined;
         const endpoint = device.zh.getEndpoint(key.endpoint);
         if (!endpoint) return undefined;
-        const endpointName = device.endpointName(endpoint);
-        const endpointExposes = device
-            .exposes()
-            .filter(
-                (expose) => expose.endpoint === undefined || expose.endpoint === endpointName || expose.endpoint === String(endpoint.ID),
-            ) as MappingExpose[];
 
+        const source = this.matterSourceFor(device, endpoint, entry);
+        const group = this.composedGroup(device);
+        if (group[0] !== key.endpoint) return source;
+
+        // Composed device: this (first gang's) entry is the bridged root, every gang becomes a child part.
+        const composed = group.flatMap((id) => {
+            const gang = device.zh.getEndpoint(id);
+            if (!gang) return [];
+            const gangKey = formatDeviceKey({...key, endpoint: id});
+
+            return [
+                {
+                    id: String(id),
+                    label: device.endpointName(gang) ?? String(id),
+                    source: this.matterSourceFor(device, gang, {...entry, key: gangKey}),
+                },
+            ];
+        });
+
+        return {...source, composed};
+    }
+
+    private matterSourceFor(device: Device, endpoint: Device["zh"]["endpoints"][number], entry: EndpointRegistryEntry) {
         return {
             name: device.name,
             available: this.state.get(device).available !== false,
-            exposes: endpointExposes,
+            exposes: this.endpointExposes(device, endpoint),
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
             invertCover: (device.options as KeyValue).invert_cover === true,
             lockCommandsAllowed: true,

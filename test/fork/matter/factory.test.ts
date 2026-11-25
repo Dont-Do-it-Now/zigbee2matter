@@ -81,6 +81,44 @@ describe("ZigbeeMatterEndpointFactory", () => {
         expect((root.options.parts as FakeEndpoint[])[0].options.id).toBe("button-2");
     });
 
+    it("composes a multi-gang device into one bridged root with one on/off part per gang", async () => {
+        FakeEndpoint.created = [];
+        const gang = (id: string, label: string) => ({
+            id,
+            label,
+            source: {
+                name: "Hall",
+                available: true,
+                exposes: [e.switch().withEndpoint(label)] as MappingExpose[],
+                send: () => Promise.resolve(),
+            },
+        });
+        const f = new ZigbeeMatterEndpointFactory({
+            loadSdk: async () => ({Endpoint: FakeEndpoint}) as never,
+            resolve: async () => ({
+                name: "Hall",
+                available: true,
+                exposes: [],
+                send: async () => {},
+                composed: [gang("1", "left"), gang("2", "center"), gang("3", "right")],
+            }),
+        });
+        const {endpoint} = await f.create(entry());
+        const root = endpoint as FakeEndpoint;
+        const parts = root.options.parts as FakeEndpoint[];
+
+        expect(FakeEndpoint.created).toHaveLength(4);
+        expect(root.options).toMatchObject({id: "ep-1", bridgedDeviceBasicInformation: {nodeLabel: "Hall", reachable: true}});
+        expect(parts.map((p) => p.options.id)).toEqual(["gang-1", "gang-2", "gang-3"]);
+        expect(parts.every((p) => p.options.bridgedDeviceBasicInformation === undefined)).toBe(true);
+
+        await f.updateState(entry(), {state: "ON", available: false}, "2");
+        expect(root.sets).toEqual([{bridgedDeviceBasicInformation: {reachable: false}}]);
+        expect(parts.map((p) => p.sets.length)).toEqual([0, 1, 0]);
+        expect(parts[1].sets[0]).toEqual({onOff: {onOff: true}});
+        expect(await f.hasPlanChanged(entry())).toBe(false);
+    });
+
     it("single-button device has no child parts", async () => {
         const f = factory([e.action(["single", "double"])]);
         await f.create(entry());
