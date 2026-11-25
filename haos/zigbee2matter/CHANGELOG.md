@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.25.13
+- Expose multi-gang Zigbee switches as one Matter device with a switch per gang instead of separate devices. Existing multi-gang devices are re-created once after the update.
+- Show the connected state after connecting to Home Assistant.
+- Open the Matter integration and add-on pages inside the Home Assistant app instead of a new browser tab.
+
 ## 2026.11.25.12
 - Fix the Matter bridge failing to start ("Behaviors have errors") because the bridge serial number exceeded the Matter length limit.
 - Shorten long device names to the Matter label limits instead of failing.
