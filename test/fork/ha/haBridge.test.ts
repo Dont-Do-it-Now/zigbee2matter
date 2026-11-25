@@ -2,8 +2,8 @@
 import {describe, expect, it} from "vitest";
 import "../../mocks/data";
 import * as exposes from "zigbee-herdsman-converters/lib/exposes";
-import {HaBridge} from "../../../lib/ha/haBridge";
 import {type HaEntityDefinition, mapDeviceExposes} from "../../../lib/ha/entityMapping";
+import {HaBridge} from "../../../lib/ha/haBridge";
 
 const {presets: e} = exposes;
 const NET = "11111111-1111-4111-8111-111111111111";

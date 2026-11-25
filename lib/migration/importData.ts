@@ -149,7 +149,11 @@ export function planImportData(input: ImportDataInput): ImportDataPlan {
         }
         const fileKey = file.relativePath.replaceAll("\\", "/").toLowerCase();
         if ((!MULTI_FILE_ROLES.has(file.role) && filesByRole.has(file.role)) || seenPaths.has(fileKey)) {
-            issues.push({severity: "block", code: "FILE_DUPLICATE", detail: `파일 역할 '${file.role}' 또는 경로 '${file.relativePath}'가 중복됩니다.`});
+            issues.push({
+                severity: "block",
+                code: "FILE_DUPLICATE",
+                detail: `파일 역할 '${file.role}' 또는 경로 '${file.relativePath}'가 중복됩니다.`,
+            });
         }
         seenPaths.add(fileKey);
         if (!filesByRole.has(file.role)) filesByRole.set(file.role, file);
@@ -183,7 +187,7 @@ export function planImportData(input: ImportDataInput): ImportDataPlan {
 
     const configurationFile = filesByRole.get("configuration");
     const configuration = input.configuration === undefined ? undefined : withoutMqtt(input.configuration);
-    if (input.configuration && Object.prototype.hasOwnProperty.call(input.configuration, "mqtt")) {
+    if (input.configuration && Object.hasOwn(input.configuration, "mqtt")) {
         issues.push({severity: "pass", code: "MQTT_EXCLUDED", detail: "기존 configuration의 최상위 mqtt 설정은 이관 대상에서 제외합니다."});
     }
 
@@ -208,7 +212,7 @@ export function planImportData(input: ImportDataInput): ImportDataPlan {
                       sourceSha256: configurationFile.sha256,
                       sourcePath: joinPath(sourceDir, configurationFile.relativePath),
                       targetPath: joinPath(targetDir, configurationFile.relativePath),
-                      excludedTopLevelKeys: Object.prototype.hasOwnProperty.call(input.configuration, "mqtt") ? (["mqtt"] as const) : ([] as const),
+                      excludedTopLevelKeys: Object.hasOwn(input.configuration, "mqtt") ? (["mqtt"] as const) : ([] as const),
                       configuration,
                   }
                 : undefined,
@@ -232,7 +236,11 @@ function checkIdentity(identity: ImportNetworkIdentity, issues: ImportIssue[]): 
         !EXTENDED_PAN_ID.test(identity.extendedPanId) ||
         !KEY_FINGERPRINT.test(identity.networkKeyFingerprint)
     ) {
-        issues.push({severity: "block", code: "IDENTITY_INVALID", detail: "IEEE, PAN, extended PAN 또는 network key fingerprint 형식이 잘못되었습니다."});
+        issues.push({
+            severity: "block",
+            code: "IDENTITY_INVALID",
+            detail: "IEEE, PAN, extended PAN 또는 network key fingerprint 형식이 잘못되었습니다.",
+        });
     }
     if (!Number.isInteger(identity.channel) || identity.channel < 11 || identity.channel > 26) {
         issues.push({severity: "block", code: "IDENTITY_INVALID", detail: "Zigbee channel은 11..26 정수여야 합니다."});
@@ -247,7 +255,11 @@ function checkIdentityMatch(source: ImportNetworkIdentity, target: ImportNetwork
         source.channel === target.channel &&
         source.networkKeyFingerprint.toLowerCase() === target.networkKeyFingerprint.toLowerCase();
     if (!same) {
-        issues.push({severity: "block", code: "IDENTITY_MISMATCH", detail: "network key fingerprint, PAN, channel 또는 coordinator IEEE가 원본과 다릅니다."});
+        issues.push({
+            severity: "block",
+            code: "IDENTITY_MISMATCH",
+            detail: "network key fingerprint, PAN, channel 또는 coordinator IEEE가 원본과 다릅니다.",
+        });
     }
 }
 
@@ -255,8 +267,7 @@ function checkFrameCounter(frameCounter: ImportFrameCounter, issues: ImportIssue
     if (
         !Number.isSafeInteger(frameCounter.source) ||
         frameCounter.source < 0 ||
-        (frameCounter.target !== undefined &&
-            (!Number.isSafeInteger(frameCounter.target) || frameCounter.target < 0))
+        (frameCounter.target !== undefined && (!Number.isSafeInteger(frameCounter.target) || frameCounter.target < 0))
     ) {
         issues.push({severity: "block", code: "FRAME_COUNTER_INVALID", detail: "frame counter는 0 이상의 안전한 정수여야 합니다."});
     } else if (frameCounter.target === undefined) {

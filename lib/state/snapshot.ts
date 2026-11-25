@@ -1,5 +1,6 @@
 import type {EventStream} from "../events";
-import StateReconciler, {type StateRecord} from "./reconciliation";
+import type StateReconciler from "./reconciliation";
+import type {StateRecord} from "./reconciliation";
 
 export interface StateSnapshot {
     epoch: string;

@@ -279,15 +279,27 @@ export function validate(): string[] {
 
     const settingsWithDefaults = get();
 
-    if (settingsWithDefaults.advanced?.network_key && typeof settingsWithDefaults.advanced.network_key === "string" && settingsWithDefaults.advanced.network_key !== "GENERATE") {
+    if (
+        settingsWithDefaults.advanced?.network_key &&
+        typeof settingsWithDefaults.advanced.network_key === "string" &&
+        settingsWithDefaults.advanced.network_key !== "GENERATE"
+    ) {
         errors.push(`advanced.network_key: should be array or 'GENERATE' (is '${settingsWithDefaults.advanced.network_key}')`);
     }
 
-    if (settingsWithDefaults.advanced?.pan_id && typeof settingsWithDefaults.advanced.pan_id === "string" && settingsWithDefaults.advanced.pan_id !== "GENERATE") {
+    if (
+        settingsWithDefaults.advanced?.pan_id &&
+        typeof settingsWithDefaults.advanced.pan_id === "string" &&
+        settingsWithDefaults.advanced.pan_id !== "GENERATE"
+    ) {
         errors.push(`advanced.pan_id: should be number or 'GENERATE' (is '${settingsWithDefaults.advanced.pan_id}')`);
     }
 
-    if (settingsWithDefaults.advanced?.ext_pan_id && typeof settingsWithDefaults.advanced.ext_pan_id === "string" && settingsWithDefaults.advanced.ext_pan_id !== "GENERATE") {
+    if (
+        settingsWithDefaults.advanced?.ext_pan_id &&
+        typeof settingsWithDefaults.advanced.ext_pan_id === "string" &&
+        settingsWithDefaults.advanced.ext_pan_id !== "GENERATE"
+    ) {
         errors.push(`advanced.ext_pan_id: should be array or 'GENERATE' (is '${settingsWithDefaults.advanced.ext_pan_id}')`);
     }
 
@@ -405,7 +417,8 @@ function applyEnvironmentVariables(settings: Partial<Settings>): void {
                                 // biome-ignore lint/suspicious/noExplicitAny: auto-parsing
                                 setting[key as keyof Settings] = envVariable as any;
                             }
-                        } else if (type.indexOf("number") >= 0 || type.indexOf("integer") >= 0) { // z2m-fork: T059 integer env
+                        } else if (type.indexOf("number") >= 0 || type.indexOf("integer") >= 0) {
+                            // z2m-fork: T059 integer env
                             // biome-ignore lint/suspicious/noExplicitAny: auto-parsing
                             setting[key as keyof Settings] = ((envVariable as unknown as number) * 1) as any;
                         } else if (type.indexOf("boolean") >= 0) {

@@ -70,7 +70,10 @@ async function writeConfiguration(
 }
 
 async function promote(stagingDir: string, targetRoot: string, suffix: string): Promise<string | undefined> {
-    const targetExists = await lstat(targetRoot).then(() => true, () => false);
+    const targetExists = await lstat(targetRoot).then(
+        () => true,
+        () => false,
+    );
     const backupDir = targetExists ? `${targetRoot}${suffix}` : undefined;
     if (backupDir) await rename(targetRoot, backupDir);
     try {
@@ -83,7 +86,9 @@ async function promote(stagingDir: string, targetRoot: string, suffix: string): 
 }
 
 async function sha256(path: string): Promise<string> {
-    return createHash("sha256").update(await readFile(path)).digest("hex");
+    return createHash("sha256")
+        .update(await readFile(path))
+        .digest("hex");
 }
 
 function safeRelativeCopyPath(sourceRoot: string, sourcePath: string, targetRoot: string, targetPath: string): string {

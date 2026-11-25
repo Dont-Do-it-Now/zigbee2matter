@@ -5,12 +5,15 @@
  * lib/matter를 import하지 않는다(C5). Matter/API 시작 실패는 해당 서비스만 degraded 처리하고 Zigbee 프로세스는 종료하지 않는다(T022).
  */
 import {randomUUID} from "node:crypto";
+import {rm} from "node:fs/promises";
 import {InterviewState} from "zigbee-herdsman/dist/controller/model/device";
 import {ApiError, assessTransport, type Principal} from "../api/auth";
-import {CallbackHaIntegrationAdapter, type HaCommand, HaIntegrationRouter} from "../api/haIntegration";
 import {HaHybridPolicy} from "../api/haHybrid";
+import {CallbackHaIntegrationAdapter, type HaCommand, HaIntegrationRouter} from "../api/haIntegration";
 import type {RestBridge, RestDevice, RestGroup, RestSettingsProvider, RestUnsupportedFeatureProvider, SettingsKind} from "../api/restRouter";
+import {FileApiTokenStore} from "../api/tokenStore";
 import {BASE_TOPIC} from "../bridgeBus/constants";
+import type {BridgeBus} from "../bridgeBus/types";
 import CommandDeduplicator from "../command/deduplication";
 import CommandLoopGuard from "../command/loopGuard";
 import {authorizeByScope} from "../command/permissions";
@@ -19,7 +22,11 @@ import CommandRetryPolicy from "../command/retry";
 import CommandRouter from "../command/router";
 import type {Command, CommandResult, ResolvedTarget, TargetResolver} from "../command/types";
 import type EventBus from "../eventBus";
+import type {BridgeEvent} from "../events";
+import {HaBridge, mapDeviceExposes} from "../ha";
 import {
+    type BridgeId,
+    bindingMatches,
     deviceKeyOf,
     FileBridgeIdentityStore,
     FileNetworkIdentityStore,
@@ -28,30 +35,23 @@ import {
     generateBridgeId,
     generateNetworkId,
     groupKeyOf,
-    bindingMatches,
     makeDeviceKey,
-    type BridgeId,
     type NetworkIdentity,
     parseEntityKey,
     toHerdsmanIeee,
 } from "../identity";
-import type {EndpointRegistryDocument, EndpointRegistryEntry} from "../matter/endpointRegistry";
 import {resolveAttestation} from "../matter/attestation";
-import {FileMatterFabricStore} from "../matter/fabricStore";
-import {isFileSet, readNamedFileSet, validateFileSet, writeFileSet} from "../storage/fileSet";
-import {rm} from "node:fs/promises";
-import {diagnoseMatterNetwork} from "../matter/networkConfig";
 import type {CommissioningManager} from "../matter/commissioning";
+import type {EndpointRegistryDocument, EndpointRegistryEntry} from "../matter/endpointRegistry";
+import {FileMatterFabricStore} from "../matter/fabricStore";
 import type {MappingExpose} from "../matter/mappingRegistry";
+import {diagnoseMatterNetwork} from "../matter/networkConfig";
 import {type MatterEndpointFactory, type MatterFabricStore, MatterSdkBridgeNodeRuntimeFactory} from "../matter/sdkRuntime";
 import {ZigbeeMatterEndpointFactory} from "../matter/zigbeeEndpointFactory";
-import {runMigrationOperations, type MigrationOperationsInput} from "../migration/operations";
-import {HaBridge, mapDeviceExposes} from "../ha";
+import {type MigrationOperationsInput, runMigrationOperations} from "../migration/operations";
 import {BridgeRuntime} from "../runtime";
-import type {BridgeEvent} from "../events";
 import type State from "../state";
-import {FileApiTokenStore} from "../api/tokenStore";
-import type {BridgeBus} from "../bridgeBus/types";
+import {isFileSet, readNamedFileSet, validateFileSet, writeFileSet} from "../storage/fileSet";
 import data from "../util/data";
 import logger from "../util/logger";
 import * as settings from "../util/settings";
@@ -189,73 +189,74 @@ export default class Matter extends Extension {
         const matterSettings = settings.get().matter;
         // T061/T062: 주입이 없으면 SDK storage 디렉터리를 파일 단위로 snapshot하는 기본 store를 쓴다.
         if (!options.matterFabricStore) this.fileFabricStore = new FileMatterFabricStore(data.joinPath("matter/storage"));
-        const build = (withApi: boolean): BridgeRuntime => new BridgeRuntime({
-            matterEndpointFactory,
-            matterFabricStore: options.matterFabricStore ?? this.fileFabricStore,
-            commissioning: options.commissioning,
-            ...(matterSettings.passcode !== undefined
-                ? {
-                      multiBridge: {
-                          factory: new MatterSdkBridgeNodeRuntimeFactory({
-                              passcode: matterSettings.passcode,
-                              ...(matterSettings.network ? {network: matterSettings.network} : {}),
-                              storagePath: data.joinPath("matter/storage"),
-                          }),
-                      },
-                  }
-                : {}),
-            backup: {
-                snapshotProvider: {
-                    identity: () => ({...this.networkIdentity, bridgeId: this.bridgeIdentity}),
-                    fabric: () => this.runtime.matter.snapshotFabric(),
-                    zigbee: () => readNamedFileSet(data.getPath(), ZIGBEE_BACKUP_FILES),
+        const build = (withApi: boolean): BridgeRuntime =>
+            new BridgeRuntime({
+                matterEndpointFactory,
+                matterFabricStore: options.matterFabricStore ?? this.fileFabricStore,
+                commissioning: options.commissioning,
+                ...(matterSettings.passcode !== undefined
+                    ? {
+                          multiBridge: {
+                              factory: new MatterSdkBridgeNodeRuntimeFactory({
+                                  passcode: matterSettings.passcode,
+                                  ...(matterSettings.network ? {network: matterSettings.network} : {}),
+                                  storagePath: data.joinPath("matter/storage"),
+                              }),
+                          },
+                      }
+                    : {}),
+                backup: {
+                    snapshotProvider: {
+                        identity: () => ({...this.networkIdentity, bridgeId: this.bridgeIdentity}),
+                        fabric: () => this.runtime.matter.snapshotFabric(),
+                        zigbee: () => readNamedFileSet(data.getPath(), ZIGBEE_BACKUP_FILES),
+                    },
+                    snapshotAdapter: {restore: (snapshot) => this.restoreSnapshot(snapshot)},
                 },
-                snapshotAdapter: {restore: (snapshot) => this.restoreSnapshot(snapshot)},
-            },
-            auth: {
-                legacyToken: apiSettings.auth_token,
-                onChange: (records) => apiTokenStore.save(records),
-            },
-            initialTokens,
-            api: withApi
-                ? {
-                      host: apiSettings.host,
-                      port: apiSettings.port,
-                      ...(apiSettings.ssl_cert || apiSettings.ssl_key
-                          ? {tls: {certPath: apiSettings.ssl_cert ?? "", keyPath: apiSettings.ssl_key ?? ""}}
-                          : {}),
-                      listDevices: () => this.listRestDevices(),
-                      listGroups: () => this.listRestGroups(),
-                      listJobs: () => this.listRestJobs(),
-                      listBridges: () => this.listRestBridges(),
-                      settings: this.restSettings(),
-                      unsupportedFeatures: this.restUnsupportedFeatures(),
-                      executeCommand: (input, principal) => this.executeRestCommand(input, principal),
-                      runMigration: (input) => this.runMigration(input),
-                      backup: {
-                          create: (passphrase) => this.createPersistentBackup(passphrase),
-                          restore: (passphrase) => this.restorePersistentBackup(passphrase),
-                      },
-                      matterManagement: {
-                          commissioningWindow: () => this.runtime.commissioning.getActiveWindow(),
-                          openCommissioningWindow: (input) => this.openCommissioningWindow(input),
-                          closeCommissioningWindow: () => this.runtime.commissioning.closeWindow(),
-                          listFabrics: () => this.runtime.commissioning.listFabrics(),
-                          listEndpoints: () => this.runtime.currentEndpointRegistry?.list() ?? [],
-                      },
-                      // T021: 요청자에게만 보내는 조회이므로 스트림에 snapshot 이벤트를 발행하지 않는다.
-                      snapshot: () => {
-                          const snapshot = this.runtime.stateSnapshots.peek();
+                auth: {
+                    legacyToken: apiSettings.auth_token,
+                    onChange: (records) => apiTokenStore.save(records),
+                },
+                initialTokens,
+                api: withApi
+                    ? {
+                          host: apiSettings.host,
+                          port: apiSettings.port,
+                          ...(apiSettings.ssl_cert || apiSettings.ssl_key
+                              ? {tls: {certPath: apiSettings.ssl_cert ?? "", keyPath: apiSettings.ssl_key ?? ""}}
+                              : {}),
+                          listDevices: () => this.listRestDevices(),
+                          listGroups: () => this.listRestGroups(),
+                          listJobs: () => this.listRestJobs(),
+                          listBridges: () => this.listRestBridges(),
+                          settings: this.restSettings(),
+                          unsupportedFeatures: this.restUnsupportedFeatures(),
+                          executeCommand: (input, principal) => this.executeRestCommand(input, principal),
+                          runMigration: (input) => this.runMigration(input),
+                          backup: {
+                              create: (passphrase) => this.createPersistentBackup(passphrase),
+                              restore: (passphrase) => this.restorePersistentBackup(passphrase),
+                          },
+                          matterManagement: {
+                              commissioningWindow: () => this.runtime.commissioning.getActiveWindow(),
+                              openCommissioningWindow: (input) => this.openCommissioningWindow(input),
+                              closeCommissioningWindow: () => this.runtime.commissioning.closeWindow(),
+                              listFabrics: () => this.runtime.commissioning.listFabrics(),
+                              listEndpoints: () => this.runtime.currentEndpointRegistry?.list() ?? [],
+                          },
+                          // T021: 요청자에게만 보내는 조회이므로 스트림에 snapshot 이벤트를 발행하지 않는다.
+                          snapshot: () => {
+                              const snapshot = this.runtime.stateSnapshots.peek();
 
-                          return {
-                              epoch: snapshot.epoch,
-                              sequence: snapshot.watermark,
-                              payload: {records: snapshot.records, revision: snapshot.revision},
-                          };
-                      },
-                  }
-                : undefined,
-        });
+                              return {
+                                  epoch: snapshot.epoch,
+                                  sequence: snapshot.watermark,
+                                  payload: {records: snapshot.records, revision: snapshot.revision},
+                              };
+                          },
+                      }
+                    : undefined,
+            });
         try {
             this.runtime = build(apiEnabled);
         } catch (error) {
@@ -625,7 +626,7 @@ export default class Matter extends Extension {
 
     private async applyRecordToMatter(eventKey: string, type: "delta" | "availability", payload: unknown): Promise<void> {
         const key = parseEntityKey(eventKey);
-        if (!key || key.kind !== "device" || !isRecord(payload) || payload.removed === true) return;
+        if (key?.kind !== "device" || !isRecord(payload) || payload.removed === true) return;
 
         let value: Record<string, unknown> | undefined;
         if (type === "availability") {
@@ -742,10 +743,10 @@ export default class Matter extends Extension {
 
     private resolveMatterEndpointSource(entry: EndpointRegistryEntry) {
         const key = parseEntityKey(entry.key);
-        if (!key || key.kind !== "device" || key.networkId !== this.networkIdentity.networkId) return undefined;
+        if (key?.kind !== "device" || key.networkId !== this.networkIdentity.networkId) return undefined;
 
         const device = this.zigbee.resolveEntity(toHerdsmanIeee(key.ieee));
-        if (!device || !device.isDevice()) return undefined;
+        if (!device?.isDevice()) return undefined;
         const endpoint = device.zh.getEndpoint(key.endpoint);
         if (!endpoint) return undefined;
         const endpointName = device.endpointName(endpoint);
@@ -875,7 +876,7 @@ export default class Matter extends Extension {
             }
             if (key.kind === "device") {
                 const device = this.zigbee.resolveEntity(toHerdsmanIeee(key.ieee));
-                if (!device || !device.isDevice()) return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
+                if (!device?.isDevice()) return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
                 entityName = device.name;
                 endpoint = String(key.endpoint);
                 endpointFromKey = true;

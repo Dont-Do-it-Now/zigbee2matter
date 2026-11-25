@@ -1,5 +1,6 @@
 import type {BridgeBus} from "../bridgeBus/types";
 import type EventBus from "../eventBus";
+import type CommandLoopGuard from "./loopGuard";
 import {
     BRIDGE_RESPONSE_PREFIX,
     buildBridgeRequestTopic,
@@ -28,7 +29,6 @@ import type {
     TargetResolver,
     ValueValidator,
 } from "./types";
-import type CommandLoopGuard from "./loopGuard";
 
 const MAX_VALUE_KEYS = 64;
 const MAX_VALUE_BYTES = 8192;

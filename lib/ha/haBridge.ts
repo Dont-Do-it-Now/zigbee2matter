@@ -9,9 +9,10 @@
  *   state snapshot observe/availability → haBridge.applyState(record)   (StateRecord 형태)
  *   REST listRestDevices()              → {..., entities: haBridge.restEntities(device.ID)}
  */
-import {parseEntityKey, type EntityKey} from "../identity";
-import type {HaCommand, HaIntegrationMode, HaIntegrationRouter} from "../api/haIntegration";
+
 import type {HaHybridPolicy} from "../api/haHybrid";
+import type {HaCommand, HaIntegrationMode, HaIntegrationRouter} from "../api/haIntegration";
+import {type EntityKey, parseEntityKey} from "../identity";
 import {entityValue, type HaEntityDefinition} from "./entityMapping";
 
 export interface HaBridgeOptions {

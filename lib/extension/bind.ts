@@ -416,26 +416,12 @@ export default class Bind extends Extension {
         if (successfulClusters.length !== 0) {
             /* v8 ignore stop */
             if (type === "bind") {
-                this.recordBinding(
-                    resolvedSource,
-                    resolvedSourceEndpoint,
-                    resolvedTarget,
-                    resolvedBindTarget,
-                    successfulClusters,
-                    true,
-                ); // z2m-fork: T028
+                this.recordBinding(resolvedSource, resolvedSourceEndpoint, resolvedTarget, resolvedBindTarget, successfulClusters, true); // z2m-fork: T028
                 await this.setupReporting(
                     resolvedSourceEndpoint.binds.filter((b) => successfulClusters.includes(b.cluster.name) && b.target === resolvedBindTarget),
                 );
             } else {
-                this.recordBinding(
-                    resolvedSource,
-                    resolvedSourceEndpoint,
-                    resolvedTarget,
-                    resolvedBindTarget,
-                    successfulClusters,
-                    false,
-                ); // z2m-fork: T028
+                this.recordBinding(resolvedSource, resolvedSourceEndpoint, resolvedTarget, resolvedBindTarget, successfulClusters, false); // z2m-fork: T028
                 if (typeof resolvedBindTarget !== "number" && !skipDisableReporting) {
                     await this.disableUnnecessaryReportings(resolvedBindTarget);
                 }

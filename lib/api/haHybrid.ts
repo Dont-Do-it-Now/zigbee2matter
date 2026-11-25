@@ -1,6 +1,7 @@
 /** HA Direct/Matter 중복 노출 및 모드 전환 정책(T051). */
-import type {HaCommand, HaIntegrationMode} from "./haIntegration";
+
 import {formatDeviceKey, formatGroupKey, parseEntityKey} from "../identity";
+import type {HaCommand, HaIntegrationMode} from "./haIntegration";
 
 export interface HybridEntityBinding {
     readonly key: string;
@@ -54,9 +55,11 @@ export class HaHybridPolicy {
 
     list(mode = this.mode): HybridEntityBinding[] {
         if (mode !== "direct" && mode !== "matter" && mode !== "hybrid") throw new Error(`unsupported HA hybrid mode: ${mode}`);
-        return [...this.bindings.values()].filter((binding) => {
-            if (mode === "hybrid") return true;
-            return mode === "direct" ? binding.directUniqueId !== undefined : binding.matterEndpoint !== undefined;
-        }).map((binding) => ({...binding}));
+        return [...this.bindings.values()]
+            .filter((binding) => {
+                if (mode === "hybrid") return true;
+                return mode === "direct" ? binding.directUniqueId !== undefined : binding.matterEndpoint !== undefined;
+            })
+            .map((binding) => ({...binding}));
     }
 }

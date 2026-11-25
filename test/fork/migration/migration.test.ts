@@ -82,19 +82,14 @@ describe("path normalization (POSIX vs Windows) in importData", () => {
         expect(codes(planImportData(importInput({sourceDataDir: "  ", targetDataDir: "/x"})).issues, "block")).toContain("PATH_INVALID");
     });
 
-    it.each([
-        "../etc/passwd",
-        "a/../b",
-        "/abs/path",
-        "C:/win/path",
-        "C:\\win\\path",
-        "a//b",
-        "",
-    ])("rejects file path %j outside the data boundary", (relativePath) => {
-        const plan = planImportData(importInput({files: [...importInput().files, {role: "devices", relativePath, sha256: SHA}]}));
-        expect(codes(plan.issues, "block")).toContain("PATH_INVALID");
-        expect(plan.canProceed).toBe(false);
-    });
+    it.each(["../etc/passwd", "a/../b", "/abs/path", "C:/win/path", "C:\\win\\path", "a//b", ""])(
+        "rejects file path %j outside the data boundary",
+        (relativePath) => {
+            const plan = planImportData(importInput({files: [...importInput().files, {role: "devices", relativePath, sha256: SHA}]}));
+            expect(codes(plan.issues, "block")).toContain("PATH_INVALID");
+            expect(plan.canProceed).toBe(false);
+        },
+    );
 
     it("rejects a duplicate role/path and a bad or missing hash; allows many external converters", () => {
         const dup = planImportData(importInput({files: [...importInput().files, {role: "database", relativePath: "db2.db", sha256: SHA}]}));
@@ -269,7 +264,10 @@ describe("preflight", () => {
     const base: PreflightInput = {
         versions: {zigbee2mqtt: "2.1.0", herdsman: "4.0.0", converters: "23.0.0"},
         adapter: {adapter: "ember", port: "/dev/ttyUSB0", transport: "serial", firmware: "7.4"},
-        devices: [{ieeeAddr: "0x00124b0001", name: "a"}, {ieeeAddr: "0x00124b0002", name: "b"}],
+        devices: [
+            {ieeeAddr: "0x00124b0001", name: "a"},
+            {ieeeAddr: "0x00124b0002", name: "b"},
+        ],
         paths: {
             sourceDataDir: "C:\\z2m\\data",
             targetDataDir: "D:\\matter\\data",
@@ -340,7 +338,10 @@ describe("automation map and orchestration", () => {
         expect(map.map((entry) => entry.status)).toEqual(["mapped", "ambiguous", "missing"]);
         expect(findAutomationRisks(references, map)).toEqual(["night"]);
         expect(() =>
-            buildAutomationMap(references, [{legacyEntityId: "x", status: "mapped"}, {legacyEntityId: "x", status: "mapped"}]),
+            buildAutomationMap(references, [
+                {legacyEntityId: "x", status: "mapped"},
+                {legacyEntityId: "x", status: "mapped"},
+            ]),
         ).toThrow("duplicate");
     });
 
@@ -380,6 +381,7 @@ describe("automation map and orchestration", () => {
 
     it("an executor failure is reported as failed without leaking the error text", async () => {
         const result = await runMigrationOperations(operationsInput(), {
+            // biome-ignore lint/suspicious/useAwait: mock throws synchronously via async wrapper
             executeStagedImport: async () => {
                 throw new Error("EACCES /secret/path");
             },

@@ -1,20 +1,17 @@
 /** T063~T066 이관 운영 orchestration 경계. 파일 I/O와 서비스 제어는 호출자가 소유한다. */
-import {evaluatePreflight, type PreflightInput, type PreflightReport} from "./preflight";
+
 import {
-    planImportData,
-    type ImportDataInput,
-    type ImportDataPlan,
-} from "./importData";
-import {
+    type AutomationReference,
+    type AutomationSource,
     buildAutomationMap,
+    type EntityMapping,
     findAutomationRisks,
     proposeMappings,
     scanAutomationReferences,
-    type AutomationReference,
-    type AutomationSource,
-    type EntityMapping,
 } from "./automationMap";
-import {planCutover, type CutoverInput, type CutoverPlan} from "./cutover";
+import {type CutoverInput, type CutoverPlan, planCutover} from "./cutover";
+import {type ImportDataInput, type ImportDataPlan, planImportData} from "./importData";
+import {evaluatePreflight, type PreflightInput, type PreflightReport} from "./preflight";
 
 export type MigrationStage = "preflight" | "import-plan" | "staged-import" | "cutover" | "rollback" | "automation-map";
 export type MigrationStageStatus = "completed" | "ready" | "blocked" | "failed";
@@ -109,9 +106,10 @@ export async function runMigrationOperations(
             : {stage: "cutover", status: "blocked", value: cutoverPlan, error: {code: "BLOCKED", message: "cutover 계획에 차단 항목이 있습니다."}};
     }
 
-    const rollback = cutover.value && cutover.status !== "blocked"
-        ? completed<RollbackPlan>("rollback", {actions: [...cutover.value.rollbackActions], onFailure: cutover.value.onFailure})
-        : blocked<RollbackPlan>("rollback", "cutover 계획이 없어 rollback 계획을 만들지 않았습니다.");
+    const rollback =
+        cutover.value && cutover.status !== "blocked"
+            ? completed<RollbackPlan>("rollback", {actions: [...cutover.value.rollbackActions], onFailure: cutover.value.onFailure})
+            : blocked<RollbackPlan>("rollback", "cutover 계획이 없어 rollback 계획을 만들지 않았습니다.");
 
     let automationMap: MigrationStageResult<AutomationMapResult>;
     try {

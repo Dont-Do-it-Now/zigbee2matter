@@ -1,15 +1,15 @@
 import {describe, expect, it} from "vitest";
 
 import {
+    type Command,
     CommandDeduplicator,
     CommandLoopGuard,
+    type CommandResult,
     CommandRetryPolicy,
     DeviceCommandQueue,
-    type Command,
-    type CommandResult,
     type EntityCommand,
 } from "../../../lib/command";
-import {EventStream, PlatformFanout, type BridgeEvent, type Platform} from "../../../lib/events";
+import {type BridgeEvent, EventStream, type Platform, PlatformFanout} from "../../../lib/events";
 
 const settle = async (): Promise<void> => {
     await Promise.resolve();
@@ -200,7 +200,7 @@ describe("T069 deterministic concurrency harness", () => {
         const runs: string[] = [];
         const queue = new DeviceCommandQueue({
             maxConcurrent: 2,
-            keyResolver: (command) => command.target.entity === "group/1" ? ["device/a", "device/b"] : [command.target.entity],
+            keyResolver: (command) => (command.target.entity === "group/1" ? ["device/a", "device/b"] : [command.target.entity]),
         });
         const group = makeCommand("group-1", "group/1");
         const member = makeCommand("member-a", "device/a");

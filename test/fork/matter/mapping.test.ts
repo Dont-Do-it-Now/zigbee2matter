@@ -10,7 +10,7 @@ import {
 } from "../../../lib/matter/buttonMapping";
 import {mapCoverAction, mapCoverMovement, matterPercent100thsToZigbee, zigbeeToMatterPercent100ths} from "../../../lib/matter/coverMapping";
 import {EnergyAccumulator, isKnownElectricalUnit, toMatterElectrical, toWattHours, toWatts} from "../../../lib/matter/energyMapping";
-import {planEndpointMapping, type MappingExpose} from "../../../lib/matter/mappingRegistry";
+import {type MappingExpose, planEndpointMapping} from "../../../lib/matter/mappingRegistry";
 import {
     booleanSensorBySemantic,
     booleanSensorToMatter,

@@ -1,7 +1,8 @@
 /** 독립 API 서버 수명주기(T053/T056/T057). */
+
+import {readFileSync} from "node:fs";
 import {createServer, type IncomingMessage, type Server} from "node:http";
 import {createServer as createSecureServer} from "node:https";
-import {readFileSync} from "node:fs";
 import type {Duplex} from "node:stream";
 import WebSocket from "ws";
 import type {EventStream} from "../events";
@@ -51,9 +52,7 @@ export class ApiServer {
         const tls = this.options.tls;
         if (tls === undefined) return createServer((req, res) => this.rest.handle(req, res));
         if (!tls.certPath || !tls.keyPath) throw new Error("API TLS requires both cert and key");
-        return createSecureServer({cert: readFileSync(tls.certPath), key: readFileSync(tls.keyPath)}, (req, res) =>
-            this.rest.handle(req, res),
-        );
+        return createSecureServer({cert: readFileSync(tls.certPath), key: readFileSync(tls.keyPath)}, (req, res) => this.rest.handle(req, res));
     }
 
     async start(): Promise<void> {

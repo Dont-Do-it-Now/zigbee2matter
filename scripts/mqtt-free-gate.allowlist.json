@@ -2,25 +2,120 @@
     "$comment": "T072 MQTT-free gate allowlist. 근거: docs/evidence/T006.md 'grep 잔존 분류'. 'zigbee2mqtt' 브랜드 토큰은 게이트가 먼저 제거하므로 여기 넣지 않는다(브랜드는 별도 brand 작업). 'z2m-fork:' 마커 뒤 주석에만 mqtt가 있는 줄도 게이트가 자동 허용한다. 하드 금지 패턴(this.mqtt, mqtt.publish(, mqtt://, MQTTMessage 등)은 허용 목록으로 풀 수 없다. pattern은 대소문자 무시 정규식, max는 해당 규칙의 최대 허용 줄 수(초과 시 위반).",
     "allowedPackages": ["zigbee2mqtt", "zigbee2mqtt-frontend", "zigbee2mqtt-windfront"],
     "rules": [
-        {"file": "lib/extension/homeassistant.ts", "category": "ha-mapping", "max": 14, "reason": "HA 측 MQTT 개념 주석/마커 문구. T052에서 재작성 후 항목 삭제"},
-        {"file": "lib/controller.ts", "pattern": "MQTT Discovery", "category": "ha-removed-message", "max": 2, "reason": "HA 확장 미등록 안내 문구(T006). T052에서 재작성"},
-        {"file": "lib/extension/bridge.ts", "pattern": "log_debug_to_mqtt_frontend|debugToMQTTFrontend", "category": "compat-setting-key", "max": 2, "reason": "설정 키 개명은 사용자 설정 호환 영향(T006 OPEN Q2)"},
+        {
+            "file": "lib/extension/homeassistant.ts",
+            "category": "ha-mapping",
+            "max": 14,
+            "reason": "HA 측 MQTT 개념 주석/마커 문구. T052에서 재작성 후 항목 삭제"
+        },
+        {
+            "file": "lib/controller.ts",
+            "pattern": "MQTT Discovery",
+            "category": "ha-removed-message",
+            "max": 2,
+            "reason": "HA 확장 미등록 안내 문구(T006). T052에서 재작성"
+        },
+        {
+            "file": "lib/extension/bridge.ts",
+            "pattern": "log_debug_to_mqtt_frontend|debugToMQTTFrontend",
+            "category": "compat-setting-key",
+            "max": 2,
+            "reason": "설정 키 개명은 사용자 설정 호환 영향(T006 OPEN Q2)"
+        },
         {"file": "lib/types/api.ts", "pattern": "log_debug_to_mqtt_frontend", "category": "compat-setting-key", "max": 1, "reason": "상동"},
         {"file": "lib/util/settings.ts", "pattern": "log_debug_to_mqtt_frontend", "category": "compat-setting-key", "max": 1, "reason": "상동"},
-        {"file": "lib/util/settings.ts", "pattern": "\"mqtt\" in s|Ignoring the deprecated 'mqtt' section|\\(s as KeyValue\\)\\.mqtt", "category": "legacy-config-ignore", "max": 3, "reason": "기존 configuration.yaml의 mqtt 섹션 무시+경고(settings.ts read())"},
-        {"file": "lib/extension/frontend.ts", "pattern": "mqtt: p\\.bridgeBus|mqtt: \\{base_topic", "category": "windfront-compat", "max": 2, "reason": "windfront 2.15.1 크래시 호환(T006 REWORK, Q1). WS 출력 전용"},
-        {"file": "lib/extension/configure.ts", "pattern": "mqtt_message", "category": "identifier", "max": 2, "reason": "configure 이벤트명 문자열 리터럴(upstream 유지)"},
+        {
+            "file": "lib/util/settings.ts",
+            "pattern": "\"mqtt\" in s|Ignoring the deprecated 'mqtt' section|\\(s as KeyValue\\)\\.mqtt",
+            "category": "legacy-config-ignore",
+            "max": 3,
+            "reason": "기존 configuration.yaml의 mqtt 섹션 무시+경고(settings.ts read())"
+        },
+        {
+            "file": "lib/extension/frontend.ts",
+            "pattern": "mqtt: p\\.bridgeBus|mqtt: \\{base_topic",
+            "category": "windfront-compat",
+            "max": 2,
+            "reason": "windfront 2.15.1 크래시 호환(T006 REWORK, Q1). WS 출력 전용"
+        },
+        {
+            "file": "lib/extension/configure.ts",
+            "pattern": "mqtt_message",
+            "category": "identifier",
+            "max": 2,
+            "reason": "configure 이벤트명 문자열 리터럴(upstream 유지)"
+        },
         {"file": "lib/extension/publish.ts", "pattern": "mqtt\\.base_topic|MQTT message", "category": "wording", "max": 2, "reason": "주석 문구"},
         {"file": "lib/extension/receive.ts", "pattern": "MQTT message|MQTT broker", "category": "wording", "max": 2, "reason": "주석 문구"},
-        {"file": "lib/util/utils.ts", "pattern": "MQTT wildcard|MQTT publishes", "category": "wording", "max": 2, "reason": "friendly_name 검증 메시지/주석(동작 무관)"},
-        {"file": "lib/util/settingsMigration.ts", "pattern": "MQTT", "category": "migration-note", "max": 3, "reason": "과거 마이그레이션 노트(문서/migration 예외)"},
-        {"file": "lib/util/settings.schema.json", "pattern": "MQTT|z2m:mqtt|log_debug_to_mqtt_frontend", "category": "schema-wording", "max": 13, "reason": "schema title/description 문구, 로거 예시, 호환 설정 키. 'mqtt' 속성/required는 JSON 규칙(C)이 별도 차단"},
-        {"file": "lib/migration/importData.ts", "pattern": "MQTT_EXCLUDED|withoutMqtt|configuration.*mqtt|copy\\.mqtt", "category": "legacy-config-migration", "max": 8, "reason": "기존 Z2M 설정의 mqtt 섹션을 새 프로젝트 설정으로 복사하지 않는 명시적 이관 경계"},
-        {"file": "lib/migration/importData.ts", "pattern": "excludedTopLevelKeys: readonly \\[\"mqtt\"\\]", "category": "legacy-config-migration", "max": 1, "reason": "기존 Z2M mqtt 최상위 키 이관 제외 타입 정의(legacy 설정 경계). 실측 1"},
-        {"file": "scripts/release-gate.mjs", "pattern": "mqtt-free-gate\\.mjs --strict-test", "category": "gate-invocation", "max": 1, "reason": "release gate가 검사하는 MQTT 게이트 호출 문자열(필수 워크플로 항목). 실측 1"},
-        {"file": "lib/types/dom.shim.d.ts", "pattern": "sub-deps in mqtt", "category": "shim-comment", "max": 1, "reason": "파일은 srvx용으로 유지(T006). 주석만 잔존"},
-        {"file": "scripts/upstream-ledger.mjs", "pattern": "MQTT|mqtt", "category": "gate-rule", "max": 6, "reason": "T007 분류기가 MQTT/MIXED 경계를 판정하는 코드"},
-        {"file": "scripts/lockfile-recovery.mjs", "pattern": "MQTT|mqtt", "category": "gate-rule", "max": 10, "reason": "T007/T076 lockfile 금지 패키지 복구 gate 자체"},
-        {"file": ".github/workflows/quality.yml", "pattern": "MQTT|mqtt", "category": "gate-invocation", "max": 3, "reason": "T072 gate 호출만 허용하며 생산 의존성은 별도 검사"}
+        {
+            "file": "lib/util/utils.ts",
+            "pattern": "MQTT wildcard|MQTT publishes",
+            "category": "wording",
+            "max": 2,
+            "reason": "friendly_name 검증 메시지/주석(동작 무관)"
+        },
+        {
+            "file": "lib/util/settingsMigration.ts",
+            "pattern": "MQTT",
+            "category": "migration-note",
+            "max": 3,
+            "reason": "과거 마이그레이션 노트(문서/migration 예외)"
+        },
+        {
+            "file": "lib/util/settings.schema.json",
+            "pattern": "MQTT|z2m:mqtt|log_debug_to_mqtt_frontend",
+            "category": "schema-wording",
+            "max": 13,
+            "reason": "schema title/description 문구, 로거 예시, 호환 설정 키. 'mqtt' 속성/required는 JSON 규칙(C)이 별도 차단"
+        },
+        {
+            "file": "lib/migration/importData.ts",
+            "pattern": "MQTT_EXCLUDED|withoutMqtt|configuration.*mqtt|copy\\.mqtt",
+            "category": "legacy-config-migration",
+            "max": 8,
+            "reason": "기존 Z2M 설정의 mqtt 섹션을 새 프로젝트 설정으로 복사하지 않는 명시적 이관 경계"
+        },
+        {
+            "file": "lib/migration/importData.ts",
+            "pattern": "excludedTopLevelKeys: readonly \\[\"mqtt\"\\]",
+            "category": "legacy-config-migration",
+            "max": 1,
+            "reason": "기존 Z2M mqtt 최상위 키 이관 제외 타입 정의(legacy 설정 경계). 실측 1"
+        },
+        {
+            "file": "scripts/release-gate.mjs",
+            "pattern": "mqtt-free-gate\\.mjs --strict-test",
+            "category": "gate-invocation",
+            "max": 1,
+            "reason": "release gate가 검사하는 MQTT 게이트 호출 문자열(필수 워크플로 항목). 실측 1"
+        },
+        {
+            "file": "lib/types/dom.shim.d.ts",
+            "pattern": "sub-deps in mqtt",
+            "category": "shim-comment",
+            "max": 1,
+            "reason": "파일은 srvx용으로 유지(T006). 주석만 잔존"
+        },
+        {
+            "file": "scripts/upstream-ledger.mjs",
+            "pattern": "MQTT|mqtt",
+            "category": "gate-rule",
+            "max": 6,
+            "reason": "T007 분류기가 MQTT/MIXED 경계를 판정하는 코드"
+        },
+        {
+            "file": "scripts/lockfile-recovery.mjs",
+            "pattern": "MQTT|mqtt",
+            "category": "gate-rule",
+            "max": 10,
+            "reason": "T007/T076 lockfile 금지 패키지 복구 gate 자체"
+        },
+        {
+            "file": ".github/workflows/quality.yml",
+            "pattern": "MQTT|mqtt",
+            "category": "gate-invocation",
+            "max": 3,
+            "reason": "T072 gate 호출만 허용하며 생산 의존성은 별도 검사"
+        }
     ]
 }

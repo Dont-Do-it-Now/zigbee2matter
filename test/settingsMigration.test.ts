@@ -678,8 +678,7 @@ describe("Settings Migration", () => {
     });
 
     describe("Migrates v1 to v3", () => {
-        const BASE_CONFIG = {
-        };
+        const BASE_CONFIG = {};
 
         beforeEach(() => {
             settings.testing.CURRENT_VERSION = 3; // stop update after this version

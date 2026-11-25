@@ -69,9 +69,7 @@ export class OtaJobStore {
     }
 
     findActiveByDevice(deviceIeeeAddr: string): OtaJob | undefined {
-        return [...this.#jobs.values()].find(
-            (job) => job.deviceIeeeAddr === deviceIeeeAddr && (job.status === "queued" || job.status === "running"),
-        );
+        return [...this.#jobs.values()].find((job) => job.deviceIeeeAddr === deviceIeeeAddr && (job.status === "queued" || job.status === "running"));
     }
 
     start(job: OtaJob): void {
@@ -115,7 +113,10 @@ export class OtaJobStore {
     }
 
     complete(job: OtaJob): void {
-        if (job.cancelRequested) return this.cancel(job);
+        if (job.cancelRequested) {
+            this.cancel(job);
+            return;
+        }
         this.#assertMutable(job);
         job.progress = 100;
         job.status = "completed";
@@ -124,7 +125,10 @@ export class OtaJobStore {
 
     fail(job: OtaJob, error: unknown): void {
         if (job.status === "completed" || job.status === "failed" || job.status === "interrupted") return;
-        if (job.cancelRequested) return this.cancel(job);
+        if (job.cancelRequested) {
+            this.cancel(job);
+            return;
+        }
         job.status = "failed";
         job.error = error instanceof Error ? error.message : String(error);
         job.finishedAt = this.#timestamp();

@@ -4,10 +4,11 @@
  * SDK 정의는 동적으로 로드하고, 승인된 조명 매핑만 선택한다. 정의가 없는
  * expose를 임의의 Matter device type으로 바꾸지 않는다.
  */
-import {type CapabilityId, type MappingExpose, planEndpointMapping} from "./mappingRegistry";
-import type {FeatureDecision} from "./unsupportedFeatures";
-import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
+
+import {DEFAULT_BUTTON, mapButtonActionSequence, toSwitchEmission} from "./buttonMapping";
+import {matterPercent100thsToZigbee, zigbeeToMatterPercent100ths} from "./coverMapping";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
+import {toMatterElectrical} from "./energyMapping";
 import {
     matterColorToZigbee,
     matterColorXyToZigbee,
@@ -17,10 +18,6 @@ import {
     zigbeeColorToMatter,
     zigbeeColorXyToMatter,
 } from "./lightingMapping";
-import {celsiusToMatter, humidityPercentToMatter, occupancyToMatter} from "./sensorMapping";
-import {toMatterElectrical} from "./energyMapping";
-import {matterPercent100thsToZigbee, zigbeeToMatterPercent100ths} from "./coverMapping";
-import {DEFAULT_BUTTON, mapButtonActionSequence, toSwitchEmission} from "./buttonMapping";
 import {
     authorizeLockCommand,
     celsiusSetpointToMatter,
@@ -32,6 +29,10 @@ import {
     zigbeeLockStateToMatter,
     zigbeeSystemModeToMatter,
 } from "./lockThermostatMapping";
+import {type CapabilityId, type MappingExpose, planEndpointMapping} from "./mappingRegistry";
+import type {MatterEndpointFactory, MatterMainModule} from "./sdkRuntime";
+import {celsiusToMatter, humidityPercentToMatter, occupancyToMatter} from "./sensorMapping";
+import type {FeatureDecision} from "./unsupportedFeatures";
 
 interface EndpointDefinition {
     with(...behaviors: unknown[]): unknown;
@@ -40,13 +41,20 @@ interface EndpointDefinition {
 type Listener<T> = {on(listener: (value: T) => void): void};
 
 interface EndpointEvents {
+    // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
     onOff?: {onOff$Changed?: Listener<boolean>};
+    // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
     levelControl?: {currentLevel$Changed?: Listener<number>};
     colorControl?: {
+        // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
         colorTemperatureMireds$Changed?: Listener<number>;
+        // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
         currentHue$Changed?: Listener<number>;
+        // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
         currentSaturation$Changed?: Listener<number>;
+        // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
         currentX$Changed?: Listener<number>;
+        // biome-ignore lint/style/useNamingConvention: $Changed suffix is part of the Matter SDK event API
         currentY$Changed?: Listener<number>;
     };
     thermostat?: Record<string, Listener<number> | undefined>;
@@ -470,6 +478,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         return undefined;
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
     private async lockDefinition(base: PlanBase, source: ZigbeeMatterEndpointSource, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
         const [{DoorLockDevice}, {DoorLockServer}] = await Promise.all([
             import("@matter/main/devices/door-lock"),
@@ -520,9 +529,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
 
         events?.onOff?.onOff$Changed?.on((value) => command(() => ({state: value ? "ON" : "OFF"})));
         events?.levelControl?.currentLevel$Changed?.on((value) => command(() => ({brightness: matterLevelToZigbee(value)})));
-        events?.colorControl?.colorTemperatureMireds$Changed?.on((value) =>
-            command(() => ({color_temp: validateColorTemperatureMireds(value)})),
-        );
+        events?.colorControl?.colorTemperatureMireds$Changed?.on((value) => command(() => ({color_temp: validateColorTemperatureMireds(value)})));
         events?.colorControl?.currentHue$Changed?.on((hue) =>
             color({hue}, (c) => (c.saturation === undefined ? undefined : {color: matterColorToZigbee(hue, c.saturation)})),
         );
@@ -557,6 +564,7 @@ async function loadDevice(path: string): Promise<EndpointDefinition> {
 }
 
 /** primary device type에 없는 센서/전력 cluster를 같은 endpoint에 추가할 behavior로 로드한다. */
+// biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
 async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): Promise<any[]> {
     const behaviors: unknown[] = [];
     if (caps.temperature && primarySensor !== "temperature") {
@@ -582,6 +590,7 @@ async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): P
     return behaviors;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
 async function lightDefinition(base: PlanBase, light: MappingExpose, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
     const features = light.features ?? [];
     const hasColor = features.some((f) => f.name === "color_xy" || f.name === "color_hs" || f.name === "color");
@@ -605,6 +614,7 @@ async function coverDefinition(
     base: PlanBase,
     cover: MappingExpose,
     source: ZigbeeMatterEndpointSource,
+    // biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
     extras: readonly any[],
     report: (error: unknown) => void,
 ): Promise<EndpointDefinitionPlan> {
@@ -620,7 +630,9 @@ async function coverDefinition(
         void send(payload).catch(report);
     };
     // 이동/정지 명령은 StopMotion 포함 Matter command를 서버 핸들러에서 받아 Zigbee로 보낸다.
+    // biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
     class ZigbeeWindowCoveringServer extends WindowCoveringServer.with(...(features as any)) {
+        // biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
         public override handleMovement(type: any, _reversed: boolean, direction: any, target?: number): void {
             const key = type === MovementType.Tilt ? "tilt" : "position";
             if (target !== undefined) dispatch({[key]: matterPercent100thsToZigbee(target, invert)});
@@ -637,6 +649,7 @@ async function coverDefinition(
     return {...base, definition: WindowCoveringDevice.with(ZigbeeWindowCoveringServer, ...extras) as EndpointDefinition, supportsTilt};
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
 async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, extras: readonly any[]): Promise<EndpointDefinitionPlan> {
     const [{ThermostatDevice}, {ThermostatServer}] = await Promise.all([
         import("@matter/main/devices/thermostat"),
@@ -664,6 +677,7 @@ async function thermostatDefinition(base: PlanBase, thermostat: MappingExpose, e
 
     return {
         ...base,
+        // biome-ignore lint/suspicious/noExplicitAny: Matter SDK variadic arguments require untyped generics
         definition: ThermostatDevice.with(ThermostatServer.with(...(features as any)), ...extras) as EndpointDefinition,
         setpointRanges,
         supportedModes: modes,

@@ -45,11 +45,23 @@ export default class WsEventSession {
 
     accept(event: BridgeEvent): void {
         if (this.resyncRequired) return;
-        if (this.epoch !== undefined && event.epoch !== this.epoch) return this.requireResync("epoch");
-        if (this.lastSequence !== undefined && event.sequence <= this.lastSequence) return this.requireResync("order");
-        if (this.lastSequence !== undefined && event.sequence !== this.lastSequence + 1) return this.requireResync("gap");
+        if (this.epoch !== undefined && event.epoch !== this.epoch) {
+            this.requireResync("epoch");
+            return;
+        }
+        if (this.lastSequence !== undefined && event.sequence <= this.lastSequence) {
+            this.requireResync("order");
+            return;
+        }
+        if (this.lastSequence !== undefined && event.sequence !== this.lastSequence + 1) {
+            this.requireResync("gap");
+            return;
+        }
 
-        if (this.queue.length >= this.maxQueue) return this.requireResync("overflow");
+        if (this.queue.length >= this.maxQueue) {
+            this.requireResync("overflow");
+            return;
+        }
 
         this.epoch = event.epoch;
         this.lastSequence = event.sequence;
@@ -57,13 +69,17 @@ export default class WsEventSession {
     }
 
     acceptReplay(result: ReplayResult): void {
-        if (result.resync) return this.requireResync(result.reason);
+        if (result.resync) {
+            this.requireResync(result.reason);
+            return;
+        }
         for (const event of result.events) this.accept(event);
     }
 
     acceptSnapshot(snapshot: WsSnapshot): void {
         if (!Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0 || snapshot.epoch.length === 0) {
-            return this.requireResync("invalid");
+            this.requireResync("invalid");
+            return;
         }
 
         this.queue.length = 0;

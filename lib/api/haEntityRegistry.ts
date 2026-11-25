@@ -1,5 +1,5 @@
 /** HA Direct/Matter 공용 엔티티 identity registry 경계 (T052). */
-import {formatDeviceKey, formatGroupKey, type EntityKey} from "../identity";
+import {type EntityKey, formatDeviceKey, formatGroupKey} from "../identity";
 
 // z2m-fork: T052 light/number/select 추가(homeassistant.ts 매핑 재사용)
 export type HaEntityPlatform =

@@ -8,13 +8,9 @@ import {randomUUID} from "node:crypto";
 import {chmod, mkdir, open, readFile, rename, rm, stat, utimes} from "node:fs/promises";
 import path from "node:path";
 
-import {parseBridgeId, type BridgeId} from "../identity";
+import {type BridgeId, parseBridgeId} from "../identity";
 import data from "../util/data";
-import {
-    type EndpointRegistryDocument,
-    type EndpointRegistryStore,
-    parseEndpointRegistryDocument,
-} from "./endpointRegistry";
+import {type EndpointRegistryDocument, type EndpointRegistryStore, parseEndpointRegistryDocument} from "./endpointRegistry";
 
 const REGISTRY_DIRECTORY = path.join("matter", "endpoint-registry");
 const DEFAULT_LOCK_TIMEOUT_MS = 30_000;
@@ -106,9 +102,12 @@ async function acquireLock(lockPath: string, timeoutMs: number): Promise<() => P
             await handle.writeFile(token, "utf8");
             await handle.sync();
             await handle.close();
-            const heartbeat = setInterval(() => {
-                void refreshLock(lockPath, token);
-            }, Math.max(1000, Math.floor(LOCK_STALE_MS / 3)));
+            const heartbeat = setInterval(
+                () => {
+                    void refreshLock(lockPath, token);
+                },
+                Math.max(1000, Math.floor(LOCK_STALE_MS / 3)),
+            );
             heartbeat.unref?.();
             let released = false;
 

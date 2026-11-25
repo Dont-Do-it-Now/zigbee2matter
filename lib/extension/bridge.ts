@@ -8,9 +8,9 @@ import {Zcl} from "zigbee-herdsman";
 import {InterviewState} from "zigbee-herdsman/dist/controller/model/device";
 import * as zhc from "zigbee-herdsman-converters";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
-import PairingPolicy, {assertPermitJoinTime} from "../pairing"; // z2m-fork: T027
 import Device from "../model/device";
 import type Group from "../model/group";
+import PairingPolicy, {assertPermitJoinTime} from "../pairing"; // z2m-fork: T027
 import type {Zigbee2MQTTAPI, Zigbee2MQTTDevice, Zigbee2MQTTResponse, Zigbee2MQTTResponseEndpoints} from "../types/api";
 import data from "../util/data";
 import logger from "../util/logger";

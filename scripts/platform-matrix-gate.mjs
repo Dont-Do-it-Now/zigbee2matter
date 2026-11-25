@@ -21,7 +21,7 @@ if (!path || path.startsWith("--")) {
 
     for (const platform of platforms) {
         const result = document?.platforms?.[platform];
-        if (!result || result.status !== "PASS" || typeof result.evidence !== "string" || result.evidence.trim().length === 0) {
+        if (result?.status !== "PASS" || typeof result.evidence !== "string" || result.evidence.trim().length === 0) {
             fail(`${platform} requires non-empty PASS evidence`);
         }
     }

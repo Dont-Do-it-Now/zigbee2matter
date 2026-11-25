@@ -2063,9 +2063,9 @@ export class HomeAssistant extends Extension {
                 // z2m-fork: T006 MQTT Discovery send removed, mapping kept for T052
             }
         }
-        return Promise.resolve();
     }
 
+    // biome-ignore lint/suspicious/useAwait: event handler signature is async for consistent interface contract
     @bind private async onBridgeBusMessage(data: eventdata.BridgeBusMessage): Promise<void> {
         const discoveryMatch = data.topic.match(this.discoveryRegex);
         const isDeviceAutomation = discoveryMatch && discoveryMatch[1] === "device_automation";

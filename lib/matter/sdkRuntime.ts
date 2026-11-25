@@ -1,12 +1,12 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
 import {readFile} from "node:fs/promises";
-import {toMatterEnvVars, toServerNodeNetworkState, type MatterNetworkConfig} from "./networkConfig";
 import type {ResolvedAttestation} from "./attestation";
+import type {CommissioningBackend, CommissioningCode, FabricChangeAction, FabricRecord} from "./commissioning";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
-import type {FeatureDecision} from "./unsupportedFeatures";
 import type {BridgeNodeConfig, BridgeNodeRuntime, BridgeNodeRuntimeFactory} from "./multiBridge";
-import type {CommissioningBackend, CommissioningCode, FabricChangeAction, FabricRecord} from "./commissioning";
+import {type MatterNetworkConfig, toMatterEnvVars, toServerNodeNetworkState} from "./networkConfig";
+import type {FeatureDecision} from "./unsupportedFeatures";
 
 /**
  * 구독/보고(T040)는 SDK가 소유한다. 상태는 `endpoint.set(...)`(MatterEndpointFactory.updateState)로만 갱신하고,
@@ -111,7 +111,7 @@ export interface UnsupportedFeatureProvider {
 export interface MatterEndpointFactory {
     create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; unsupported?: readonly FeatureDecision[]}>;
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
-    remove(entry: EndpointRegistryEntry): Promise<void | {permanent: boolean}>;
+    remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}>;
     updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void>;
 }
 
@@ -150,7 +150,7 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter, Unsuppo
         return this.unsupported.get(endpointId) ?? [];
     }
 
-    async remove(entry: EndpointRegistryEntry): Promise<void | {permanent: boolean}> {
+    async remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}> {
         this.unsupported.delete(entry.endpointId);
 
         return await this.factory.remove(entry);
@@ -223,36 +223,39 @@ export class MatterSdkRuntime {
             const sdk = await this.load();
             this.protocol ??= await loadProtocol();
             if (options.storagePath !== undefined) applyStoragePath(sdk, options.storagePath);
-            const commissioning = options.passcode === undefined || options.discriminator === undefined
-                ? undefined
-                : {passcode: options.passcode, discriminator: options.discriminator};
-            const basicInformation = options.vendorId === undefined || options.productId === undefined
-                ? undefined
-                : {
-                      vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId,
-                      productId: options.productId,
-                      productName: options.productName ?? "Zigbee2Matter Bridge",
-                      nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
-                      serialNumber: options.id,
-                  };
-            const customCertification = options.attestation?.useSdkGeneratedTestCertification === false
-                ? {
-                      certification: async () => {
-                          const files = options.attestation?.files;
-                          if (!files) throw new Error("Matter custom attestation files are missing");
-                          try {
-                              return {
-                                  privateKey: await readFile(files.dacPrivateKey),
-                                  certificate: await readFile(files.dac),
-                                  intermediateCertificate: await readFile(files.pai),
-                                  declaration: await readFile(files.cd),
-                              };
-                          } catch {
-                              throw new Error("Matter custom attestation files could not be loaded");
-                          }
-                      },
-                  }
-                : undefined;
+            const commissioning =
+                options.passcode === undefined || options.discriminator === undefined
+                    ? undefined
+                    : {passcode: options.passcode, discriminator: options.discriminator};
+            const basicInformation =
+                options.vendorId === undefined || options.productId === undefined
+                    ? undefined
+                    : {
+                          vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId,
+                          productId: options.productId,
+                          productName: options.productName ?? "Zigbee2Matter Bridge",
+                          nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
+                          serialNumber: options.id,
+                      };
+            const customCertification =
+                options.attestation?.useSdkGeneratedTestCertification === false
+                    ? {
+                          certification: async () => {
+                              const files = options.attestation?.files;
+                              if (!files) throw new Error("Matter custom attestation files are missing");
+                              try {
+                                  return {
+                                      privateKey: await readFile(files.dacPrivateKey),
+                                      certificate: await readFile(files.dac),
+                                      intermediateCertificate: await readFile(files.pai),
+                                      declaration: await readFile(files.cd),
+                                  };
+                              } catch {
+                                  throw new Error("Matter custom attestation files could not be loaded");
+                              }
+                          },
+                      }
+                    : undefined;
             const node = await sdk.ServerNode.create({
                 id: options.id,
                 ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),

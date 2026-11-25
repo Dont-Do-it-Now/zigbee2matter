@@ -823,16 +823,8 @@ describe("Extension: Publish", () => {
         expect(endpoint.command).toHaveBeenCalledWith("genOnOff", "on", {}, {});
         expect(endpoint.command).toHaveBeenCalledWith("genOnOff", "toggle", {}, {});
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(2);
-        expect(mockBridgeBusPublish.mock.calls[0]).toEqual([
-            "zigbee2matter/wall_switch_double",
-            stringify({state_left: "ON"}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/wall_switch_double",
-            stringify({state_left: "OFF"}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/wall_switch_double", stringify({state_left: "ON"}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/wall_switch_double", stringify({state_left: "OFF"}), {retain: false}]);
     });
 
     it("Should not use state converter on non-json message when value is not on/off/toggle", async () => {
@@ -1224,21 +1216,9 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(3);
-        expect(mockBridgeBusPublish.mock.calls[0]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 50}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 0}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[2]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 50}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 50}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 0}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[2]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 50}), {retain: false}]);
     });
 
     it("Should turn device off when brightness 0 is send with transition", async () => {
@@ -1270,21 +1250,9 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(3);
-        expect(mockBridgeBusPublish.mock.calls[0]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 50}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 0}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[2]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 50}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 50}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 0}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[2]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 50}), {retain: false}]);
     });
 
     it("Should allow to set color via hue and saturation", async () => {
@@ -1413,11 +1381,7 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
-        expect(mockBridgeBusPublish.mock.calls[0]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 200}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 200}), {retain: false}]);
 
         // Bulb reports brightness while decreasing brightness
         await mockZHEvents.message({
@@ -1430,11 +1394,7 @@ describe("Extension: Publish", () => {
         });
         await flushPromises();
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(2);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 1}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 1}), {retain: false}]);
 
         // Turn on again
         await mockBridgeBusEvents.message("zigbee2matter/bulb_color/set", stringify({state: "ON", transition: 3}));
@@ -1447,11 +1407,7 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(3);
-        expect(mockBridgeBusPublish.mock.calls[2]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 200}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[2]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 200}), {retain: false}]);
     });
 
     it("When device is turned off with transition and turned on WITHOUT transition it should restore the brightness", async () => {
@@ -1474,11 +1430,7 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
-        expect(mockBridgeBusPublish.mock.calls[0]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 200}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 200}), {retain: false}]);
 
         // Turn on again
         await mockBridgeBusEvents.message("zigbee2matter/bulb_color/set", stringify({state: "ON"}));
@@ -1491,11 +1443,7 @@ describe("Extension: Publish", () => {
             {},
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(2);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 200}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 200}), {retain: false}]);
     });
 
     it("Home Assistant: should set state", async () => {
@@ -1869,21 +1817,9 @@ describe("Extension: Publish", () => {
 
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(4);
         expect(mockBridgeBusPublish.mock.calls[0]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON"}), {retain: false}]);
-        expect(mockBridgeBusPublish.mock.calls[1]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 150}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[2]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "OFF", brightness: 150}),
-            {retain: false},
-        ]);
-        expect(mockBridgeBusPublish.mock.calls[3]).toEqual([
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", brightness: 150}),
-            {retain: false},
-        ]);
+        expect(mockBridgeBusPublish.mock.calls[1]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 150}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[2]).toEqual(["zigbee2matter/bulb_color", stringify({state: "OFF", brightness: 150}), {retain: false}]);
+        expect(mockBridgeBusPublish.mock.calls[3]).toEqual(["zigbee2matter/bulb_color", stringify({state: "ON", brightness: 150}), {retain: false}]);
     });
 
     it("Scenes", async () => {

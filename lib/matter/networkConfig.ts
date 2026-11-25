@@ -108,19 +108,11 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
     if (config.mdnsInterface) {
         const infos = ifaces[config.mdnsInterface];
         if (!infos) {
-            add(
-                "error",
-                "IFACE_UNKNOWN",
-                `mdns interface "${config.mdnsInterface}" not found. Available: ${candidates.join(", ") || "(none)"}`,
-            );
+            add("error", "IFACE_UNKNOWN", `mdns interface "${config.mdnsInterface}" not found. Available: ${candidates.join(", ") || "(none)"}`);
         } else if (externalIpv6(infos).length === 0) {
             add("error", "IFACE_NO_IPV6", `mdns interface "${config.mdnsInterface}" has no IPv6 address`);
         } else if (!externalIpv6(infos).some((i) => i.address.toLowerCase().startsWith("fe80"))) {
-            add(
-                "warn",
-                "IFACE_NO_LINKLOCAL",
-                `mdns interface "${config.mdnsInterface}" has no fe80:: link-local address; discovery may fail`,
-            );
+            add("warn", "IFACE_NO_LINKLOCAL", `mdns interface "${config.mdnsInterface}" has no fe80:: link-local address; discovery may fail`);
         }
         if (VIRTUAL_NAME.test(config.mdnsInterface)) {
             add(

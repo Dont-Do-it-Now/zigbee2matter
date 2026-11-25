@@ -117,14 +117,16 @@ function idempotencyScope(command: Command): string | undefined {
 }
 
 function commandFingerprint(command: Command): string {
-    return JSON.stringify(canonical({
-        source: command.source,
-        identity: command.identity,
-        target: command.target,
-        operation: command.operation,
-        value: command.value,
-        idempotencyKey: command.idempotencyKey,
-    }));
+    return JSON.stringify(
+        canonical({
+            source: command.source,
+            identity: command.identity,
+            target: command.target,
+            operation: command.operation,
+            value: command.value,
+            idempotencyKey: command.idempotencyKey,
+        }),
+    );
 }
 
 function canonical(value: unknown): unknown {
@@ -133,7 +135,11 @@ function canonical(value: unknown): unknown {
     }
 
     if (typeof value === "object" && value !== null) {
-        return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
+        return Object.fromEntries(
+            Object.entries(value)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([key, item]) => [key, canonical(item)]),
+        );
     }
 
     return value;

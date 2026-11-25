@@ -9,16 +9,16 @@ import PlatformFanout, {type Platform, type PlatformFanoutOptions, type Platform
 import type {BridgeId} from "../identity";
 import ServiceLifecycle from "../lifecycle";
 import {CommissioningManager} from "../matter/commissioning";
-import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
+import {type DynamicEndpointAdapter, DynamicEndpointCoordinator, DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
 import {EndpointRegistry, type EndpointRegistryOptions, type RegistryKey} from "../matter/endpointRegistry";
 import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
-import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
+import {type BridgeNodeRuntimeFactory, MultiBridgeRegistry, MultiBridgeRuntime} from "../matter/multiBridge";
 import {
-    MatterSdkEndpointAdapter,
-    MatterSdkRuntime,
     type MatterEndpointFactory,
     type MatterFabricStore,
     type MatterNodeOptions,
+    MatterSdkEndpointAdapter,
+    MatterSdkRuntime,
 } from "../matter/sdkRuntime";
 import StateReconciler from "../state/reconciliation";
 import StateSnapshotCoordinator from "../state/snapshot";
@@ -160,9 +160,21 @@ export class BridgeRuntime {
                 },
             });
         };
-        if (this.matter.currentNode) isolate("matter", "matter", () => this.matter.start(), () => this.matter.stop());
+        if (this.matter.currentNode)
+            isolate(
+                "matter",
+                "matter",
+                () => this.matter.start(),
+                () => this.matter.stop(),
+            );
         const api = this.api;
-        if (api) isolate("api", "http", () => api.start(), () => api.stop());
+        if (api)
+            isolate(
+                "api",
+                "http",
+                () => api.start(),
+                () => api.stop(),
+            );
         await this.lifecycle.start(components);
 
         return failures;

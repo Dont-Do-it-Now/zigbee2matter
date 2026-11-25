@@ -43,7 +43,8 @@ type Stats = {
             networkAddressChanges: number;
         }
     >;
-    bridgeBus: { // z2m-fork: T006 renamed from mqtt
+    bridgeBus: {
+        // z2m-fork: T006 renamed from mqtt
         published: number;
         received: number;
     };

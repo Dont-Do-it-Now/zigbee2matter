@@ -1,6 +1,6 @@
 /** HA Direct/Matter 공용 통합 경계(T049/T050/T051). */
 import type {EntityKey} from "../identity";
-import {HaEntityRegistry, type HaEntityPlatform} from "./haEntityRegistry";
+import {type HaEntityPlatform, HaEntityRegistry} from "./haEntityRegistry";
 
 export type HaIntegrationMode = "direct" | "matter" | "hybrid";
 export type HaCommand = {entity: EntityKey; service: string; data?: Record<string, unknown>};
@@ -48,7 +48,10 @@ export interface CallbackHaIntegrationAdapterOptions {
 export class CallbackHaIntegrationAdapter implements HaIntegrationAdapter {
     readonly mode: HaIntegrationMode;
 
-    constructor(mode: Exclude<HaIntegrationMode, "hybrid">, private options: CallbackHaIntegrationAdapterOptions) {
+    constructor(
+        mode: Exclude<HaIntegrationMode, "hybrid">,
+        private options: CallbackHaIntegrationAdapterOptions,
+    ) {
         this.mode = mode;
     }
 

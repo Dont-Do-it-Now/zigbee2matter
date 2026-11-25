@@ -80,9 +80,7 @@ export function resolveAttestation(settings: AttestationSettings | undefined, ma
     if (mode === "development") {
         if (!isTestVendorId(vendorId)) {
             const range = `0x${TEST_VENDOR_ID_MIN.toString(16)}-0x${TEST_VENDOR_ID_MAX.toString(16)}`;
-            throw new AttestationPolicyError(
-                `development mode requires a test vendorId (${range}); using another vendor's VID is not allowed`,
-            );
+            throw new AttestationPolicyError(`development mode requires a test vendorId (${range}); using another vendor's VID is not allowed`);
         }
         if (s.dacPath || s.paiPath || s.cdPath || s.dacPrivateKeyPath) {
             throw new AttestationPolicyError("certificate paths are only valid in custom mode");
@@ -98,9 +96,7 @@ export function resolveAttestation(settings: AttestationSettings | undefined, ma
         throw new AttestationPolicyError("custom mode must not use a test vendorId; use development mode instead");
     }
     if (s.vendorIdOwnershipAcknowledged !== true) {
-        throw new AttestationPolicyError(
-            "custom mode requires vendorIdOwnershipAcknowledged: true (VID must be legitimately yours)",
-        );
+        throw new AttestationPolicyError("custom mode requires vendorIdOwnershipAcknowledged: true (VID must be legitimately yours)");
     }
     const dir = join(matterDir, ATTESTATION_DIR_NAME);
     const {dacPath, paiPath, cdPath, dacPrivateKeyPath} = s;
@@ -109,9 +105,7 @@ export function resolveAttestation(settings: AttestationSettings | undefined, ma
     if (!cdPath) throw new AttestationPolicyError("custom mode requires cd path");
     if (!dacPrivateKeyPath) throw new AttestationPolicyError("custom mode requires dacPrivateKey path");
     const abs = (p: string): string => (isAbsolute(p) ? p : join(dir, p));
-    warnings.push(
-        "custom attestation: DAC/PAI/CD are user-supplied. Platform acceptance depends on the CD/PAA trust of each controller.",
-    );
+    warnings.push("custom attestation: DAC/PAI/CD are user-supplied. Platform acceptance depends on the CD/PAA trust of each controller.");
     return {
         mode,
         vendorId,

@@ -99,12 +99,7 @@ export function planCutover(input: CutoverInput): CutoverPlan {
             "verify-target",
             "commit",
         ],
-        rollbackActions: [
-            "stop-target-for-rollback",
-            "restore-source",
-            "verify-source-restored",
-            "verify-counter-preserved",
-        ],
+        rollbackActions: ["stop-target-for-rollback", "restore-source", "verify-source-restored", "verify-counter-preserved"],
         preserve: {
             sourceData: true,
             networkIdentity: true,
@@ -133,12 +128,16 @@ export function validateCutover(input: CutoverInput): readonly CutoverIssue[] {
         if (input.sourceRunning || input.sourceStopConfirmed !== true) {
             issues.push({severity: "block", code: "SOURCE_NOT_STOPPED", detail: "원본 서비스 중지가 확인되지 않았습니다."});
         }
-        if (!input.exclusiveConfirmed) issues.push({severity: "block", code: "EXCLUSIVE_NOT_CONFIRMED", detail: "원본 중지 후 독점 점유를 확인해야 합니다."});
+        if (!input.exclusiveConfirmed)
+            issues.push({severity: "block", code: "EXCLUSIVE_NOT_CONFIRMED", detail: "원본 중지 후 독점 점유를 확인해야 합니다."});
     }
-    if (!input.targetReady) issues.push({severity: "block", code: "TARGET_NOT_READY", detail: "새 서비스의 시작 전 준비 상태가 확인되지 않았습니다."});
-    if (input.targetRunning) issues.push({severity: "block", code: "TARGET_ALREADY_RUNNING", detail: "새 서비스가 이미 실행 중이므로 중복 점유 위험이 있습니다."});
+    if (!input.targetReady)
+        issues.push({severity: "block", code: "TARGET_NOT_READY", detail: "새 서비스의 시작 전 준비 상태가 확인되지 않았습니다."});
+    if (input.targetRunning)
+        issues.push({severity: "block", code: "TARGET_ALREADY_RUNNING", detail: "새 서비스가 이미 실행 중이므로 중복 점유 위험이 있습니다."});
     if (!input.backupAvailable) issues.push({severity: "block", code: "BACKUP_NOT_AVAILABLE", detail: "실패 복귀에 사용할 backup이 없습니다."});
-    if (!input.sourceUnchanged) issues.push({severity: "block", code: "SOURCE_CHANGED", detail: "전환 중 원본 data가 변경되어 복귀 안전성을 확인할 수 없습니다."});
+    if (!input.sourceUnchanged)
+        issues.push({severity: "block", code: "SOURCE_CHANGED", detail: "전환 중 원본 data가 변경되어 복귀 안전성을 확인할 수 없습니다."});
 
     if (!Number.isSafeInteger(input.sourceFrameCounter) || input.sourceFrameCounter < 0) {
         issues.push({severity: "block", code: "FRAME_COUNTER_INVALID", detail: "원본 frame counter는 0 이상의 안전한 정수여야 합니다."});
@@ -155,7 +154,8 @@ export function validateCutover(input: CutoverInput): readonly CutoverIssue[] {
     } else if (input.targetFrameCounter < input.sourceFrameCounter) {
         issues.push({severity: "block", code: "FRAME_COUNTER_ROLLBACK", detail: "새 서비스 frame counter가 원본보다 작아 rollback 위험이 있습니다."});
     }
-    if (!input.counterPreserved) issues.push({severity: "block", code: "COUNTER_NOT_PRESERVED", detail: "실패 복귀 시 frame counter 보존이 확인되지 않았습니다."});
+    if (!input.counterPreserved)
+        issues.push({severity: "block", code: "COUNTER_NOT_PRESERVED", detail: "실패 복귀 시 frame counter 보존이 확인되지 않았습니다."});
 
     return issues;
 }

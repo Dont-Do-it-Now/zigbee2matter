@@ -390,8 +390,7 @@ export function authOptionsFromFrontend(fe: FrontendAuthSettings): AuthOptions {
  */
 export function assessTransport(fe: FrontendAuthSettings, opts: {trustedIngress?: boolean} = {}): {secure: boolean; warnings: string[]} {
     const tls = Boolean(fe.ssl_cert && fe.ssl_key);
-    const local =
-        fe.host !== undefined && (fe.host.startsWith("/") || fe.host === "127.0.0.1" || fe.host === "::1" || fe.host === "localhost");
+    const local = fe.host !== undefined && (fe.host.startsWith("/") || fe.host === "127.0.0.1" || fe.host === "::1" || fe.host === "localhost");
     const secure = tls || local || Boolean(opts.trustedIngress);
     const warnings: string[] = [];
     if (!secure) {

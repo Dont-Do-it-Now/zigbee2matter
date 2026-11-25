@@ -8,16 +8,16 @@
  * - 그룹, composite/list/text는 미지원(생성하지 않음).
  */
 import type * as zhc from "zigbee-herdsman-converters";
-import {formatDeviceKey, makeDeviceKey, type EntityKey} from "../identity";
-import {stableHaUniqueId, type HaEntityPlatform} from "../api/haEntityRegistry";
+import {type HaEntityPlatform, stableHaUniqueId} from "../api/haEntityRegistry";
 import {
     BINARY_DISCOVERY_LOOKUP,
     CONFIG_SWITCH_DISCOVERY_LOOKUP,
+    cleanName,
     ENUM_DISCOVERY_LOOKUP,
     NUMERIC_DISCOVERY_LOOKUP,
     SWITCH_DIFFERENT,
-    cleanName,
 } from "../extension/homeassistant";
+import {type EntityKey, formatDeviceKey, makeDeviceKey} from "../identity";
 
 const ACCESS_STATE = 0b001;
 const ACCESS_SET = 0b010;
@@ -126,9 +126,7 @@ function mapExpose(expose: zhc.Expose, push: (draft: Draft) => void): void {
                 hasXY && !preferHS ? "xy" : null,
                 (!hasXY || preferHS) && hasHS ? "hs" : null,
                 colorTemp ? "color_temp" : null,
-            ].filter(
-                (c): c is string => c !== null,
-            );
+            ].filter((c): c is string => c !== null);
             push({
                 platform: "light",
                 objectId: sanitize(endpoint ? `light_${endpoint}` : "light"),

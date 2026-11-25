@@ -104,9 +104,8 @@ export default class PlatformFanout {
 
         if (registration.queue.length >= registration.maxQueue) {
             const stateIndex = event.type === "transient" ? -1 : registration.queue.findIndex((queued) => queued.type !== "transient");
-            const matchingStateIndex = event.type === "transient"
-                ? -1
-                : registration.queue.findIndex((queued) => queued.type === event.type && queued.key === event.key);
+            const matchingStateIndex =
+                event.type === "transient" ? -1 : registration.queue.findIndex((queued) => queued.type === event.type && queued.key === event.key);
 
             if (matchingStateIndex >= 0) {
                 // Keep the replacement at the tail so queued sequence numbers stay monotonic.

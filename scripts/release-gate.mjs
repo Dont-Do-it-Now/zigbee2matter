@@ -15,10 +15,7 @@ const requiredWorkflowEntries = [
 function validateManifest(manifest) {
     const sha = /^[0-9a-f]{7,64}$/i;
     if (!manifest || typeof manifest !== "object")
-        return fail(
-            "release evidence requires a manifest (baseSha, candidateSha, changes, " +
-                "rollbackArtifact, schemaVersion)",
-        );
+        return fail("release evidence requires a manifest (baseSha, candidateSha, changes, " + "rollbackArtifact, schemaVersion)");
     if (!sha.test(manifest.baseSha ?? "") || !sha.test(manifest.candidateSha ?? "")) fail("manifest: invalid base/candidate SHA");
     if (typeof manifest.rollbackArtifact !== "string" || manifest.rollbackArtifact.trim() === "") fail("manifest: rollbackArtifact is required");
     if (!Number.isSafeInteger(manifest.schemaVersion) || manifest.schemaVersion < 1) fail("manifest: invalid schemaVersion");
@@ -62,7 +59,7 @@ if (process.argv.includes("--release")) {
         if (evidence?.approvalsComplete !== true) fail("required approvals are incomplete");
         for (const phase of phases) {
             const item = evidence?.phases?.[phase];
-            if (!item || item.status !== "PASS" || typeof item.evidence !== "string" || item.evidence.trim().length === 0) {
+            if (item?.status !== "PASS" || typeof item.evidence !== "string" || item.evidence.trim().length === 0) {
                 fail(`${phase} requires non-empty PASS evidence`);
             }
         }

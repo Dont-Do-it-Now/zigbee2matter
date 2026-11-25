@@ -20,7 +20,7 @@ export interface DynamicEndpointAdapter {
     /** SDK endpoint를 생성하고 SDK가 할당한 실제 endpoint number를 반환한다. */
     create(entry: EndpointRegistryEntry): Promise<{number: number}>;
     /** SDK endpoint를 닫거나 영구 삭제한다. 성공 전에는 registry tombstone을 확정하지 않는다. */
-    remove(entry: EndpointRegistryEntry): Promise<void | {permanent: boolean}>;
+    remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}>;
 }
 
 /** SDK endpoint를 만들거나 삭제하는 쪽이 registry 반영 시점을 명시하도록 한다. */

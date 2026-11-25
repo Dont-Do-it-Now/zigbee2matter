@@ -1,12 +1,11 @@
 import type {AdapterTypes as ZHAdapterTypes, Events as ZHEvents, Models as ZHModels} from "zigbee-herdsman";
 import type {Cluster as ZHCluster, FrameControl as ZHFrameControl} from "zigbee-herdsman/dist/zspec/zcl/definition/tstype";
-
+import type {BridgeBusPublishOptions, BridgeBus as TypeBridgeBus} from "../bridgeBus/types"; // z2m-fork: T005/T006 replaces ../mqtt types
 import type TypeEventBus from "../eventBus";
 import type TypeExtension from "../extension/extension";
 import type TypeDevice from "../model/device";
 import type TypeGroup from "../model/group";
 import type TypeState from "../state";
-import type {BridgeBus as TypeBridgeBus, BridgeBusPublishOptions} from "../bridgeBus/types"; // z2m-fork: T005/T006 replaces ../mqtt types
 import type TypeZigbee from "../zigbee";
 import type {Zigbee2MQTTDeviceOptions, Zigbee2MQTTGroupOptions, Zigbee2MQTTSettings} from "./api";
 

@@ -4,13 +4,7 @@
  */
 
 export interface ConverterContractIssue {
-    code:
-        | "DEFINITION_INVALID"
-        | "FROM_ZIGBEE_INVALID"
-        | "TO_ZIGBEE_INVALID"
-        | "EXPOSES_INVALID"
-        | "OPTIONS_INVALID"
-        | "CONVERTER_METHOD_MISSING";
+    code: "DEFINITION_INVALID" | "FROM_ZIGBEE_INVALID" | "TO_ZIGBEE_INVALID" | "EXPOSES_INVALID" | "OPTIONS_INVALID" | "CONVERTER_METHOD_MISSING";
     detail: string;
 }
 

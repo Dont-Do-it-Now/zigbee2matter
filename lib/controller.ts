@@ -1,12 +1,7 @@
 import bind from "bind-decorator";
 import {setLogger as zhSetLogger} from "zigbee-herdsman";
 import {setLogger as zhcSetLogger} from "zigbee-herdsman-converters";
-import {
-    BASE_TOPIC,
-    type BridgeBus,
-    type BridgeBusPublishOptions,
-    InProcessBridgeBus,
-} from "./bridgeBus"; // z2m-fork: T005/T006 replaces ./mqtt import, T006 BASE_TOPIC
+import {BASE_TOPIC, type BridgeBus, type BridgeBusPublishOptions, InProcessBridgeBus} from "./bridgeBus"; // z2m-fork: T005/T006 replaces ./mqtt import, T006 BASE_TOPIC
 import {checkStartupReplacement, readBackupIdentity} from "./coordinatorReplacement"; // z2m-fork: T026
 import EventBus from "./eventBus";
 // Extensions
@@ -105,6 +100,7 @@ export class Controller {
     }
 
     /** z2m-fork: T026 advisory 교체 검증. 확인된 불일치면 Matter 노출만 차단한다. */
+    // biome-ignore lint/suspicious/useAwait: synchronous helpers wrapped in async for uniform caller interface
     private async verifyCoordinatorReplacement(stored: ReturnType<typeof readBackupIdentity>): Promise<void> {
         try {
             const ieeeAddr = this.zigbee.firstCoordinatorEndpoint().deviceIeeeAddress;

@@ -6,7 +6,7 @@ import {setOtaConfiguration, Zcl} from "zigbee-herdsman";
 import type {OtaDataSettings, OtaSource, OtaUpdateAvailableResult} from "zigbee-herdsman/dist/controller/tstype";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
 import Device from "../model/device";
-import {OtaJobStore, type OtaJob, type OtaJobStatus, evaluateOtaAdmission, validateOtaImage} from "../ota";
+import {evaluateOtaAdmission, type OtaJob, type OtaJobStatus, OtaJobStore, validateOtaImage} from "../ota";
 import type {Zigbee2MQTTAPI} from "../types/api";
 import dataDir from "../util/data";
 import logger from "../util/logger";
@@ -56,10 +56,7 @@ function writeFirmwareHexToDataDir(hex: string, fileName: string | undefined, de
 }
 
 export default class OTAUpdate extends Extension {
-    #topicRegex = new RegExp(
-        `^${BASE_TOPIC}/bridge/request/device/ota_update/(update|check|schedule|unschedule)/?(downgrade|abort)?`,
-        "i",
-    );
+    #topicRegex = new RegExp(`^${BASE_TOPIC}/bridge/request/device/ota_update/(update|check|schedule|unschedule)/?(downgrade|abort)?`, "i");
     #inProgress = new Set<string>();
     #lastChecked = new Map<string, number>();
     #jobs = new OtaJobStore({maxConcurrent: Number.MAX_SAFE_INTEGER});

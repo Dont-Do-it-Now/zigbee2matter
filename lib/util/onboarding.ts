@@ -107,7 +107,7 @@ async function startOnboardingServer(): Promise<boolean> {
                             const protocol = appliedSettings.frontend.ssl_cert && appliedSettings.frontend.ssl_key ? "https" : "http";
                             const frontendUrl = redirect
                                 ? `${protocol}://${appliedSettings.frontend.host ?? "localhost"}:${appliedSettings.frontend.port}` +
-                                    `${appliedSettings.frontend.base_url}`
+                                  `${appliedSettings.frontend.base_url}`
                                 : null;
                             const payload: OnboardSubmitResponse = {success: true, frontendUrl};
 

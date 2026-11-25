@@ -1,20 +1,8 @@
 /** T071 fault-injection plans. This module describes tests only; it performs no fault. */
 
-export type FaultKind =
-    | "coordinator"
-    | "fabric"
-    | "disk"
-    | "crash"
-    | "slow-ws"
-    | "network"
-    | "restart";
+export type FaultKind = "coordinator" | "fabric" | "disk" | "crash" | "slow-ws" | "network" | "restart";
 
-export type RecoveryExpectation =
-    | "reconnect"
-    | "resync"
-    | "restore"
-    | "safe-stop"
-    | "restart-services";
+export type RecoveryExpectation = "reconnect" | "resync" | "restore" | "safe-stop" | "restart-services";
 
 export interface FaultPlan {
     readonly id: string;

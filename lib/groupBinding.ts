@@ -81,11 +81,7 @@ export default class BindingRegistry {
     }
 
     has(source: BindingEntity, target: BindingEntity, cluster: string): boolean {
-        return (
-            this.bindings.get(
-                bindingId({sourceKey: entityId(source), targetKey: entityId(target), cluster}),
-            )?.active === true
-        );
+        return this.bindings.get(bindingId({sourceKey: entityId(source), targetKey: entityId(target), cluster}))?.active === true;
     }
 }
 

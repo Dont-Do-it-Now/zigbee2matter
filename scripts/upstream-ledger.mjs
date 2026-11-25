@@ -95,12 +95,15 @@ function classify(path) {
     return {class: "REVIEW_REQUIRED", decision: "HOLD", reason: "unclassified path requires explicit ledger decision"};
 }
 
-const changes = raw === "" ? [] : raw.split(/\r?\n/).map((line) => {
-    const parts = line.split(/\s+/);
-    const status = parts[0];
-    const path = parts.at(-1);
-    return {status, path, ...classify(path)};
-});
+const changes =
+    raw === ""
+        ? []
+        : raw.split(/\r?\n/).map((line) => {
+              const parts = line.split(/\s+/);
+              const status = parts[0];
+              const path = parts.at(-1);
+              return {status, path, ...classify(path)};
+          });
 const hunks = [];
 let currentPath;
 for (const line of diffRaw.split(/\r?\n/)) {

@@ -10,7 +10,6 @@ import {devices, mockController as mockZHController, events as mockZHEvents, ret
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import tmp from "tmp";
 
 import {stringify} from "../lib/util/stringify";
 import type {Mock, MockInstance} from "vitest";
@@ -223,6 +222,7 @@ describe("Controller", () => {
     });
 
     it("Start controller fails due to BridgeBus connect error", async () => {
+        // biome-ignore lint/suspicious/useAwait: mock throws synchronously via async wrapper
         vi.spyOn(controller.bridgeBus, "connect").mockImplementationOnce(async () => {
             throw new Error("addr not found");
         });
@@ -235,6 +235,7 @@ describe("Controller", () => {
 
     it("Start controller fails due to BridgeBus connect error after onboarding", async () => {
         settings.setOnboarding(true);
+        // biome-ignore lint/suspicious/useAwait: mock throws synchronously via async wrapper
         vi.spyOn(controller.bridgeBus, "connect").mockImplementationOnce(async () => {
             throw new Error("addr not found");
         });

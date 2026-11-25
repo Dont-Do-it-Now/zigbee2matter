@@ -1,8 +1,6 @@
 import {evaluateSecurityGate, type SecurityGateInput, type SecurityGateStatus} from "../../../lib/security/securityGate";
 
-const allEvidence = (
-    ...requiredEvidence: SecurityGateInput["attestation"]["requiredEvidence"]
-): SecurityGateInput["attestation"] => ({
+const allEvidence = (...requiredEvidence: SecurityGateInput["attestation"]["requiredEvidence"]): SecurityGateInput["attestation"] => ({
     implemented: true,
     verified: true,
     requiredEvidence,

@@ -1,7 +1,7 @@
 import {EventEmitter} from "node:events";
 import type {IncomingMessage, ServerResponse} from "node:http";
 import {describe, expect, it, vi} from "vitest";
-
+import {RestApiRouter, type RestRouterDeps} from "../../../lib/api";
 import {
     ApiAuth,
     ApiError,
@@ -11,14 +11,13 @@ import {
     extractToken,
     redactSecrets,
     redactUrl,
-    requireScope,
     requiredScope,
+    requireScope,
     safeEqual,
     toApiError,
     WS_CLOSE_FORBIDDEN,
     WS_CLOSE_UNAUTHORIZED,
 } from "../../../lib/api/auth";
-import {RestApiRouter, type RestRouterDeps} from "../../../lib/api";
 
 const HASH = "a".repeat(64);
 
@@ -121,12 +120,9 @@ describe("requiredScope path normalization", () => {
         "/devices/%2E",
         "/devices\\x",
         "/devices/%5cx",
-    ])(
-        "rejects %s instead of guessing a scope",
-        (path) => {
-            expect(() => requiredScope("GET", path)).toThrow(/Invalid path/);
-        },
-    );
+    ])("rejects %s instead of guessing a scope", (path) => {
+        expect(() => requiredScope("GET", path)).toThrow(/Invalid path/);
+    });
 });
 
 describe("token extraction, origin and websocket authorization", () => {
@@ -216,6 +212,7 @@ describe("error mapping and redaction", () => {
 interface Reply {
     status: number;
     headers: Record<string, string | number>;
+    // biome-ignore lint/suspicious/noExplicitAny: test helper reply type
     body: any;
 }
 
@@ -332,6 +329,7 @@ describe("RestApiRouter", () => {
         expect(patched.status).toBe(202);
         expect(patched.body.previousRevision).toBe(revision);
         expect(executeCommand).toHaveBeenCalledTimes(1);
+        // biome-ignore lint/suspicious/noExplicitAny: test cast to access mock call args
         const [command] = executeCommand.mock.calls[0] as [Record<string, any>];
         expect(command).toMatchObject({operation: "request", target: {request: "device/options"}, value: {id: "lamp", options: {retain: true}}});
         expect(command.deadline).toBeGreaterThan(Date.now());
@@ -342,8 +340,11 @@ describe("RestApiRouter", () => {
         const revision = (await request(router, "GET", "/api/v1/groups/g1/settings", {secret: secrets.read})).body.revision;
         await request(router, "PATCH", "/api/v1/groups/g1", {secret: secrets.admin, body: {options: {a: 1}, revision}});
         await request(router, "PATCH", "/api/v1/bridges/b1", {secret: secrets.admin, body: {options: {a: 1}, revision}});
+        // biome-ignore lint/suspicious/noExplicitAny: test cast to access mock call args
         expect((executeCommand.mock.calls[0][0] as any).target.request).toBe("group/options");
+        // biome-ignore lint/suspicious/noExplicitAny: test cast to access mock call args
         expect((executeCommand.mock.calls[1][0] as any).target).toEqual({request: "options"});
+        // biome-ignore lint/suspicious/noExplicitAny: test cast to access mock call args
         expect((executeCommand.mock.calls[1][0] as any).value).toEqual({options: {a: 1}});
 
         expect((await request(router, "GET", "/api/v1/devices/missing/settings", {secret: secrets.read})).status).toBe(404);
@@ -357,6 +358,7 @@ describe("RestApiRouter", () => {
         const gate = new Promise<void>((resolve) => {
             release = resolve;
         });
+        // biome-ignore lint/complexity/noCommaOperator: intentional gate-then-return pattern in test mock
         const {router, secrets} = makeRouter({executeCommand: async () => (await gate, {status: "executed"})});
         const revision = (await request(router, "GET", "/api/v1/devices/lamp/settings", {secret: secrets.read})).body.revision;
         const first = request(router, "PATCH", "/api/v1/devices/lamp", {secret: secrets.admin, body: {options: {a: 1}, revision}});
@@ -370,6 +372,7 @@ describe("RestApiRouter", () => {
     it("C6: a service error with code UNAVAILABLE becomes HTTP 503 with a sanitized retryable body", async () => {
         const failure = Object.assign(new Error("zigbee adapter at COM3 token=abc failed"), {code: "UNAVAILABLE"});
         const {router, secrets} = makeRouter({
+            // biome-ignore lint/suspicious/useAwait: mock throws synchronously via async wrapper
             executeCommand: async () => {
                 throw failure;
             },
@@ -383,6 +386,7 @@ describe("RestApiRouter", () => {
 
     it("C6: unexpected errors are 500 INTERNAL without message leakage; a missing executor is 501", async () => {
         const {router, secrets} = makeRouter({
+            // biome-ignore lint/suspicious/useAwait: mock throws synchronously via async wrapper
             executeCommand: async () => {
                 throw new Error("boom /etc/secret");
             },

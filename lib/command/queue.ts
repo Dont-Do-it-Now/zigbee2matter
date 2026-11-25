@@ -34,8 +34,8 @@ export default class DeviceCommandQueue {
     private pumping = false;
 
     constructor(options: DeviceCommandQueueOptions = {}) {
-        this.maxPending = validateLimit(options.maxPending ?? Infinity, "maxPending");
-        this.maxConcurrent = validateLimit(options.maxConcurrent ?? Infinity, "maxConcurrent");
+        this.maxPending = validateLimit(options.maxPending ?? Number.POSITIVE_INFINITY, "maxPending");
+        this.maxConcurrent = validateLimit(options.maxConcurrent ?? Number.POSITIVE_INFINITY, "maxConcurrent");
         this.onRunError = options.onRunError;
         this.keyResolver = options.keyResolver ?? defaultKeys;
     }
@@ -208,7 +208,7 @@ function defaultKeys(command: Command): ReadonlyArray<string> {
 }
 
 function validateLimit(value: number, name: string): number {
-    if (value !== Infinity && (!Number.isSafeInteger(value) || value < 1)) {
+    if (value !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(value) || value < 1)) {
         throw new Error(`${name} must be a positive integer or Infinity`);
     }
 

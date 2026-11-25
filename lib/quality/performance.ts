@@ -116,10 +116,9 @@ export function summarizeResources(samples: ReadonlyArray<PerformanceSample>): R
 
     if (
         samples.some((sample) =>
-            [sample.cpuPercent, sample.ramMb, sample.rfTxCount].some(
-                (value) => value !== undefined && (!Number.isFinite(value) || value < 0),
-            ),
-        ) || samples.some((sample) => sample.cpuPercent !== undefined && sample.cpuPercent > 100)
+            [sample.cpuPercent, sample.ramMb, sample.rfTxCount].some((value) => value !== undefined && (!Number.isFinite(value) || value < 0)),
+        ) ||
+        samples.some((sample) => sample.cpuPercent !== undefined && sample.cpuPercent > 100)
     ) {
         throw new Error("resource samples must be finite non-negative numbers");
     }

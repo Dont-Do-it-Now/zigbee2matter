@@ -1,9 +1,9 @@
 /** C7 REST 라우팅 경계(T056). 기존 frontend HTTP 서버에 주입할 수 있는 Node handler. */
 import {createHash, randomUUID} from "node:crypto";
 import type {IncomingMessage, ServerResponse} from "node:http";
-import {authorizeRequest, type ApiAuth, type Principal, type Scope, ApiError, redactSecrets, toApiError} from "./auth";
-import {AuthFailureRateLimiter} from "./rateLimit";
 import {BackupInputError} from "../storage/backup";
+import {type ApiAuth, ApiError, authorizeRequest, type Principal, redactSecrets, type Scope, toApiError} from "./auth";
+import type {AuthFailureRateLimiter} from "./rateLimit";
 
 export interface RestDevice {
     readonly id: string;

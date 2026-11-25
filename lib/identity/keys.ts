@@ -14,9 +14,12 @@
 
 import {randomUUID} from "node:crypto";
 
+// biome-ignore lint/style/useNamingConvention: __brand is a standard TypeScript nominal typing pattern
 export type NetworkId = string & {readonly __brand: "NetworkId"};
+// biome-ignore lint/style/useNamingConvention: __brand is a standard TypeScript nominal typing pattern
 export type BridgeId = string & {readonly __brand: "BridgeId"};
 /** 16 lowercase hex chars, no `0x` prefix. */
+// biome-ignore lint/style/useNamingConvention: __brand is a standard TypeScript nominal typing pattern
 export type Ieee16 = string & {readonly __brand: "Ieee16"};
 
 export interface DeviceKey {

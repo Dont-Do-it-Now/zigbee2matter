@@ -16,7 +16,7 @@ import {
 import path from "node:path";
 import data from "../util/data";
 import type {NetworkIdentity, NetworkIdentityStore} from "./adapter";
-import {generateBridgeId, generateNetworkId, parseBridgeId, parseNetworkId, type BridgeId} from "./keys";
+import {type BridgeId, generateBridgeId, generateNetworkId, parseBridgeId, parseNetworkId} from "./keys";
 
 const DEFAULT_FILE = data.joinPath("network-identity.json");
 
@@ -52,8 +52,12 @@ export class FileNetworkIdentityStore implements NetworkIdentityStore {
         const next: NetworkIdentity = {networkId: identity.networkId, extendedPanId};
         const temporary = `${this.filePath}.${randomUUID()}.tmp`;
         try {
-            writeFileSync(temporary, `${JSON.stringify(next)}
-`, {encoding: "utf8", mode: 0o600});
+            writeFileSync(
+                temporary,
+                `${JSON.stringify(next)}
+`,
+                {encoding: "utf8", mode: 0o600},
+            );
             renameSync(temporary, this.filePath);
         } catch (error) {
             try {

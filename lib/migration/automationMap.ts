@@ -38,7 +38,8 @@ export interface AutomationSource {
     readonly text: string;
 }
 
-const ENTITY_RE = /\b(light|switch|sensor|binary_sensor|cover|climate|fan|lock|select|number|button|event|update|group|scene|script|automation)\.([a-z0-9_]+)\b/g;
+const ENTITY_RE =
+    /\b(light|switch|sensor|binary_sensor|cover|climate|fan|lock|select|number|button|event|update|group|scene|script|automation)\.([a-z0-9_]+)\b/g;
 const SERVICE_RE = /^\s*(?:-\s*)?(?:service|action)\s*:\s*([a-z_]+\.[a-z0-9_]+)\s*$/gm;
 const TOPIC_RE = /\bzigbee2mqtt\/([A-Za-z0-9_\-ㄱ-힝 ]+?)(?=\/|["'\s]|$)/g;
 

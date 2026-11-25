@@ -3,14 +3,7 @@ import {randomUUID} from "node:crypto";
 import {chmod, mkdir, open, readFile, rename, rm, stat, utimes} from "node:fs/promises";
 import path from "node:path";
 import data from "../util/data";
-import {
-    BackupCoordinator,
-    createBackup,
-    createSnapshotBackup,
-    restoreBackup,
-    restoreSnapshotBackup,
-    type PersistentSnapshot,
-} from "./backup";
+import {BackupCoordinator, createBackup, createSnapshotBackup, type PersistentSnapshot, restoreBackup, restoreSnapshotBackup} from "./backup";
 
 const BACKUP_DIRECTORY = "backups";
 const DEFAULT_FILE_NAME = "latest.backup";
@@ -125,9 +118,12 @@ async function acquireLock(lockPath: string, timeoutMs: number): Promise<() => P
             } finally {
                 await handle.close();
             }
-            const heartbeat = setInterval(() => {
-                void refreshLock(lockPath, token);
-            }, Math.max(1000, Math.floor(LOCK_STALE_MS / 3)));
+            const heartbeat = setInterval(
+                () => {
+                    void refreshLock(lockPath, token);
+                },
+                Math.max(1000, Math.floor(LOCK_STALE_MS / 3)),
+            );
             heartbeat.unref?.();
             let released = false;
 

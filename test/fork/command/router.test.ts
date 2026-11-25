@@ -6,14 +6,14 @@ import {
     authorizeByScope,
     BRIDGE_REQUEST_SCOPES,
     type Command,
-    type CommandResult,
     CommandDeduplicator,
+    type CommandResult,
     CommandRetryPolicy,
     CommandRouter,
     DeviceCommandQueue,
     type EntityCommand,
-    requiredScope,
     type ResolvedTarget,
+    requiredScope,
 } from "../../../lib/command";
 import EventBus from "../../../lib/eventBus";
 
@@ -55,9 +55,7 @@ function setup(options: {hooks?: ConstructorParameters<typeof CommandRouter>[0][
     const eventBus = new EventBus();
     const onMessage = vi.fn();
     const bridgeBus = {onMessage} as unknown as ConstructorParameters<typeof CommandRouter>[0]["bridgeBus"];
-    const resolve = vi.fn(
-        (): ResolvedTarget => ({ok: true, name: "bulb", kind: "device", supported: true, endpointNames: ["l1"]}),
-    );
+    const resolve = vi.fn((): ResolvedTarget => ({ok: true, name: "bulb", kind: "device", supported: true, endpointNames: ["l1"]}));
     const router = new CommandRouter({
         eventBus,
         bridgeBus,
@@ -283,20 +281,19 @@ describe("Scope table and sensitive requests", () => {
         expect(onMessage).not.toHaveBeenCalled();
     });
 
-    it.each([
-        "backup",
-        "install_code/add",
-        "device/generate_external_definition",
-    ])("rejects sensitive request '%s' with FORBIDDEN by default", async (request) => {
-        const {router, onMessage} = setup();
+    it.each(["backup", "install_code/add", "device/generate_external_definition"])(
+        "rejects sensitive request '%s' with FORBIDDEN by default",
+        async (request) => {
+            const {router, onMessage} = setup();
 
-        expect(await router.submit(bridgeRequest(`s-${request}`, request, {}))).toMatchObject({
-            status: "failed",
-            errorCode: "FORBIDDEN",
-            dispatched: false,
-        });
-        expect(onMessage).not.toHaveBeenCalled();
-    });
+            expect(await router.submit(bridgeRequest(`s-${request}`, request, {}))).toMatchObject({
+                status: "failed",
+                errorCode: "FORBIDDEN",
+                dispatched: false,
+            });
+            expect(onMessage).not.toHaveBeenCalled();
+        },
+    );
 
     it("allows a sensitive request only when explicitly allowlisted", async () => {
         const {router, onMessage} = setup({allowed: new Set(["backup"])});
@@ -422,6 +419,7 @@ describe("Queue stuck prevention and dedup/retry through the router", () => {
         const full = {value: 0};
         const {router, onMessage} = setup({
             retry: policy,
+            // biome-ignore lint/complexity/noCommaOperator: compact test hook expressing run-and-return
             hooks: {schedule: (_c, run) => (full.value++ === 0 ? false : (run(), true))},
         });
 
@@ -433,6 +431,7 @@ describe("Queue stuck prevention and dedup/retry through the router", () => {
         expect(await promise).toMatchObject({requestId: "g1"});
 
         const toggleFull = {value: 0};
+        // biome-ignore lint/complexity/noCommaOperator: compact test hook expressing increment-and-return
         const t = setup({retry: policy, hooks: {schedule: () => (toggleFull.value++, false)}});
         const result = await t.router.submit(entity("t1", {state: "TOGGLE"}));
         await vi.advanceTimersByTimeAsync(100);

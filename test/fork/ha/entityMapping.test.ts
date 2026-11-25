@@ -12,8 +12,7 @@ const IEEE = "0x00158d0001abcdef";
 const ctx = {
     networkId: NET,
     ieee: IEEE,
-    endpointId: (label: string | undefined) =>
-        label === undefined ? 1 : label === "l1" ? 1 : label === "l2" ? 2 : undefined,
+    endpointId: (label: string | undefined) => (label === undefined ? 1 : label === "l1" ? 1 : label === "l2" ? 2 : undefined),
 };
 
 const map = (...list: unknown[]): HaEntityDefinition[] => mapDeviceExposes(list as Parameters<typeof mapDeviceExposes>[0], ctx);

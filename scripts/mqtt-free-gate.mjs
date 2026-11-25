@@ -88,8 +88,13 @@ try {
     const src = text.split(/\r?\n/);
     const names = new Set();
     for (const f of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"])
-        Object.keys(pkg[f] ?? {}).forEach((n) => names.add(n));
-    for (const f of [pkg.pnpm?.overrides, pkg.overrides, pkg.resolutions]) Object.keys(f ?? {}).forEach((n) => names.add(n));
+        Object.keys(pkg[f] ?? {}).forEach((n) => {
+            names.add(n);
+        });
+    for (const f of [pkg.pnpm?.overrides, pkg.overrides, pkg.resolutions])
+        Object.keys(f ?? {}).forEach((n) => {
+            names.add(n);
+        });
     for (const n of names) {
         if (!isForbiddenPkg(n)) continue;
         const ln = src.findIndex((l) => l.includes(`"${n}"`)) + 1;
@@ -116,7 +121,13 @@ for (const f of ["pnpm-workspace.yaml", "pnpm-lock.yaml"]) {
 // (B) lib/** import/require (+ index.js, cli.js, scripts). test/** 는 기본 경고(--strict-test 시 위반)
 // 파일 전체 텍스트 매칭(줄 나뉨 허용): from "x", import("x"), require("x"), import "x", createRequire(...)("x"), 백틱 리터럴
 const IMPORT_RE = /(?:\b(?:from|import)\s*["']([^"'\n]+)["'])|(?:(?:\bimport\s*\(|\brequire\s*\(|\)\s*\()\s*["'`]([^"'`$\n]+)["'`])/g;
-const pkgOf = (spec) => (spec.startsWith(".") || spec.startsWith("node:") ? null : spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/"));
+const pkgOf = (spec) =>
+    spec.startsWith(".") || spec.startsWith("node:")
+        ? null
+        : spec
+              .split("/")
+              .slice(0, spec.startsWith("@") ? 2 : 1)
+              .join("/");
 const importFiles = [
     ...walk(join(ROOT, "lib")),
     ...["index.js", "cli.js"].map((f) => join(ROOT, f)).filter(existsSync),
@@ -132,23 +143,27 @@ for (const [files, target] of [
         const text = readFileSync(p, "utf8");
         const lineOf = (idx) => text.slice(0, idx).split("\n").length;
         IMPORT_RE.lastIndex = 0;
+        // biome-ignore lint/suspicious/noAssignInExpressions: intentional pattern in gate script
         for (let m; (m = IMPORT_RE.exec(text)); ) {
             const spec = m[1] ?? m[2];
             const n = pkgOf(spec);
             if (n && isForbiddenPkg(n)) add("B-import", rel(p), lineOf(m.index), `금지 MQTT 모듈 import '${spec}'`, target);
         }
         const mock = /vi\.mock\(\s*["'`]mqtt/g;
+        // biome-ignore lint/suspicious/noAssignInExpressions: intentional pattern in gate script
         for (let m; (m = mock.exec(text)); ) add("B-import", rel(p), lineOf(m.index), "vi.mock('mqtt') 잔존", target);
     }
 }
 
 // (B2) lib 내 mqtt 이름 파일
-for (const p of walk(join(ROOT, "lib"))) if (/mqtt/i.test(p.split(sep).pop().replace(BRAND, ""))) add("B-file", rel(p), 0, "lib에 mqtt 이름 파일 존재");
+for (const p of walk(join(ROOT, "lib")))
+    if (/mqtt/i.test(p.split(sep).pop().replace(BRAND, ""))) add("B-file", rel(p), 0, "lib에 mqtt 이름 파일 존재");
 
 // (C) settings schema / example config
 (() => {
     const sp = join(ROOT, "lib/util/settings.schema.json");
     const visit = (node, path) => {
+        // biome-ignore lint/suspicious/useIterableCallbackReturn: intentional pattern in gate script
         if (Array.isArray(node)) return node.forEach((v, i) => visit(v, `${path}[${i}]`));
         if (node === null || typeof node !== "object") return;
         if (Array.isArray(node.required) && node.required.includes("mqtt"))
@@ -169,9 +184,8 @@ for (const p of walk(join(ROOT, "lib"))) if (/mqtt/i.test(p.split(sep).pop().rep
     }
     const ex = join(ROOT, "data/configuration.example.yaml");
     if (existsSync(ex))
-        lines(ex).forEach(
-            (l, i) => /^mqtt\s*:/.test(l) && add("C-schema", "data/configuration.example.yaml", i + 1, "최상위 'mqtt:' 섹션 재등장"),
-        );
+        // biome-ignore lint/suspicious/useIterableCallbackReturn: intentional pattern in gate script
+        lines(ex).forEach((l, i) => /^mqtt\s*:/.test(l) && add("C-schema", "data/configuration.example.yaml", i + 1, "최상위 'mqtt:' 섹션 재등장"));
 })();
 
 // (D) 식별자/문자열 잔존: 하드 금지 -> 브랜드 제거 -> 마커 주석 -> allowlist
@@ -186,6 +200,7 @@ const scanFiles = [
 const MARKER = "z2m-fork:";
 for (const p of scanFiles) {
     const f = rel(p);
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: intentional pattern in gate script
     lines(p).forEach((raw, i) => {
         const l = raw.replace(BRAND, "");
         for (const [re, label] of HARD_BAN) {

@@ -2,7 +2,7 @@
 import type {IncomingMessage} from "node:http";
 import WebSocket from "ws";
 import type {BridgeEvent, EventStream} from "../events";
-import {authorizeWebSocket, type ApiAuth} from "./auth";
+import {type ApiAuth, authorizeWebSocket} from "./auth";
 import WsEventSession, {type WsSnapshot} from "./wsSession";
 
 export interface WsRouterOptions {
@@ -21,10 +21,14 @@ export class WsApiRouter {
 
     attach(server: WebSocket.Server): () => void {
         const onConnection = (socket: WebSocket, request: IncomingMessage): void => {
-            const auth = authorizeWebSocket(this.options.auth, {
-                headers: request.headers,
-                url: request.url,
-            }, {origin: this.options.origin, allowQueryToken: true});
+            const auth = authorizeWebSocket(
+                this.options.auth,
+                {
+                    headers: request.headers,
+                    url: request.url,
+                },
+                {origin: this.options.origin, allowQueryToken: true},
+            );
             if (!auth.ok) {
                 socket.close(auth.closeCode, auth.reason);
                 return;

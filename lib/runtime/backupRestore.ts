@@ -31,7 +31,7 @@ export function validateSnapshotParts(identity: unknown, fabric: unknown, endpoi
 }
 
 export function assertRestoreApplied(result: BackupRestoreResult): void {
-    if (!result || result.applied !== true) {
+    if (result?.applied !== true) {
         throw new Error(result?.reason ?? "persistent backup was not applied");
     }
 }

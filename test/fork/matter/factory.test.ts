@@ -22,20 +22,23 @@ class FakeEndpoint {
         FakeEndpoint.created.push(this);
     }
 
+    // biome-ignore lint/suspicious/useAwait: test stub implements async interface without await
     async set(values: Record<string, unknown>): Promise<void> {
         this.sets.push(values);
     }
 
+    // biome-ignore lint/suspicious/useAwait: test stub implements async interface without await
     async close(): Promise<void> {
         this.closed = true;
     }
 
+    // biome-ignore lint/suspicious/useAwait: test stub implements async interface without await
     async delete(): Promise<void> {
         this.deleted = true;
     }
 }
 
-const entry = (endpointId = "ep-1"): EndpointRegistryEntry => ({key: `dev:net:0x01`, endpointId, state: "active"}) as EndpointRegistryEntry;
+const entry = (endpointId = "ep-1"): EndpointRegistryEntry => ({key: "dev:net:0x01", endpointId, state: "active"}) as EndpointRegistryEntry;
 
 function factory(list: unknown[], source: Record<string, unknown> = {}, errors: unknown[] = []) {
     FakeEndpoint.created = [];
