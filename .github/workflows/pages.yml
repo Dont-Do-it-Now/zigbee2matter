@@ -39,10 +39,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            artifact_count=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages" and .expired == false)] | length' || true)
-            if [ "${artifact_count:-0}" -gt 0 ]; then
-              echo "Pages artifact is available."
-              exit 0
+            artifact_created=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages" and .expired == false)][0].created_at // empty' || true)
+            if [ -n "$artifact_created" ]; then
+              artifact_epoch=$(date -u -d "$artifact_created" +%s)
+              current_epoch=$(date -u +%s)
+              if [ "$((current_epoch - artifact_epoch))" -ge 15 ]; then
+                echo "Pages artifact metadata is stable."
+                exit 0
+              fi
             fi
             sleep 5
           done
