@@ -1,4 +1,4 @@
 # Changelog
 
-## 0.1.0
-- 업스트림 Zigbee2MQTT 버전과 분리한 Zigbee2Matter 사전 릴리스 기준 버전.
+## 2026.11.25
+- Zigbee2Matter 날짜 기반 독립 버전. 기존 Zigbee2MQTT 기반 버전에서 업그레이드할 수 있도록 상향.
