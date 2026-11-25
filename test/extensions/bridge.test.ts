@@ -77,12 +77,6 @@ describe("Extension: Bridge", () => {
     });
 
     beforeEach(() => {
-        // @ts-expect-error private
-        controller.bridgeBus.client.reconnecting = false;
-        // @ts-expect-error private
-        controller.bridgeBus.client.disconnecting = false;
-        // @ts-expect-error private
-        controller.bridgeBus.client.disconnected = false;
         data.writeDefaultConfiguration();
         settings.reRead();
         data.writeDefaultState();
