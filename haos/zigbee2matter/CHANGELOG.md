@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.25.10
+- Show Zigbee2Matter instead of Zigbee2MQTT in the web UI (titles, tooltips, onboarding), logs and Home Assistant device names.
+- Open the Matter connections page when #/matter is entered in the address bar.
+- Report the actual app version in the logs.
+
 ## 2026.11.25.9
 - Show the Matter connections link in the frontend sidebar above Contribute.
 
