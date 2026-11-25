@@ -30,7 +30,7 @@ import {
     toHerdsmanIeee,
 } from "../../../lib/identity";
 
-const NET = "11111111-1111-4111-8111-111111111111";
+const NET = "abcdefab-cdef-4abc-8def-abcdefabcdef";
 const IEEE = "00124b00120144ae";
 
 describe("normalizeIeee", () => {

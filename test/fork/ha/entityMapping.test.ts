@@ -9,6 +9,7 @@ const {presets: e, access: a} = exposes;
 
 const NET = "11111111-1111-4111-8111-111111111111";
 const IEEE = "0x00158d0001abcdef";
+const IEEE16 = IEEE.slice(2);
 const ctx = {
     networkId: NET,
     ieee: IEEE,
@@ -28,8 +29,8 @@ describe("HA entity mapping (no discovery publishing)", () => {
         const light = find(map(e.light_brightness_colorxy()), "light");
         expect(light.property).toBe("state");
         expect(light.commandProperty).toBe("state");
-        expect(light.stateKey).toBe(`dev:${NET}:${IEEE}:1:state`);
-        expect(light.key).toBe(`dev:${NET}:${IEEE}:1:ha/light/light`);
+        expect(light.stateKey).toBe(`dev:${NET}:${IEEE16}:1:state`);
+        expect(light.key).toBe(`dev:${NET}:${IEEE16}:1:ha/light/light`);
         expect(light.uniqueId).toBe(`zigbee2matter:${light.key}`);
         expect(light.config).toMatchObject({brightness: true, colorModes: ["xy"], onValue: "ON", offValue: "OFF", brightnessScale: 254});
         expect(light.matterCovered).toBe(true);
@@ -46,9 +47,9 @@ describe("HA entity mapping (no discovery publishing)", () => {
         const l2 = find(defs, "switch", "switch_l2");
         expect(l1.property).toBe("state");
         expect(l1.endpointId).toBe(1);
-        expect(l1.stateKey).toBe(`dev:${NET}:${IEEE}:1:state`);
+        expect(l1.stateKey).toBe(`dev:${NET}:${IEEE16}:1:state`);
         expect(l2.endpointId).toBe(2);
-        expect(l2.stateKey).toBe(`dev:${NET}:${IEEE}:2:state`);
+        expect(l2.stateKey).toBe(`dev:${NET}:${IEEE16}:2:state`);
         expect(l1.config).toMatchObject({onValue: "ON", offValue: "OFF"});
         expect(l1.uniqueId).not.toBe(l2.uniqueId);
     });
@@ -118,10 +119,16 @@ describe("HA entity mapping (no discovery publishing)", () => {
         expect(find(defs, "sensor", "current")).toMatchObject({deviceClass: "current", stateClass: "measurement", unit: "A"});
     });
 
-    it("exposes the button/remote `action` enum only as a diagnostic sensor (no event entity)", () => {
+    it("exposes the button/remote `action` enum as a button event entity", () => {
         const defs = map(e.action(["single", "double", "hold"]));
         expect(defs).toHaveLength(1);
-        expect(defs[0]).toMatchObject({platform: "sensor", objectId: "action", property: "action", entityCategory: "diagnostic"});
+        expect(defs[0]).toMatchObject({
+            platform: "event",
+            objectId: "action",
+            property: "action",
+            deviceClass: "button",
+            config: {eventTypes: ["single", "double", "hold"]},
+        });
         expect(defs[0].commandProperty).toBeUndefined();
     });
 
@@ -136,7 +143,7 @@ describe("HA entity mapping (no discovery publishing)", () => {
         expect(entityValue(temperature, {temperature: 21.5, humidity: 40})).toBe(21.5);
         expect(entityValue(temperature, {humidity: 40})).toBeUndefined();
         expect(entityValue(temperature, undefined)).toBeUndefined();
-        expect(entityValue(find(map(e.action(["single"])), "sensor"), {action: "single"})).toBe("single");
+        expect(entityValue(find(map(e.action(["single"])), "event"), {action: "single"})).toBe("single");
     });
 
     it("is stable and unique: same exposes give identical unique ids, keys never collide", () => {
