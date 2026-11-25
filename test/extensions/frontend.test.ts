@@ -260,11 +260,7 @@ describe("Extension: Frontend", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bulb_color",
-            stringify({
-                state: "ON",
-                linkquality: 20,
-                update: {installed_version: -1, latest_version: -1},
-            }),
+            stringify({state: "ON", linkquality: 20}),
             {retain: false},
         );
         mockWSClientEvents.message(undefined, false);
@@ -290,7 +286,6 @@ describe("Extension: Frontend", () => {
                 payload: {
                     state: "ON",
                     linkquality: 20,
-                    update: {installed_version: -1, latest_version: -1},
                 },
             }),
         );
@@ -315,7 +310,6 @@ describe("Extension: Frontend", () => {
                     state: "ON",
                     brightness: 90,
                     linkquality: 20,
-                    update: {installed_version: -1, latest_version: -1},
                 },
             }),
         );
@@ -447,8 +441,9 @@ describe("Extension: Frontend", () => {
         expect(mockSendNotFound).not.toHaveBeenCalled();
 
         mockHTTPOnRequest({url: "/z2m/"}, mockRedirectResponse);
-        expect(mockNodeStatic[frontendPath]).toHaveBeenCalledTimes(1);
-        expect(mockNodeStatic[frontendPath]).toHaveBeenCalledWith({url: "/"}, mockRedirectResponse);
+        expect(mockRedirectResponse.writeHead).toHaveBeenCalledWith(200);
+        expect(mockRedirectResponse.setHeader).toHaveBeenCalledWith("Content-Type", "text/html; charset=utf-8");
+        expect(mockRedirectResponse.end).toHaveBeenCalledWith(expect.stringContaining("<html>"));
         expect(mockSendNotFound).not.toHaveBeenCalledWith();
 
         mockNodeStatic[frontendPath].mockReset();
@@ -483,8 +478,9 @@ describe("Extension: Frontend", () => {
         expect(mockSendNotFound).not.toHaveBeenCalled();
 
         mockHTTPOnRequest({url: "/z2m-more++/c0mplex.url/"}, mockRedirectResponse);
-        expect(mockNodeStatic[frontendPath]).toHaveBeenCalledTimes(1);
-        expect(mockNodeStatic[frontendPath]).toHaveBeenCalledWith({url: "/"}, mockRedirectResponse);
+        expect(mockRedirectResponse.writeHead).toHaveBeenCalledWith(200);
+        expect(mockRedirectResponse.setHeader).toHaveBeenCalledWith("Content-Type", "text/html; charset=utf-8");
+        expect(mockRedirectResponse.end).toHaveBeenCalledWith(expect.stringContaining("<html>"));
         expect(mockSendNotFound).not.toHaveBeenCalledWith();
 
         mockNodeStatic[frontendPath].mockReset();
