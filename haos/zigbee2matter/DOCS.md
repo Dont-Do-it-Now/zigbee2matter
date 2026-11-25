@@ -7,7 +7,27 @@ For the Korean installation guide, see the [localized documentation](https://don
 ## Home Assistant OS installation
 1. Select **Add Zigbee2Matter repository to Home Assistant** to add the prefilled repository URL.
 2. Close the dialog, refresh the App store, and install **Zigbee2Matter**.
-3. In the app configuration, choose the detected coordinator under **Coordinator device** and select its adapter. For a network coordinator, leave the device empty and enter `tcp://host:port` under **Manual port (advanced)**.
+3. In the app configuration, select the **Zigbee dongle (coordinator)**, or leave it empty for automatic discovery. For a network coordinator, enter `tcp://host:port` under **Manual port (advanced)**.
+4. Start the app. The Matter bridge is enabled by default; the IPv4 advertisement option only adds IPv4 mDNS. IPv6 mDNS remains enabled and is required for Matter discovery.
+
+### Connect the bridge to Home Assistant Matter
+
+Installing the app does not add Zigbee devices through ZHA. Zigbee2Matter manages the Zigbee network and exposes supported devices through one Matter bridge. Home Assistant must pair that bridge through its Matter integration and Matter Server; after pairing, supported Zigbee devices are available as bridged Matter devices.
+
+1. Add the official **Matter** integration in Home Assistant and install its Matter Server app if prompted.
+2. In Zigbee2Matter app configuration, set **API bind host** to `0.0.0.0`, set an **API token**, and enable port `8090/tcp` in the app's Network settings.
+3. From a trusted device on the same LAN, open a Matter commissioning window and obtain its setup code:
+
+   ```sh
+   curl -X POST http://HOME_ASSISTANT_IP:8090/api/v1/matter/commissioning \
+     -H 'Authorization: Bearer YOUR_API_TOKEN' \
+     -H 'Content-Type: application/json' \
+     -d '{"administratorId":"home-assistant","durationMs":900000}'
+   ```
+
+4. In the Home Assistant Matter integration, add a new device and enter the returned setup code. The bridge is commissioned once; pair Zigbee devices to Zigbee2Matter, not individually to the Matter integration.
+
+Keep IPv6 multicast/mDNS available between Home Assistant and the bridge on the same local network. Do not connect the same coordinator to ZHA or Zigbee2MQTT at the same time.
 
 The repository publishes amd64 and aarch64 images. No file copying or local image build is required.
 

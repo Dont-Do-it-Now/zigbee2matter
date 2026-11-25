@@ -10,13 +10,13 @@ configuration:
     description: Coordinator adapter type. Required for tcp:// and when auto-discovery fails.
   matter_enabled:
     name: Enable Matter bridge
-    description: Turn this on to expose Zigbee devices to a Matter network. Off by default.
+    description: Expose Zigbee devices to a Matter network. On by default.
   matter_mdns_interface:
     name: Matter mDNS interface
     description: Restrict Matter mDNS to this network interface (e.g. enp0s3). Empty uses all external interfaces.
   matter_ipv4:
     name: Matter IPv4 advertisement
-    description: Also advertise Matter mDNS over IPv4. Off by default; IPv6 is used.
+    description: Also advertise Matter mDNS over IPv4. Turning this off disables only IPv4; IPv6 mDNS remains enabled.
   matter_passcode:
     name: Commissioning passcode
   matter_discriminator:

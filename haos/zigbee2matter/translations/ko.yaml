@@ -10,13 +10,13 @@ configuration:
     description: 코디네이터 어댑터 종류. tcp:// 이거나 자동 탐색이 실패하면 필수.
   matter_enabled:
     name: Matter 브리지 활성화
-    description: Zigbee 장치를 Matter 네트워크에 노출하려면 켭니다. 기본값은 꺼짐입니다.
+    description: Zigbee 장치를 Matter 네트워크에 노출합니다. 기본값은 켜짐입니다.
   matter_mdns_interface:
     name: Matter mDNS 인터페이스
     description: Matter mDNS를 지정한 네트워크 인터페이스(예 enp0s3)로 제한합니다. 비우면 모든 외부 인터페이스를 사용합니다.
   matter_ipv4:
     name: Matter IPv4 광고
-    description: Matter mDNS를 IPv4로도 광고합니다. 기본값은 꺼짐이며 IPv6로 광고합니다.
+    description: Matter mDNS를 IPv4로도 광고합니다. 끄면 IPv4 광고만 꺼지고 IPv6 mDNS는 계속 사용합니다.
   matter_passcode:
     name: 커미셔닝 passcode
   matter_discriminator:
