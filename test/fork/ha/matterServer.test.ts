@@ -8,8 +8,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-const stubSupervisor = (status: number, data?: unknown) =>
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({status, json: async () => ({data})}));
+const stubSupervisor = (status: number, data?: unknown) => vi.stubGlobal("fetch", vi.fn().mockResolvedValue({status, json: async () => ({data})}));
 
 describe("getMatterServerStatus", () => {
     it("is not HAOS without SUPERVISOR_TOKEN", async () => {

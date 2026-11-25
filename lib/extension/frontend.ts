@@ -6,19 +6,19 @@ import {createServer as createSecureServer} from "node:https";
 import type {Socket} from "node:net";
 import {join, posix} from "node:path";
 import bind from "bind-decorator";
-import WebSocket from "ws";
 import QRCode from "qrcode";
+import WebSocket from "ws";
 import {ApiError, requireScope, safeEqual} from "../api/auth";
-import type Matter from "./matter";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
+import {commissionIntoMatterServer, getMatterServerStatus, isHaos, MatterServerError} from "../ha/matterServer";
 import data from "../util/data";
 import logger from "../util/logger";
 import * as settings from "../util/settings";
 import {createStaticFileServer, sendNotFound} from "../util/staticFileServer";
 import {stringify} from "../util/stringify";
-import {commissionIntoMatterServer, getMatterServerStatus, isHaos, MatterServerError} from "../ha/matterServer";
 import utils from "../util/utils";
 import Extension from "./extension";
+import type Matter from "./matter";
 
 const FRONTEND_LANGUAGE_BOOTSTRAP = `<script>
 (() => {
@@ -772,7 +772,9 @@ export class Frontend extends Extension {
         if (request.method !== "GET" && origin) {
             try {
                 const forwardedHostHeader = request.headers["x-forwarded-host"];
-                const expectedHost = (Array.isArray(forwardedHostHeader) ? forwardedHostHeader[0] : forwardedHostHeader)?.split(",")[0]?.trim() ?? request.headers.host;
+                const expectedHost =
+                    (Array.isArray(forwardedHostHeader) ? forwardedHostHeader[0] : forwardedHostHeader)?.split(",")[0]?.trim() ??
+                    request.headers.host;
                 if (new URL(origin).host.toLowerCase() !== expectedHost?.toLowerCase()) {
                     this.writeMatterError(response, 403, "CROSS_SITE", "Requests started from another site are not allowed.");
                     return;
@@ -864,7 +866,12 @@ export class Frontend extends Extension {
                     return;
                 }
                 if (status.state !== "started") {
-                    this.writeMatterError(response, 409, "MATTER_SERVER_STOPPED", "The Matter Server add-on is not running. Start it from its add-on page.");
+                    this.writeMatterError(
+                        response,
+                        409,
+                        "MATTER_SERVER_STOPPED",
+                        "The Matter Server add-on is not running. Start it from its add-on page.",
+                    );
                     return;
                 }
                 const window = runtime.commissioning.getActiveWindow() ?? (await runtime.commissioning.openWindow("frontend-ha", 10 * 60_000));
@@ -902,7 +909,11 @@ export class Frontend extends Extension {
 
     private writeMatterJson(response: ServerResponse, status: number, payload: object): void {
         const body = stringify(payload);
-        response.writeHead(status, {"Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body)});
+        response.writeHead(status, {
+            "Cache-Control": "no-store",
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Length": Buffer.byteLength(body),
+        });
         response.end(body);
     }
 

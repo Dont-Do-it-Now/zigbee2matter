@@ -112,7 +112,9 @@ function commissionOnHost(host: string, code: string, timeoutMs: number): Promis
             () => finish(new MatterServerError(sent ? "COMMISSION_TIMEOUT" : "CONNECT_FAILED", `Matter Server did not respond on ${host} in time.`)),
             timeoutMs,
         );
-        ws.on("error", (error) => finish(new MatterServerError(sent ? "COMMISSION_FAILED" : "CONNECT_FAILED", `Matter Server ${host}: ${error.message}`)));
+        ws.on("error", (error) =>
+            finish(new MatterServerError(sent ? "COMMISSION_FAILED" : "CONNECT_FAILED", `Matter Server ${host}: ${error.message}`)),
+        );
         ws.on("close", () => finish(new MatterServerError(sent ? "COMMISSION_FAILED" : "CONNECT_FAILED", "Matter Server closed the connection.")));
         ws.on("message", (raw) => {
             let message: Record<string, unknown>;
@@ -126,7 +128,8 @@ function commissionOnHost(host: string, code: string, timeoutMs: number): Promis
                 sent = true;
                 ws.send(JSON.stringify({message_id: messageId, command: "commission_with_code", args: {code, network_only: true}}));
             } else if (message.message_id === messageId) {
-                if ("error_code" in message) finish(new MatterServerError("COMMISSION_FAILED", String(message.details ?? `error_code ${String(message.error_code)}`)));
+                if ("error_code" in message)
+                    finish(new MatterServerError("COMMISSION_FAILED", String(message.details ?? `error_code ${String(message.error_code)}`)));
                 else finish();
             }
         });

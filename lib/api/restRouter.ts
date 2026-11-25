@@ -188,7 +188,8 @@ export class RestApiRouter {
             if (!Number.isSafeInteger(fabricIndex) || fabricIndex < 1) throw new ApiError("INVALID_ARGUMENT", "Invalid fabric index");
             const body = await readJson(req, this.maxBodyBytes);
             // Language-neutral confirmation word (keep in sync with the frontend Matter page).
-            if (!isRecord(body) || body.confirmation !== "REMOVE") throw new ApiError("INVALID_ARGUMENT", 'Type "REMOVE" to remove this Matter connection.');
+            if (!isRecord(body) || body.confirmation !== "REMOVE")
+                throw new ApiError("INVALID_ARGUMENT", 'Type "REMOVE" to remove this Matter connection.');
             this.writeJson(res, 200, {removed: await matter.removeFabric(fabricIndex)});
             return;
         }
