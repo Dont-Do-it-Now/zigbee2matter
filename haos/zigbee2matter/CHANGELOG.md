@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.25.14
+- Fix the Matter bridge failing to start after a restart once it had been paired. Affected storage is repaired automatically, keeping existing pairings.
+- Publish a new app version to Home Assistant only after its image is available, so updates no longer fail right after a release.
+
 ## 2026.11.25.13
 - Expose multi-gang Zigbee switches as one Matter device with a switch per gang instead of separate devices. Existing multi-gang devices are re-created once after the update.
 - Show the connected state after connecting to Home Assistant.
