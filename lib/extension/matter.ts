@@ -41,8 +41,9 @@ import {
     toHerdsmanIeee,
 } from "../identity";
 import {resolveAttestation} from "../matter/attestation";
-import type {CommissioningManager} from "../matter/commissioning";
-import type {EndpointRegistryDocument, EndpointRegistryEntry} from "../matter/endpointRegistry";
+import type {CommissioningManager, FabricChangeAction} from "../matter/commissioning";
+import type {DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
+import type {EndpointRegistryDocument, EndpointRegistryEntry, RegistryKey} from "../matter/endpointRegistry";
 import {FileMatterFabricStore} from "../matter/fabricStore";
 import type {MappingExpose} from "../matter/mappingRegistry";
 import {diagnoseMatterNetwork} from "../matter/networkConfig";
@@ -77,6 +78,10 @@ const HA_CONSUMER = "ha-matter";
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
 const RETRY_SUFFIX = /:r\d+$/;
+/** Backoff before each retry of a failed Matter endpoint removal (bounded: attempts = length + 1). */
+const REMOVE_RETRY_DELAYS_MS = [500, 2000, 5000];
+/** Matter spec minimum for commissioned fabrics; the SDK-reported limit is preferred when available. */
+const DEFAULT_MAX_FABRICS = 5;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -143,7 +148,11 @@ export default class Matter extends Extension {
     /** identity 로드 전에는 임시 networkId 키가 만들어지지 않도록 상태/가용성/endpoint 이벤트를 무시한다. */
     private identityReady = false;
     private matterBlocked: string | undefined;
-    private resyncing = false;
+    private readonly endpointFactory: MatterEndpointFactory;
+    /** Per-endpoint write slots: while a write is in flight, newer values merge into `pending` (last-write-wins). */
+    private readonly matterWrites = new Map<string, {pending?: Record<string, unknown>}>();
+    /** Serializes create/remove/rebuild/relabel per device so rapid events cannot interleave. */
+    private readonly deviceOps = new Map<string, Promise<void>>();
 
     constructor(
         zigbee: Zigbee,
@@ -186,6 +195,7 @@ export default class Matter extends Extension {
                 },
             });
 
+        this.endpointFactory = matterEndpointFactory;
         const matterSettings = settings.get().matter;
         // T061/T062: 주입이 없으면 SDK storage 디렉터리를 파일 단위로 snapshot하는 기본 store를 쓴다.
         if (!options.matterFabricStore) this.fileFabricStore = new FileMatterFabricStore(data.joinPath("matter/storage"));
@@ -318,7 +328,15 @@ export default class Matter extends Extension {
                 void this.syncMatterEndpoints(interview.device, true).then(() => this.syncHaDevice(interview.device));
             }
         });
-        this.eventBus.onExposesChanged(this, (changed) => this.syncHaDevice(changed.device));
+        this.eventBus.onExposesChanged(this, (changed) => {
+            this.syncHaDevice(changed.device);
+            if (this.identityReady) void this.rebuildMatterEndpoints(changed.device).then(() => this.syncHaDevice(changed.device));
+        });
+        this.eventBus.onEntityRenamed(this, (renamed) => {
+            if (!this.identityReady || !renamed.entity.isDevice()) return;
+            this.syncHaDevice(renamed.entity);
+            void this.relabelMatterEndpoints(renamed.entity, renamed.to);
+        });
         this.eventBus.onEntityRemoved(this, (removed) => {
             if (!this.identityReady) return;
             for (const state of this.stateSnapshotsForEntity(removed.entity)) {
@@ -467,6 +485,9 @@ export default class Matter extends Extension {
             ...(matterSettings.discriminator !== undefined ? {discriminator: matterSettings.discriminator} : {}),
         });
         await this.restoreMatterEndpoints();
+        this.runtime.commissioning.onFabricsChanged((fabricIndex, action) => {
+            this.runtime.events.publish("transient", "matter/fabrics", {fabricIndex, action, fabrics: this.runtime.commissioning.listFabrics()});
+        });
     }
 
     private async restoreSnapshot(snapshot: {
@@ -614,18 +635,19 @@ export default class Matter extends Extension {
 
     // ---- fanout 소비자 (T016/T017) ----
 
-    private async onMatterEvent(event: BridgeEvent): Promise<void> {
+    /** Never awaits SDK writes: the fanout pumps one event at a time, so awaiting here would serialize every device behind the slowest one. */
+    private onMatterEvent(event: BridgeEvent): void {
         if (event.type === "snapshot") {
-            await this.resyncMatter();
+            this.resyncMatter();
 
             return;
         }
         if (event.type !== "delta" && event.type !== "availability") return;
 
-        await this.applyRecordToMatter(event.key, event.type, event.payload);
+        this.applyRecordToMatter(event.key, event.type, event.payload);
     }
 
-    private async applyRecordToMatter(eventKey: string, type: "delta" | "availability", payload: unknown): Promise<void> {
+    private applyRecordToMatter(eventKey: string, type: "delta" | "availability", payload: unknown): void {
         const key = parseEntityKey(eventKey);
         if (key?.kind !== "device" || !isRecord(payload) || payload.removed === true) return;
 
@@ -639,24 +661,49 @@ export default class Matter extends Extension {
 
         const matterKey = makeDeviceKey(key.networkId, key.ieee, key.endpoint, "matter");
         if (!matterKey) return;
+        void this.pushToMatter(formatDeviceKey(matterKey), matterKey, value, eventKey);
+    }
+
+    /**
+     * Per-endpoint last-write-wins: endpoints write concurrently; a burst for one endpoint collapses into at most one extra write.
+     * Fabric fan-out (subscription reports to every controller) is done by matter.js, not here.
+     */
+    private async pushToMatter(
+        slotId: string,
+        matterKey: NonNullable<ReturnType<typeof makeDeviceKey>>,
+        value: Record<string, unknown>,
+        eventKey: string,
+    ): Promise<void> {
+        const running = this.matterWrites.get(slotId);
+        if (running) {
+            running.pending = {...running.pending, ...value};
+
+            return;
+        }
+
+        const slot: {pending?: Record<string, unknown>} = {};
+        this.matterWrites.set(slotId, slot);
         try {
-            await this.runtime.updateMatterEndpoint(matterKey, value);
-        } catch (error) {
-            logger.warning(`Matter state update failed for ${eventKey}: ${errorMessage(error)}`);
+            let next: Record<string, unknown> | undefined = value;
+            while (next !== undefined) {
+                slot.pending = undefined;
+                try {
+                    await this.runtime.updateMatterEndpoint(matterKey, next);
+                } catch (error) {
+                    logger.warning(`Matter state update failed for ${eventKey}: ${errorMessage(error)}`);
+                }
+                next = slot.pending;
+            }
+        } finally {
+            this.matterWrites.delete(slotId);
         }
     }
 
     /** 이벤트 드롭 후 소비자 상태를 현재 snapshot으로 다시 맞춘다. */
-    private async resyncMatter(): Promise<void> {
-        if (this.resyncing) return;
-        this.resyncing = true;
-        try {
-            for (const record of this.runtime.stateSnapshots.peek().records) {
-                await this.applyRecordToMatter(record.key, "delta", record);
-                await this.applyRecordToMatter(record.key, "availability", record);
-            }
-        } finally {
-            this.resyncing = false;
+    private resyncMatter(): void {
+        for (const record of this.runtime.stateSnapshots.peek().records) {
+            this.applyRecordToMatter(record.key, "delta", record);
+            this.applyRecordToMatter(record.key, "availability", record);
         }
     }
 
@@ -704,21 +751,93 @@ export default class Matter extends Extension {
 
     // ---- Matter endpoint ----
 
-    private async syncMatterEndpoints(device: Device, create: boolean): Promise<void> {
-        const runtime = this.runtime.currentDynamicEndpointRuntime;
-        if (!runtime) return;
+    private enqueueDeviceOp(device: Device, op: () => Promise<void>): Promise<void> {
+        const next = (this.deviceOps.get(device.ieeeAddr) ?? Promise.resolve()).then(op).catch(() => {});
+        this.deviceOps.set(device.ieeeAddr, next);
+        void next.then(() => {
+            if (this.deviceOps.get(device.ieeeAddr) === next) this.deviceOps.delete(device.ieeeAddr);
+        });
 
-        for (const endpoint of device.zh.endpoints) {
-            const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
-            if (!key) continue;
+        return next;
+    }
+
+    private syncMatterEndpoints(device: Device, create: boolean): Promise<void> {
+        return this.enqueueDeviceOp(device, async () => {
+            const runtime = this.runtime.currentDynamicEndpointRuntime;
+            if (!runtime) return;
+
+            for (const endpoint of device.zh.endpoints) {
+                const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+                if (!key) continue;
+                try {
+                    if (create) await runtime.create(key, true);
+                    else await this.removeWithRetry(runtime, key);
+                } catch (error) {
+                    if (isUnmappable(error)) continue; // 대표가 아닌 endpoint 등 매핑할 capability가 없는 정상 상황
+                    logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${errorMessage(error)}`);
+                }
+            }
+        });
+    }
+
+    /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
+    private async removeWithRetry(runtime: DynamicEndpointRuntime, key: RegistryKey): Promise<void> {
+        for (let attempt = 0; ; attempt++) {
             try {
-                if (create) await runtime.create(key, true);
-                else await runtime.remove(key);
+                await runtime.remove(key);
+
+                return;
             } catch (error) {
-                if (isUnmappable(error)) continue; // 대표가 아닌 endpoint 등 매핑할 capability가 없는 정상 상황
-                logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${errorMessage(error)}`);
+                const delay = REMOVE_RETRY_DELAYS_MS[attempt];
+                if (delay === undefined) throw error;
+                logger.warning(`Matter endpoint remove failed (${errorMessage(error)}); retrying in ${delay}ms`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
             }
         }
+    }
+
+    /** Exposes changed: rebuild only when the derived Matter device type/clusters differ, to avoid churn on controllers. */
+    private rebuildMatterEndpoints(device: Device): Promise<void> {
+        return this.enqueueDeviceOp(device, async () => {
+            const runtime = this.runtime.currentDynamicEndpointRuntime;
+            const registry = this.runtime.currentEndpointRegistry;
+            if (!runtime || !registry || device.zh.interviewState !== InterviewState.Successful) return;
+
+            for (const endpoint of device.zh.endpoints) {
+                const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+                if (!key) continue;
+                try {
+                    const entry = registry.get(key);
+                    if (entry === undefined) await runtime.create(key, true);
+                    else if (await this.endpointFactory.hasPlanChanged?.(entry)) {
+                        await runtime.rebuild(key);
+                        logger.info(`Matter endpoint rebuilt for ${device.name} after exposes changed`);
+                    }
+                } catch (error) {
+                    if (isUnmappable(error)) continue;
+                    logger.warning(`Matter endpoint rebuild failed for ${device.name}: ${errorMessage(error)}`);
+                }
+            }
+        });
+    }
+
+    /** Rename: update the live bridged label. Nothing name-related is persisted, so restarts rebuild from the current friendly name. */
+    private relabelMatterEndpoints(device: Device, name: string): Promise<void> {
+        return this.enqueueDeviceOp(device, async () => {
+            const registry = this.runtime.currentEndpointRegistry;
+            if (!registry) return;
+
+            for (const endpoint of device.zh.endpoints) {
+                const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
+                const entry = key ? registry.get(key) : undefined;
+                if (!entry) continue;
+                try {
+                    await this.endpointFactory.updateLabel?.(entry, name);
+                } catch (error) {
+                    logger.warning(`Matter label update failed for ${name}: ${errorMessage(error)}`);
+                }
+            }
+        });
     }
 
     private async restoreMatterEndpoints(): Promise<void> {
@@ -732,12 +851,40 @@ export default class Matter extends Extension {
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
+                    // The factory resolves the source lazily, so labels always come from the current friendly name.
                     const restored = await runtime.restore(key);
                     if (restored === undefined) await runtime.create(key, true);
                 } catch (error) {
                     if (isUnmappable(error)) continue;
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${errorMessage(error)}`);
                 }
+            }
+        }
+
+        await this.sweepOrphanEndpoints(runtime);
+    }
+
+    /** Tombstones active registry entries whose Zigbee device/endpoint no longer exists (e.g. a remove that failed before shutdown). */
+    private async sweepOrphanEndpoints(runtime: DynamicEndpointRuntime): Promise<void> {
+        // Safety: with no Zigbee device loaded at all (empty/reset database) every entry would look orphaned; never tombstone then.
+        const devices = new Map<string, Device>();
+        for (const device of this.zigbee.devicesIterator(utils.deviceNotCoordinator)) devices.set(device.ieeeAddr.toLowerCase(), device);
+        if (devices.size === 0) return;
+
+        for (const entry of this.runtime.currentEndpointRegistry?.list() ?? []) {
+            if (entry.state !== "active") continue;
+            const parsed = parseEntityKey(entry.key);
+            if (parsed?.kind !== "device" || parsed.networkId !== this.networkIdentity.networkId) continue;
+            const device = devices.get(toHerdsmanIeee(parsed.ieee));
+            if (device?.zh.getEndpoint(parsed.endpoint)) continue;
+
+            const key = makeDeviceKey(parsed.networkId, parsed.ieee, parsed.endpoint, "matter");
+            if (!key) continue;
+            try {
+                await runtime.remove(key);
+                logger.info(`Removed orphaned Matter endpoint ${entry.endpointId}`);
+            } catch (error) {
+                logger.warning(`Orphaned Matter endpoint cleanup failed for ${entry.endpointId}: ${errorMessage(error)}`);
             }
         }
     }
@@ -860,11 +1007,23 @@ export default class Matter extends Extension {
         if (!isRecord(input) || typeof input.administratorId !== "string" || typeof input.durationMs !== "number") {
             throw new ApiError("INVALID_ARGUMENT", "administratorId and durationMs are required");
         }
-        if (this.runtime.commissioning.listFabrics().length > 0) {
-            throw new ApiError("CONFLICT", "Use an existing Matter fabric controller to share this bridge with another platform");
+        // Multi-admin: a window may be opened while fabrics exist (Apple + Google + SmartThings...). An open window is returned as-is.
+        const active = this.runtime.commissioning.getActiveWindow();
+        if (active) return active;
+        const maxFabrics = this.runtime.matter.currentNode?.state?.operationalCredentials?.supportedFabrics ?? DEFAULT_MAX_FABRICS;
+        if (this.runtime.commissioning.listFabrics().length >= maxFabrics) {
+            throw new ApiError("CONFLICT", `Matter fabric limit reached (${maxFabrics}); remove a fabric before adding another ecosystem`);
         }
 
         return await this.runtime.commissioning.openWindow(input.administratorId, input.durationMs);
+    }
+
+    /**
+     * Fabric add/delete/update notifications (SDK `commissioning.fabricsChanged`). Valid after Matter started; returns an unsubscribe.
+     * The same changes are also published on the event stream as transient `matter/fabrics` events.
+     */
+    public onMatterFabricsChanged(listener: (fabricIndex: number, action: FabricChangeAction) => void): () => void {
+        return this.runtime.commissioning.onFabricsChanged(listener);
     }
 
     // ---- 명령 ----

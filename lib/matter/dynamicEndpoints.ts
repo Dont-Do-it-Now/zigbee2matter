@@ -118,6 +118,21 @@ export class DynamicEndpointRuntime {
         return await this.coordinator.completeRemove(key);
     }
 
+    /**
+     * Replaces the live SDK endpoint with a freshly built one while keeping the registry entry (same endpointId, no tombstone).
+     * The SDK delete drops the aggregator partsList entry first, so every fabric sees remove then re-add.
+     */
+    async rebuild(key: RegistryKey): Promise<EndpointCreatePlan | undefined> {
+        const plan = this.coordinator.prepareRestore(key);
+        if (plan === undefined) return undefined;
+
+        await this.adapter.remove(plan.entry);
+        this.materialized.delete(plan.entry.endpointId);
+        this.failed.delete(plan.entry.endpointId);
+
+        return await this.materialize(key, plan.entry, "reuse");
+    }
+
     private materialize(key: RegistryKey, entry: EndpointRegistryEntry, action: EndpointCreatePlan["action"]): Promise<EndpointCreatePlan> {
         const running = this.inflight.get(entry.endpointId);
         if (running) return running;

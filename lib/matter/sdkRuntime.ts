@@ -28,6 +28,7 @@ export interface MatterServerNode {
         };
     };
     readonly state?: {
+        readonly operationalCredentials?: {readonly supportedFabrics?: number};
         readonly commissioning?: {
             readonly discriminator: number;
             readonly commissioned?: boolean;
@@ -113,6 +114,10 @@ export interface MatterEndpointFactory {
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
     remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}>;
     updateState?(entry: EndpointRegistryEntry, state: Record<string, unknown>): Promise<void>;
+    /** Applies a renamed friendly name to the live bridged endpoint (all fabrics see it via attribute reporting). */
+    updateLabel?(entry: EndpointRegistryEntry, name: string): Promise<void>;
+    /** True when the live endpoint no longer matches the Matter device type/clusters derived from current exposes. */
+    hasPlanChanged?(entry: EndpointRegistryEntry): Promise<boolean>;
 }
 
 /** SDK-owned fabric/key-store persistence boundary. The runtime never serializes SDK internals itself. */

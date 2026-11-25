@@ -134,6 +134,8 @@ interface EndpointRuntime {
     coverPositions: {lift?: number; tilt?: number};
     colorValues: ColorValues;
     lockOutcome?: LockOutcome;
+    /** Signature of the plan the SDK endpoint was built from; used to detect expose changes that need a rebuild. */
+    signature: string;
 }
 
 interface FactoryOptions {
@@ -162,6 +164,19 @@ function buttonPartId(button: string): string {
     let hash = 0;
     for (const char of button) hash = (Math.imul(hash, 31) + (char.codePointAt(0) ?? 0)) >>> 0;
     return `button-${safe}-${hash.toString(36)}`;
+}
+
+/** Stable description of the Matter device type/clusters derived from a plan. */
+function planSignature(plan: EndpointDefinitionPlan): string {
+    return JSON.stringify([
+        Object.keys(plan.capabilities).sort(),
+        plan.lightKind,
+        plan.supportsTilt,
+        plan.buttons,
+        plan.rootButton,
+        plan.supportedModes,
+        plan.setpointRanges,
+    ]);
 }
 
 function unsupportedError(unsupported: readonly FeatureDecision[]): Error {
@@ -243,6 +258,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             source,
             coverPositions: {},
             colorValues: {},
+            signature: planSignature(plan),
         };
         this.bindCommands(endpoint, entry.endpointId, source.send, runtime);
         this.runtimes.set(entry.endpointId, runtime);
@@ -275,17 +291,38 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const runtime = this.runtimes.get(entry.endpointId);
         if (runtime === undefined) return {permanent: true};
 
-        try {
-            if (runtime.instance.delete !== undefined) {
-                await runtime.instance.delete();
-                return {permanent: true};
-            }
+        // Keep the runtime on failure so a retry performs the real deletion again.
+        const permanent = runtime.instance.delete !== undefined;
+        if (permanent) await runtime.instance.delete?.();
+        else await runtime.instance.close();
+        this.runtimes.delete(entry.endpointId);
+        this.stateUpdates.delete(entry.endpointId);
 
-            await runtime.instance.close();
-            return {permanent: false};
-        } finally {
-            this.runtimes.delete(entry.endpointId);
-            this.stateUpdates.delete(entry.endpointId);
+        return {permanent};
+    }
+
+    /** Pushes a renamed friendly name to every controller/fabric through the bridged basic information cluster. */
+    async updateLabel(entry: EndpointRegistryEntry, name: string): Promise<void> {
+        const runtime = this.runtimes.get(entry.endpointId);
+        if (runtime === undefined) return;
+
+        runtime.source.name = name;
+        await runtime.instance.set({bridgedDeviceBasicInformation: {nodeLabel: name, productLabel: name}});
+    }
+
+    /** True when the device's current exposes would produce a different Matter device type/clusters than the live endpoint. */
+    async hasPlanChanged(entry: EndpointRegistryEntry): Promise<boolean> {
+        const runtime = this.runtimes.get(entry.endpointId);
+        if (runtime === undefined) return false;
+
+        const source = await this.options.resolve(entry);
+        if (source === undefined) return false;
+        try {
+            const plan = await this.definitionFor(source, () => {});
+
+            return planSignature(plan) !== runtime.signature;
+        } catch {
+            return false; // unmappable now; keep the existing endpoint rather than dropping it from all fabrics
         }
     }
 
