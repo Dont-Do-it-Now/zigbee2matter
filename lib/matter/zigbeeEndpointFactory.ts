@@ -354,6 +354,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             plan.capabilities.occupancy === undefined
                 ? {}
                 : {occupancySensing: {occupancySensorType: 0, occupancySensorTypeBitmap: {passiveInfrared: true}}};
+        const contactInit = plan.capabilities.contact === undefined ? {} : {booleanState: {stateValue: false}};
         const buttons = new Map<string, ButtonRuntime>();
         const parts: MatterEndpointInstance[] = [];
         if (plan.switchDefinition !== undefined) {
@@ -368,6 +369,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             id: target.id,
             ...(parts.length > 0 ? {parts} : {}),
             ...occupancyInit,
+            ...contactInit,
             ...initialClusterState(plan.capabilities, plan.rootButton !== undefined),
             ...target.options,
         });
@@ -405,6 +407,13 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         }
 
         return number;
+    }
+
+    discard(entry: EndpointRegistryEntry): void {
+        const runtime = this.runtimes.get(entry.endpointId);
+        this.runtimes.delete(entry.endpointId);
+        this.stateUpdates.delete(entry.endpointId);
+        for (const id of runtime?.parts?.keys() ?? []) this.stateUpdates.delete(`${entry.endpointId}/${id}`);
     }
 
     async remove(entry: EndpointRegistryEntry): Promise<{permanent: boolean}> {
@@ -554,9 +563,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             });
         }
         if (caps.contact !== undefined && typeof state.contact === "boolean") patch.booleanState = {stateValue: state.contact};
-        if (caps.occupancy !== undefined && typeof state.occupancy === "boolean") {
-            patch.occupancySensing = {occupancy: occupancyToMatter(state.occupancy)};
-        }
+        // occupancy capability는 `occupancy` 또는 `presence`(mmWave) expose에서 온다.
+        const occupied = state[caps.occupancy?.name ?? "occupancy"];
+        if (caps.occupancy !== undefined && typeof occupied === "boolean") patch.occupancySensing = {occupancy: occupancyToMatter(occupied)};
         if (caps.lock !== undefined) guard("lock", () => lockPatch(runtime, state, patch));
         if (caps.thermostat !== undefined) thermostatPatch(plan, state, patch, guard);
 
@@ -767,7 +776,8 @@ async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): P
         behaviors.push((await import("@matter/main/behaviors/relative-humidity-measurement")).RelativeHumidityMeasurementServer);
     }
     if (caps.contact && primarySensor !== "contact") behaviors.push((await import("@matter/main/behaviors/boolean-state")).BooleanStateServer);
-    if (caps.occupancy && primarySensor !== "occupancy") {
+    // OccupancySensorDevice는 OccupancySensing을 필수 기능(PIR) 없이 선언하므로 primary여도 항상 PassiveInfrared로 붙인다.
+    if (caps.occupancy) {
         behaviors.push((await import("@matter/main/behaviors/occupancy-sensing")).OccupancySensingServer.with("PassiveInfrared"));
     }
     if (caps.power || caps.voltage || caps.current) {

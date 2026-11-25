@@ -226,6 +226,15 @@ const DEFAULT_RULES: readonly CapabilityRule[] = [
         matterDeviceType: "ContactSensor",
         requiredClusters: ["BooleanState"],
     },
+    // mmWave/radar 센서는 `occupancy` 대신 `presence`를 노출한다. 같은 capability에 매핑하며, 둘 다 있으면 뒤의 occupancy rule이 우선한다.
+    {
+        id: "presence",
+        capability: "occupancy",
+        exposeType: "binary",
+        featureName: "presence",
+        matterDeviceType: "OccupancySensor",
+        requiredClusters: ["OccupancySensing"],
+    },
     {
         id: "occupancy",
         capability: "occupancy",
@@ -330,6 +339,8 @@ export function planEndpointMapping(allExposes: readonly MappingExpose[], option
 
         const quantity = UNIT_QUANTITY[rule.capability];
         if (quantity !== undefined && !isKnownElectricalUnit(quantity, expose.unit)) continue;
+        // 배터리 기기의 `voltage`(mV)는 배터리 전압이지 AC 전력 측정이 아니다. ElectricalPowerMeasurement를 붙이면 endpoint 생성이 실패한다.
+        if (rule.capability === "voltage" && flattened.some((item) => item.type === "numeric" && item.name === "battery")) continue;
 
         capabilities[rule.capability] = expose;
         mappings.push(mapping);

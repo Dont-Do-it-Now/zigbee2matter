@@ -1,7 +1,7 @@
 // z2m-fork: HA Matter Server helper. Fake Supervisor (fetch stub) and fake python-matter-server (ws on 127.0.0.1:5580).
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {WebSocketServer} from "ws";
-import {commissionIntoMatterServer, getMatterServerStatus, MatterServerError} from "../../../lib/ha/matterServer";
+import {commissionIntoMatterServer, getMatterServerStatus, MatterServerError, removeNodeFromMatterServer} from "../../../lib/ha/matterServer";
 
 afterEach(() => {
     vi.unstubAllEnvs();
@@ -52,6 +52,27 @@ describe("commissionIntoMatterServer", () => {
         const server = serve((id) => ({message_id: id, error_code: 5, details: "Commission failed"}));
         try {
             await expect(commissionIntoMatterServer("34970112332", 5000)).rejects.toBeInstanceOf(MatterServerError);
+        } finally {
+            server.close();
+        }
+    });
+});
+
+describe("removeNodeFromMatterServer", () => {
+    it("removes the full-precision uint64 node ID from the Matter Server", async () => {
+        vi.stubEnv("SUPERVISOR_TOKEN", "t");
+        const nodeId = "18446744073709551614";
+        const server = new WebSocketServer({host: "127.0.0.1", port: 5580, path: "/ws"});
+        server.on("connection", (ws) => {
+            ws.send(JSON.stringify({fabric_id: 1, schema_version: 11, sdk_version: "x"}));
+            ws.on("message", (raw) => {
+                const message = raw.toString();
+                expect(message).toContain(`"node_id":${nodeId}`);
+                ws.send(JSON.stringify({message_id: JSON.parse(message).message_id, result: null}));
+            });
+        });
+        try {
+            await expect(removeNodeFromMatterServer(nodeId, 5000)).resolves.toBeUndefined();
         } finally {
             server.close();
         }

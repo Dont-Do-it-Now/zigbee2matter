@@ -209,6 +209,19 @@ describe("planEndpointMapping", () => {
         expect(plan.mappings.find((m) => m.ruleId === "occupancy")).toMatchObject({matterDeviceType: "OccupancySensor", supported: true});
     });
 
+    it("maps mmWave `presence` to occupancy, with `occupancy` taking precedence when both exist", () => {
+        const presence: MappingExpose = {type: "binary", name: "presence", access: 1};
+        expect(planEndpointMapping([presence]).capabilities.occupancy).toBe(presence);
+        expect(planEndpointMapping([presence, occupancy]).capabilities.occupancy).toBe(occupancy);
+    });
+
+    it("does not map battery voltage (mV) to ElectricalPowerMeasurement", () => {
+        const battery: MappingExpose = {type: "numeric", name: "battery", unit: "%", access: 1};
+        const voltage: MappingExpose = {type: "numeric", name: "voltage", unit: "mV", access: 1};
+        expect(Object.keys(planEndpointMapping([{type: "binary", name: "contact", access: 1}, battery, voltage]).capabilities)).toEqual(["contact"]);
+        expect(planEndpointMapping([{type: "numeric", name: "voltage", unit: "V", access: 1}]).capabilities.voltage).toBeDefined();
+    });
+
     it("non-primary endpoints do not receive unlabeled shared exposes, but keep endpoint-labeled ones", () => {
         const labeled: MappingExpose = {type: "binary", name: "contact", endpoint: "l2", access: 1};
         const primary = planEndpointMapping([temperature, power, labeled], {isPrimaryEndpoint: true});

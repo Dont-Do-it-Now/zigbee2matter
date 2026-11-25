@@ -171,6 +171,29 @@ describe("ZigbeeMatterEndpointFactory", () => {
         await expect(f.remove(entry())).resolves.toEqual({permanent: true});
     });
 
+    it("pushes mmWave `presence` into OccupancySensing and ignores battery voltage", async () => {
+        const f = factory([
+            {type: "binary", name: "presence", access: 1},
+            {type: "numeric", name: "battery", unit: "%", access: 1},
+            {type: "numeric", name: "voltage", unit: "mV", access: 1},
+        ]);
+        await f.create(entry());
+        await f.updateState(entry(), {presence: true, voltage: 3000});
+
+        const sets = (FakeEndpoint.created.at(-1) as FakeEndpoint).sets;
+        expect(sets).toEqual([{occupancySensing: {occupancy: {occupied: true}}}]);
+    });
+
+    it("discard forgets the runtime of an endpoint that failed to be added", async () => {
+        const f = factory([{type: "binary", name: "contact", access: 1}]);
+        const {endpoint} = await f.create(entry());
+        expect((endpoint as FakeEndpoint).options.booleanState).toEqual({stateValue: false});
+        f.discard(entry());
+        await f.updateState(entry(), {contact: true});
+
+        expect((FakeEndpoint.created.at(-1) as FakeEndpoint).sets).toEqual([]);
+    });
+
     it("updateState ignores unknown endpoints and writes a patch for known ones", async () => {
         const f = factory([e.light_brightness()]);
         await f.updateState(entry("missing"), {state: "ON"});
