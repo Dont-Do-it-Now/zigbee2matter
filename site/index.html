@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Zigbee2Matter documentation: a Zigbee-to-Matter bridge without an MQTT broker.">
+  <title>Zigbee2Matter Documentation</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="."><img src="https://raw.githubusercontent.com/reizeo/zigbee2matter/main/images/logo.png" alt="Zigbee2Matter logo"><span>Zigbee2Matter</span></a>
+    <nav><a href="ko/">한국어</a><a href="https://github.com/reizeo/zigbee2matter">GitHub</a></nav>
+  </div>
+  <div class="wrap hero">
+    <div><div class="eyebrow">Independent Matter bridge</div><h1>Zigbee, bridged to Matter.</h1><p>Zigbee2Matter keeps Zigbee2MQTT’s proven device and converter path while replacing the broker boundary with an in-process bridge bus and Matter adapters.</p><span class="status">Implementation complete · platform acceptance still pending</span></div>
+    <img src="https://raw.githubusercontent.com/reizeo/zigbee2matter/main/images/logo.png" alt="Zigbee2Matter bee logo">
+  </div>
+</header>
+<main class="wrap">
+  <section><h2>What this project provides</h2><div class="grid">
+    <div class="card"><h3>Zigbee runtime</h3><p>Coordinator discovery, pairing, interviews, availability, groups, bindings, converters and OTA boundaries remain centered on Zigbee-herdsman.</p></div>
+    <div class="card"><h3>Matter exposure</h3><p>Devices are mapped to persistent Matter endpoints with commissioning, fabric, reporting and multi-bridge identity boundaries.</p></div>
+    <div class="card"><h3>Home Assistant</h3><p>Direct, Matter and hybrid adapter paths are available. The Home Assistant add-on stores runtime data under <code>/data</code>.</p></div>
+    <div class="card"><h3>APIs and events</h3><p>Authenticated REST and WebSocket APIs provide devices, commands, diagnostics, snapshots and ordered event replay/resynchronization.</p></div>
+  </div></section>
+  <section><h2>Architecture</h2><img src="https://raw.githubusercontent.com/reizeo/zigbee2matter/main/images/architecture-new.png" alt="Zigbee2Matter architecture" style="max-width:100%;border:1px solid var(--line);border-radius:14px"><p>The Zigbee network is the device-state source. Matter owns fabric, ACL, commissioning and reporting state. API and frontend clients use shared contracts instead of reaching into Zigbee internals.</p></section>
+  <section><h2>Network map and language</h2><p>The existing Windfront frontend includes the Zigbee network map at <code>/map</code> and its language menu. Zigbee2Matter preserves that UI, defaults a first visit to the browser’s supported language, keeps an existing user selection, and falls back to English when no supported browser language is available.</p><p>MQTT topics, device keys and protocol identifiers remain stable technical values; user-facing frontend text uses the frontend translation resources.</p></section>
+  <section><h2>Quick start</h2><pre><code>pnpm install --frozen-lockfile
+pnpm run build
+pnpm start</code></pre><p>For Docker, review <a href="https://github.com/reizeo/zigbee2matter/tree/main/docker">docker/</a>. For Home Assistant OS, review <a href="https://github.com/reizeo/zigbee2matter/tree/main/haos/zigbee2matter">haos/zigbee2matter/</a>.</p></section>
+  <section><h2>Project status</h2><p>The source implementation and packaging structure are present. A release should not be called fully accepted until the authorized verification pass covers installation, restart/update, backup restore, real coordinator hardware, Home Assistant runtime behavior, Matter commissioning, and both supported add-on architectures.</p><p>See the <a href="https://github.com/reizeo/zigbee2matter/blob/main/README.md">README</a> for contracts, migration boundaries, security notes and development guidance.</p></section>
+</main>
+<footer><div class="wrap">Zigbee2Matter is an independent GPL-3.0 project. It is not an official Zigbee2MQTT or Connectivity Standards Alliance product.</div></footer>
+</body>
+</html>
