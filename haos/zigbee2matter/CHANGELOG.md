@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.25.9
+- Show the Matter connections link in the frontend sidebar above Contribute.
+
 ## 2026.11.25.8
 - Fix the frontend freezing right after it starts loading.
 
