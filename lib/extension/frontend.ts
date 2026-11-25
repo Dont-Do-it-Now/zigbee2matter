@@ -18,6 +18,7 @@ import {
     isHaos,
     MatterServerError,
     recordHaFabrics,
+    removeNodeFromMatterServer,
 } from "../ha/matterServer";
 import data from "../util/data";
 import logger from "../util/logger";
@@ -199,7 +200,7 @@ var I18N = {
     pairMore: "Add another platform",
     pairTitleFirst: "Connect your first platform",
     pairTitleMore: "Add another platform",
-    pairHelp: "In Home Assistant, Apple Home, Google Home or SmartThings choose Add device > Matter, then scan the QR code or enter the code.",
+    pairHelp: "In Home Assistant, Apple Home, Google Home or SmartThings choose Add device > Matter, then scan the QR code or enter the code. SmartThings also requires a compatible Matter hub/controller; the phone app alone is not enough.",
     closeWindow: "Close pairing window",
     qrAlt: "Matter pairing QR code",
     manualCode: "Manual pairing code",
@@ -246,6 +247,8 @@ var I18N = {
     "err.CONNECT_FAILED": "Could not reach the Matter Server.",
     "err.COMMISSION_FAILED": "Matter Server could not add this bridge.",
     "err.COMMISSION_TIMEOUT": "Matter Server did not finish in time.",
+    "err.REMOVE_CONNECT_FAILED": "Could not connect to the Matter Server to remove this bridge.",
+    "err.REMOVE_FAILED": "Matter Server could not remove this bridge. The local connection was kept; retry after checking the Matter Server.",
     "err.UNKNOWN": "The request failed.",
     guideTitle: "Adding another platform",
     guide1: "Press Add another platform above. A new pairing window opens.",
@@ -275,7 +278,7 @@ var I18N = {
     pairMore: "다른 플랫폼 추가",
     pairTitleFirst: "첫 플랫폼 연결",
     pairTitleMore: "다른 플랫폼 추가",
-    pairHelp: "Home Assistant, Apple 홈, Google Home, SmartThings에서 기기 추가 > Matter를 선택한 뒤 QR을 스캔하거나 코드를 입력하세요.",
+    pairHelp: "Home Assistant, Apple 홈, Google Home, SmartThings에서 기기 추가 > Matter를 선택한 뒤 QR을 스캔하거나 코드를 입력하세요. SmartThings는 호환 Matter 허브/컨트롤러도 필요하며, 휴대폰 앱만으로는 연결할 수 없습니다.",
     closeWindow: "연결 창 닫기",
     qrAlt: "Matter 연결 QR 코드",
     manualCode: "수동 설정 코드",
@@ -322,6 +325,8 @@ var I18N = {
     "err.CONNECT_FAILED": "Matter Server에 연결할 수 없습니다.",
     "err.COMMISSION_FAILED": "Matter Server가 이 브리지를 추가하지 못했습니다.",
     "err.COMMISSION_TIMEOUT": "Matter Server가 제시간에 완료하지 못했습니다.",
+    "err.REMOVE_CONNECT_FAILED": "브리지를 삭제하기 위해 Matter Server에 연결할 수 없습니다.",
+    "err.REMOVE_FAILED": "Matter Server에서 브리지를 삭제하지 못했습니다. 로컬 연결은 유지했으니 Matter Server를 확인한 뒤 다시 시도하세요.",
     "err.UNKNOWN": "요청에 실패했습니다.",
     guideTitle: "다른 플랫폼 추가 방법",
     guide1: "위에서 다른 플랫폼 추가를 누르면 새 연결 창이 열립니다.",
@@ -975,8 +980,23 @@ export class Frontend extends Extension {
                 this.writeMatterError(response, 400, "INVALID_CONFIRMATION", 'Type "REMOVE" to remove this Matter connection.');
                 return;
             }
-            const removed = await runtime.commissioning.removeFabric(Number(fabricPath[1]));
-            if (removed) forgetHaFabric(Number(fabricPath[1]));
+            const fabricIndex = Number(fabricPath[1]);
+            const fabric = runtime.commissioning.listFabrics().find((candidate) => candidate.fabricIndex === fabricIndex);
+            if (!fabric) {
+                this.writeMatterJson(response, 404, {removed: false});
+                return;
+            }
+            if (isHaFabric(fabric)) {
+                try {
+                    await removeNodeFromMatterServer(fabric.nodeId);
+                } catch (error) {
+                    this.writeMatterServerError(response, error);
+                    return;
+                }
+            }
+            const stillPresent = runtime.commissioning.listFabrics().some((candidate) => candidate.fabricIndex === fabricIndex);
+            const removed = stillPresent ? await runtime.commissioning.removeFabric(fabricIndex) : true;
+            if (removed && isHaFabric(fabric)) forgetHaFabric(fabricIndex);
             this.writeMatterJson(response, removed ? 200 : 404, {removed});
             return;
         }

@@ -61,7 +61,7 @@ export function isHaFabric(fabric: {fabricIndex: number; label?: string; rootVen
     );
 }
 
-export type MatterServerErrorCode = "CONNECT_FAILED" | "COMMISSION_FAILED" | "COMMISSION_TIMEOUT";
+export type MatterServerErrorCode = "CONNECT_FAILED" | "COMMISSION_FAILED" | "COMMISSION_TIMEOUT" | "REMOVE_CONNECT_FAILED" | "REMOVE_FAILED";
 
 export class MatterServerError extends Error {
     constructor(
@@ -190,4 +190,63 @@ export async function commissionIntoMatterServer(code: string, timeoutMs = 120_0
         }
     }
     throw lastError ?? new MatterServerError("CONNECT_FAILED", "Matter Server is not reachable.");
+}
+
+function removeNodeOnHost(host: string, nodeId: string, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (!/^\d+$/.test(nodeId)) {
+            reject(new MatterServerError("REMOVE_FAILED", "Matter Server node ID is invalid."));
+            return;
+        }
+        const ws = new WebSocket(`ws://${host}:${MATTER_SERVER_PORT}/ws`, {handshakeTimeout: 5000});
+        const messageId = String(Date.now());
+        let sent = false;
+        const finish = (error?: MatterServerError): void => {
+            clearTimeout(timer);
+            ws.removeAllListeners();
+            ws.on("error", () => {});
+            ws.terminate();
+            if (error) reject(error);
+            else resolve();
+        };
+        const timer = setTimeout(
+            () => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server did not remove node ${nodeId} in time.`)),
+            timeoutMs,
+        );
+        ws.on("error", (error) => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", `Matter Server ${host}: ${error.message}`)));
+        ws.on("close", () => finish(new MatterServerError(sent ? "REMOVE_FAILED" : "REMOVE_CONNECT_FAILED", "Matter Server closed the connection.")));
+        ws.on("message", (raw) => {
+            let message: Record<string, unknown>;
+            try {
+                message = JSON.parse(raw.toString()) as Record<string, unknown>;
+            } catch {
+                return;
+            }
+            if (!sent && message.message_id === undefined && "schema_version" in message) {
+                sent = true;
+                // Matter node IDs are uint64. Keep the validated decimal token intact to avoid Number precision loss.
+                ws.send(`{"message_id":${JSON.stringify(messageId)},"command":"remove_node","args":{"node_id":${nodeId}}}`);
+            } else if (message.message_id === messageId) {
+                if ("error_code" in message)
+                    finish(new MatterServerError("REMOVE_FAILED", String(message.details ?? `error_code ${String(message.error_code)}`)));
+                else finish();
+            }
+        });
+    });
+}
+
+/** Removes a bridged node from the HA Matter Server before its local fabric is deleted. */
+export async function removeNodeFromMatterServer(nodeId: string, timeoutMs = 30_000): Promise<void> {
+    if (!isHaos()) throw new MatterServerError("REMOVE_FAILED", "Disconnect this bridge from the Matter controller first.");
+    let lastError: MatterServerError | undefined;
+    for (const host of MATTER_SERVER_HOSTS) {
+        try {
+            await removeNodeOnHost(host, nodeId, timeoutMs);
+            return;
+        } catch (error) {
+            if (!(error instanceof MatterServerError) || error.code !== "REMOVE_CONNECT_FAILED") throw error;
+            lastError = error;
+        }
+    }
+    throw lastError ?? new MatterServerError("REMOVE_FAILED", "Matter Server could not remove this bridge.");
 }

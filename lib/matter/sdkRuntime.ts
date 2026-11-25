@@ -53,11 +53,26 @@ interface SdkFabricInformation {
 interface MatterProtocolModule {
     DeviceCommissioner: unknown;
     FabricManager: unknown;
+    PaseClient: {
+        generatePakePasscodeVerifier(crypto: unknown, passcode: number, parameters: {iterations: number; salt: Uint8Array}): Promise<Uint8Array>;
+        generateRandomPasscode(crypto: unknown): number;
+        generateRandomDiscriminator(crypto: unknown): number;
+    };
+    PaseServer: {fromVerificationValue(sessions: unknown, verifier: Uint8Array, parameters: {iterations: number; salt: Uint8Array}): unknown};
+    SessionManager: unknown;
+}
+
+interface MatterPairingCodeTypes {
+    CommissioningFlowType: {Standard: number};
+    DiscoveryCapabilitiesSchema: {encode(value: {onIpNetwork: boolean}): unknown};
+    ManualPairingCodeCodec: {encode(value: {discriminator: number; passcode: number; flowType: number}): string};
+    QrPairingCodeCodec: {encode(value: Record<string, unknown>[]): string};
 }
 
 interface SdkDeviceCommissioner {
     readonly windowStatus: number;
     allowBasicCommissioning(options?: {timeout?: unknown}): Promise<void>;
+    allowEnhancedCommissioning(discriminator: number, server: unknown, options?: {timeout?: unknown}): Promise<void>;
     endCommissioning(): Promise<void>;
 }
 
@@ -78,6 +93,8 @@ export interface MatterMainModule {
     };
     Endpoint?: new (definition: unknown, options?: Record<string, unknown>) => unknown;
     VendorId?: (value: number) => unknown;
+    Crypto?: unknown;
+    CRYPTO_PBKDF_ITERATIONS_MIN?: number;
     /** @matter/general `Millis` TimeUnit factory. */
     Millis?: (value: number) => unknown;
     /** SDK 기본 Environment. `vars.set("storage.path", ...)`로 저장소 위치를 지정한다. */
@@ -121,6 +138,8 @@ export interface MatterEndpointFactory {
     updateLabel?(entry: EndpointRegistryEntry, name: string): Promise<void>;
     /** True when the live endpoint no longer matches the Matter device type/clusters derived from current exposes. */
     hasPlanChanged?(entry: EndpointRegistryEntry): Promise<boolean>;
+    /** Forget the in-memory runtime of an endpoint that failed to be added to the node. */
+    discard?(entry: EndpointRegistryEntry): void;
 }
 
 /** SDK-owned fabric/key-store persistence boundary. The runtime never serializes SDK internals itself. */
@@ -149,6 +168,8 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter, Unsuppo
                 await this.factory.remove(entry);
             } catch {
                 // Preserve the original SDK/addition error; diagnostics own cleanup reporting.
+                // The never-added endpoint cannot be deleted; drop its runtime so state pushes do not hit a closed endpoint.
+                this.factory.discard?.(entry);
             }
             throw error;
         }
@@ -168,12 +189,15 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter, Unsuppo
 export class MatterSdkRuntime {
     private module?: MatterMainModule;
     private protocol?: MatterProtocolModule;
+    private pairingCodeTypes?: MatterPairingCodeTypes;
     private node?: MatterServerNode;
     private endpointContainer?: MatterEndpointContainer;
     private nodeId?: string;
     private started = false;
     private appliedEnvironment?: MatterEnvironment;
     private appliedEnvironmentNames: string[] = [];
+    private vendorId?: number;
+    private productId?: number;
 
     constructor(
         private readonly environment: MatterEnvironment = processMatterEnvironment,
@@ -300,6 +324,8 @@ export class MatterSdkRuntime {
             }
             this.node = node;
             this.nodeId = options.id;
+            this.vendorId = options.vendorId;
+            this.productId = options.productId;
             this.started = false;
             this.appliedEnvironment = environment;
             this.appliedEnvironmentNames = appliedEnvironmentNames;
@@ -329,6 +355,8 @@ export class MatterSdkRuntime {
         } finally {
             this.node = undefined;
             this.nodeId = undefined;
+            this.vendorId = undefined;
+            this.productId = undefined;
             this.endpointContainer = undefined;
             this.started = false;
             this.clearAppliedEnvironment();
@@ -350,6 +378,52 @@ export class MatterSdkRuntime {
         return {setupCode, qrCode, discriminator: commissioning.discriminator};
     }
 
+    private async openEnhancedCommissioningWindow(durationMs: number): Promise<CommissioningCode> {
+        const node = this.node;
+        const sdk = this.module;
+        const protocol = this.protocol;
+        if (
+            !node?.env ||
+            !sdk?.Crypto ||
+            !sdk.Millis ||
+            sdk.CRYPTO_PBKDF_ITERATIONS_MIN === undefined ||
+            !protocol ||
+            this.vendorId === undefined ||
+            this.productId === undefined
+        ) {
+            throw new Error("Matter SDK cannot open an enhanced commissioning window");
+        }
+        if (this.pairingCodeTypes === undefined) {
+            const typesModuleName: string = "@matter/main/types";
+            this.pairingCodeTypes = (await import(typesModuleName)) as unknown as MatterPairingCodeTypes;
+        }
+        const crypto = node.env.get(sdk.Crypto);
+        const passcode = protocol.PaseClient.generateRandomPasscode(crypto);
+        const discriminator = protocol.PaseClient.generateRandomDiscriminator(crypto);
+        const salt = (crypto as {randomBytes(length: number): Uint8Array}).randomBytes(32);
+        const iterations = sdk.CRYPTO_PBKDF_ITERATIONS_MIN;
+        const verifier = await protocol.PaseClient.generatePakePasscodeVerifier(crypto, passcode, {iterations, salt});
+        const sessions = node.env.get(protocol.SessionManager);
+        const paseServer = protocol.PaseServer.fromVerificationValue(sessions, verifier, {iterations, salt});
+        await this.commissioner().allowEnhancedCommissioning(discriminator, paseServer, {timeout: sdk.Millis(durationMs)});
+
+        const pairingTypes = this.pairingCodeTypes;
+        const flowType = pairingTypes.CommissioningFlowType.Standard;
+        const qrCode = pairingTypes.QrPairingCodeCodec.encode([
+            {
+                version: 0,
+                vendorId: this.vendorId,
+                productId: this.productId,
+                flowType,
+                discriminator,
+                passcode,
+                discoveryCapabilities: pairingTypes.DiscoveryCapabilitiesSchema.encode({onIpNetwork: true}),
+            },
+        ]);
+        const setupCode = pairingTypes.ManualPairingCodeCodec.encode({discriminator, passcode, flowType});
+        return {setupCode, qrCode, discriminator};
+    }
+
     /**
      * T033/T034: 등록 창과 fabric 상태를 SDK에 위임하는 backend. 호출 시점의 현재 node를 사용한다.
      * 창 열기 = DeviceCommissioner.allowBasicCommissioning, 닫기 = endCommissioning,
@@ -361,6 +435,7 @@ export class MatterSdkRuntime {
             openWindow: async (durationMs) => {
                 const sdk = this.module;
                 if (!sdk?.Millis) throw new Error("Matter SDK does not expose Millis");
+                if (this.listSdkFabrics().length > 0) return await this.openEnhancedCommissioningWindow(durationMs);
                 await this.commissioner().allowBasicCommissioning({timeout: sdk.Millis(durationMs)});
 
                 return this.getCommissioningCode();
