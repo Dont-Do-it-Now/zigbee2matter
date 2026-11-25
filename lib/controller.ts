@@ -173,6 +173,9 @@ export class Controller {
 
                 /* v8 ignore start */
                 if ((error as Error).message.includes("USB adapter discovery error (No valid USB adapter found)")) {
+                    logger.error(
+                        "No Zigbee coordinator was found. Check that the selected serial device is correct and is not already in use by another integration or app (for example, ZHA or Zigbee2MQTT). A serial coordinator can only be controlled by one app at a time.",
+                    );
                     logger.error("If this happens after updating to Zigbee2MQTT 2.0.0, see https://github.com/Koenkk/zigbee2mqtt/discussions/24364");
                 }
                 /* v8 ignore stop */
