@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.11.25.4
+- Add a Matter connection page with QR and manual setup codes.
+- Explain sharing the bridge with additional Matter platforms through an existing controller.
+- Require typing the Korean confirmation phrase "연결해제" before removing a Matter fabric.
+- Document Home Assistant Matter Server setup for existing and new servers.
+- Label the MQTT-compatible topic as an internal BridgeBus message path.
+- Improve coordinator discovery conflict diagnostics and setup guidance.
+
 ## 2026.11.25.3
 - Require selecting a Zigbee coordinator device in the HAOS app configuration.
 - HAOS 앱 구성에서 Zigbee 코디네이터 장치를 필수로 선택하도록 변경.
