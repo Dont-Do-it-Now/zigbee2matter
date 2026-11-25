@@ -14,18 +14,14 @@ For the Korean installation guide, see the [localized documentation](https://don
 
 Installing the app does not add Zigbee devices through ZHA. Zigbee2Matter manages the Zigbee network and exposes supported devices through one Matter bridge. Home Assistant must pair that bridge through its Matter integration and Matter Server; after pairing, supported Zigbee devices are available as bridged Matter devices.
 
-1. Add the official **Matter** integration in Home Assistant and install its Matter Server app if prompted.
-2. In Zigbee2Matter app configuration, set **API bind host** to `0.0.0.0`, set an **API token**, and enable port `8090/tcp` in the app's Network settings.
-3. From a trusted device on the same LAN, open a Matter commissioning window and obtain its setup code:
+1. Check whether the Home Assistant **Matter** integration already has a Matter Server connection. Reuse the existing server; do not install a second one.
+2. If there is no Matter Server, add the official **Matter** integration in Home Assistant and follow its prompt to install and connect the official Matter Server app. If a server already exists, select that server when configuring the integration. See the [Home Assistant Matter guide](https://www.home-assistant.io/integrations/matter/).
+3. Set an **API token** in the Zigbee2Matter app configuration. Keep the API bind host at its default `127.0.0.1`; the UI does not require exposing port `8090` on the LAN.
+4. Open the Zigbee2Matter app's ingress panel and select **Matter 연결**. Enter the API token if prompted, start the first connection to display a QR code and manual setup code, then choose **Add Matter device** in Home Assistant's Matter integration and scan the QR or enter the code.
 
-   ```sh
-   curl -X POST http://HOME_ASSISTANT_IP:8090/api/v1/matter/commissioning \
-     -H 'Authorization: Bearer YOUR_API_TOKEN' \
-     -H 'Content-Type: application/json' \
-     -d '{"administratorId":"home-assistant","durationMs":900000}'
-   ```
+The bridge is commissioned once; pair Zigbee devices to Zigbee2Matter, not individually to the Matter integration. Basic Matter pairing uses the app's ingress UI and does not require exposing port `8090`.
 
-4. In the Home Assistant Matter integration, add a new device and enter the returned setup code. The bridge is commissioned once; pair Zigbee devices to Zigbee2Matter, not individually to the Matter integration.
+To add the same bridge to another Matter ecosystem later, use **Share device** in the controller that is already connected, then scan its newly generated sharing QR code or enter its sharing code in the other platform. Do not reuse the first commissioning code for additional platforms. See the [Home Assistant Matter guide](https://www.home-assistant.io/integrations/matter/) for the current sharing steps and controller-specific requirements.
 
 Keep IPv6 multicast/mDNS available between Home Assistant and the bridge on the same local network. Do not connect the same coordinator to ZHA or Zigbee2MQTT at the same time.
 
@@ -43,6 +39,8 @@ The repository publishes amd64 and aarch64 images. No file copying or local imag
 
 ## Coordinator connection
 Choose the USB/serial coordinator from **Coordinator device**. For a network coordinator or custom path, set **Manual port (advanced)** to `tcp://host:port` or `/dev/serial/by-id/...`. A TCP coordinator also requires `serial_adapter`.
+
+Only one app or integration can use a serial coordinator at a time. If the coordinator is already configured in ZHA, Zigbee2MQTT, or another app, stop or remove that integration before starting Zigbee2Matter. If startup reports that no USB adapter was found, check both the selected device path and whether another app is holding the coordinator.
 
 ## Local development
 For local development, run `haos/prepare-local.sh` (Windows: `haos/prepare-local.ps1`), then copy `haos/zigbee2matter` to `/addons/zigbee2matter` on Home Assistant OS and install it as a local app.
