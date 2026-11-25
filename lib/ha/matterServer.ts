@@ -1,4 +1,6 @@
+import {existsSync, readFileSync, writeFileSync} from "node:fs";
 import WebSocket from "ws";
+import data from "../util/data";
 
 /**
  * Home Assistant OS helper: reads the official "Matter Server" add-on state through the Supervisor (`GET /addons/<slug>/info`,
@@ -19,6 +21,45 @@ export const MATTER_SERVER_LINKS = {
     install: `https://my.home-assistant.io/redirect/supervisor_addon/?addon=${ADDON_SLUG}`,
     integration: "https://my.home-assistant.io/redirect/config_flow_start/?domain=matter",
 } as const;
+
+const HA_FABRICS_FILE = "ha-fabrics.json";
+// Nabu Casa (python-matter-server's real root vendor id) and the 0xFFF1 test vendor.
+const HA_VENDOR_IDS = new Set([4939, 65521]);
+
+function readHaFabricIndexes(): number[] {
+    try {
+        const file = data.joinPath(HA_FABRICS_FILE);
+        const parsed: unknown = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
+
+        return Array.isArray(parsed) ? parsed.filter((index): index is number => typeof index === "number") : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeHaFabricIndexes(indexes: number[]): void {
+    try {
+        writeFileSync(data.joinPath(HA_FABRICS_FILE), JSON.stringify([...new Set(indexes)]));
+    } catch {
+        // Best effort: vendor id / label detection still applies.
+    }
+}
+
+/** Remembers fabric indexes that appeared while this bridge was commissioned into Home Assistant. */
+export function recordHaFabrics(indexes: number[]): void {
+    if (indexes.length > 0) writeHaFabricIndexes([...readHaFabricIndexes(), ...indexes]);
+}
+
+export function forgetHaFabric(index: number): void {
+    writeHaFabricIndexes(readHaFabricIndexes().filter((recorded) => recorded !== index));
+}
+
+/** A fabric belongs to Home Assistant by vendor id, label, or because our own `ha/connect` created it. */
+export function isHaFabric(fabric: {fabricIndex: number; label?: string; rootVendorId: number}): boolean {
+    return (
+        HA_VENDOR_IDS.has(fabric.rootVendorId) || /home\s*assistant/i.test(fabric.label ?? "") || readHaFabricIndexes().includes(fabric.fabricIndex)
+    );
+}
 
 export type MatterServerErrorCode = "CONNECT_FAILED" | "COMMISSION_FAILED" | "COMMISSION_TIMEOUT";
 

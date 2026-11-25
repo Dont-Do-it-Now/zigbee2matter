@@ -10,7 +10,15 @@ import QRCode from "qrcode";
 import WebSocket from "ws";
 import {ApiError, requireScope, safeEqual} from "../api/auth";
 import {BASE_TOPIC} from "../bridgeBus/constants"; // z2m-fork: T006
-import {commissionIntoMatterServer, getMatterServerStatus, isHaos, MatterServerError} from "../ha/matterServer";
+import {
+    commissionIntoMatterServer,
+    forgetHaFabric,
+    getMatterServerStatus,
+    isHaFabric,
+    isHaos,
+    MatterServerError,
+    recordHaFabrics,
+} from "../ha/matterServer";
 import data from "../util/data";
 import logger from "../util/logger";
 import * as settings from "../util/settings";
@@ -342,7 +350,7 @@ function t(key, vars) {
 // Language-neutral confirmation word; must match the server check.
 var CONFIRM_PHRASE = "REMOVE";
 // Matter root vendor ids (CSA vendor registry) -> platform names. 0xFFF1 is the test vendor used by python-matter-server.
-var VENDORS = {4937: "Apple Home", 24582: "Google Home", 4362: "Samsung SmartThings", 4631: "Amazon Alexa", 65521: "Home Assistant"};
+var VENDORS = {4937: "Apple Home", 24582: "Google Home", 4362: "Samsung SmartThings", 4631: "Amazon Alexa", 4939: "Home Assistant", 65521: "Home Assistant"};
 var el = function (id) { return document.getElementById(id); };
 document.querySelectorAll("[data-i18n]").forEach(function (node) { node.textContent = t(node.dataset.i18n); });
 document.title = "Zigbee2Matter - " + t("title");
@@ -432,6 +440,17 @@ function renderWindow(win, hasFabrics) {
   el("pairing").append(image, info);
   renderCountdown();
 }
+// Inside the HA UI (ingress iframe) navigate the HA app itself; otherwise open the my.home-assistant.io redirect in a new tab.
+function insideHa() {
+  if (location.pathname.indexOf("/api/hassio_ingress/") === 0) return true;
+  try { return window.top !== window && Boolean(window.top.location.href); } catch (e) { return false; }
+}
+function setHaLink(id, fallback, haPath) {
+  var link = el(id);
+  var inHa = insideHa();
+  link.href = inHa ? haPath : fallback;
+  link.target = inHa ? "_top" : "_blank";
+}
 function renderHa(ha) {
   el("ha").classList.toggle("hidden", !ha.haos);
   if (!ha.haos) return;
@@ -442,11 +461,11 @@ function renderHa(ha) {
   el("ha-connect").textContent = haConnecting ? t("haConnecting") : t(haHasFabric ? "haReconnect" : "haConnect");
   el("ha-connect").classList.toggle("secondary", haHasFabric);
   el("ha-connect").disabled = haConnecting;
-  el("ha-install").href = ha.links.install;
+  setHaLink("ha-install", ha.links.install, "/hassio/addon/core_matter_server/info");
   el("ha-install").classList.toggle("hidden", Boolean(ha.installed));
-  el("ha-addon").href = ha.links.install;
+  setHaLink("ha-addon", ha.links.install, "/hassio/addon/core_matter_server/info");
   el("ha-addon").classList.toggle("hidden", !ha.installed || running);
-  el("ha-integration").href = ha.links.integration;
+  setHaLink("ha-integration", ha.links.integration, "/config/integrations/integration/matter");
   el("ha-integration").classList.toggle("hidden", !running);
 }
 function setLocked(message) {
@@ -471,7 +490,7 @@ async function refresh() {
     el("status").textContent = t("running");
     el("pair").classList.remove("hidden");
     el("guide").classList.toggle("hidden", !data.fabrics.length);
-    haHasFabric = data.fabrics.some(function (fabric) { return fabric.rootVendorId === 65521; });
+    haHasFabric = Boolean(data.haConnected);
     if (!haConnecting) { el("ha-result").textContent = ""; el("ha-result").className = "muted"; }
     var list = el("fabric-list");
     list.replaceChildren();
@@ -873,9 +892,13 @@ export class Frontend extends Extension {
 
         if (request.method === "GET" && path === "/state") {
             const window = runtime.commissioning.getActiveWindow();
+            const fabrics = runtime.commissioning.listFabrics().map(({fabricIndex, label, rootVendorId}) => ({fabricIndex, label, rootVendorId}));
+            const haFabric = fabrics.find((fabric) => isHaFabric(fabric));
             this.writeMatterJson(response, 200, {
                 matterRunning: true,
-                fabrics: runtime.commissioning.listFabrics().map(({fabricIndex, label, rootVendorId}) => ({fabricIndex, label, rootVendorId})),
+                fabrics,
+                haConnected: haFabric !== undefined,
+                haFabricIndex: haFabric?.fabricIndex,
                 window: window ? await withQr(window) : undefined,
             });
             return;
@@ -924,7 +947,11 @@ export class Frontend extends Extension {
                 }
                 const window = runtime.commissioning.getActiveWindow() ?? (await runtime.commissioning.openWindow("frontend-ha", 10 * 60_000));
                 // python-matter-server accepts the 11-digit manual code; strip any separators.
+                const before = new Set(runtime.commissioning.listFabrics().map((fabric) => fabric.fabricIndex));
                 await commissionIntoMatterServer(window.setupCode.replace(/\D/g, ""));
+                recordHaFabrics(
+                    runtime.commissioning.listFabrics().flatMap((fabric) => (before.has(fabric.fabricIndex) ? [] : [fabric.fabricIndex])),
+                );
                 await runtime.commissioning.closeWindow().catch(() => false);
                 this.writeMatterJson(response, 200, {connected: true});
             } catch (error) {
@@ -949,6 +976,7 @@ export class Frontend extends Extension {
                 return;
             }
             const removed = await runtime.commissioning.removeFabric(Number(fabricPath[1]));
+            if (removed) forgetHaFabric(Number(fabricPath[1]));
             this.writeMatterJson(response, removed ? 200 : 404, {removed});
             return;
         }
