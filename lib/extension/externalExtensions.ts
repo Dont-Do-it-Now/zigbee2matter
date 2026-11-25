@@ -59,7 +59,7 @@ export default class ExternalExtensions extends ExternalJSExtension<TModule> {
         } catch (error) {
             logger.error(
                 /* v8 ignore next */
-                `Failed to load external extension '${newName ?? name}'. Check the code for syntax error and make sure it is up to date with the current Zigbee2MQTT version.`,
+                `Failed to load external extension '${newName ?? name}'. Check the code for syntax error and make sure it is up to date with the current Zigbee2Matter version.`,
             );
 
             throw error;

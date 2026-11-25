@@ -113,7 +113,7 @@ class Logger {
             require("winston-syslog").Syslog;
 
             const options: KeyValue = {
-                app_name: "Zigbee2MQTT",
+                app_name: "Zigbee2Matter",
                 format: winston.format.printf((info) => info.message as string),
                 ...settings.get().advanced.log_syslog,
             };

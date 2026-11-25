@@ -493,7 +493,7 @@ class Bridge {
         this.options = {
             ID: `bridge_${ieeeAdress}`,
             homeassistant: {
-                name: "Zigbee2MQTT Bridge",
+                name: "Zigbee2Matter Bridge",
             },
         };
     }
@@ -568,7 +568,7 @@ export class HomeAssistant extends Extension {
         }
 
         this.zigbee2MQTTVersion = (await utils.getZigbee2MQTTVersion(false)).version;
-        this.discoveryOrigin = {name: "Zigbee2MQTT", sw: this.zigbee2MQTTVersion, url: "https://www.zigbee2mqtt.io"};
+        this.discoveryOrigin = {name: "Zigbee2Matter", sw: this.zigbee2MQTTVersion, url: "https://www.zigbee2mqtt.io"};
         this.bridge = this.getBridgeEntity(await this.zigbee.getCoordinatorVersion());
         this.bridgeIdentifier = this.getDevicePayload(this.bridge).identifiers[0];
         this.eventBus.onEntityRemoved(this, this.onEntityRemoved);
@@ -2178,7 +2178,7 @@ export class HomeAssistant extends Extension {
         const payload: KeyValue = {
             identifiers: [`${identifierPostfix}_${entity.options.ID}`],
             name: deviceName,
-            sw_version: `Zigbee2MQTT ${this.zigbee2MQTTVersion}`,
+            sw_version: `Zigbee2Matter ${this.zigbee2MQTTVersion}`,
         };
 
         const url = settings.get().frontend?.url ?? "";
@@ -2201,11 +2201,11 @@ export class HomeAssistant extends Extension {
             payload.configuration_url = `${url}/#/device/${urlEntityPostfix}${entity.ieeeAddr}/info`;
         } else if (entity.isGroup()) {
             payload.model = "Group";
-            payload.manufacturer = "Zigbee2MQTT";
+            payload.manufacturer = "Zigbee2Matter";
             payload.configuration_url = `${url}/#/group/${urlEntityPostfix}${entity.ID}`;
         } else {
             payload.model = "Bridge";
-            payload.manufacturer = "Zigbee2MQTT";
+            payload.manufacturer = "Zigbee2Matter";
             payload.hw_version = `${entity.hardwareVersion} ${entity.firmwareVersion}`;
             payload.sw_version = this.zigbee2MQTTVersion;
             payload.configuration_url = `${url}/#/settings`;

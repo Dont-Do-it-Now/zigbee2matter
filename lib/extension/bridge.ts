@@ -331,7 +331,7 @@ export default class Bridge extends Extension {
     @bind async restart(message: string | KeyValue): Promise<Zigbee2MQTTResponse<"bridge/response/restart">> {
         // Wait 500 ms before restarting so response can be send.
         setTimeout(this.restartCallback, 500);
-        logger.info("Restarting Zigbee2MQTT");
+        logger.info("Restarting Zigbee2Matter");
         return utils.getResponse(message, {});
     }
 

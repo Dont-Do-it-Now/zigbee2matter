@@ -39,7 +39,7 @@
                 "experimental_event_entities": {
                     "type": "boolean",
                     "title": "Home Assistant experimental event entities",
-                    "description": "Home Assistant experimental event entities, when enabled Zigbee2MQTT will add event entities for exposed actions. The events and attributes are currently deemed experimental and subject to change.",
+                    "description": "Home Assistant experimental event entities, when enabled Zigbee2Matter will add event entities for exposed actions. The events and attributes are currently deemed experimental and subject to change.",
                     "requiresRestart": true,
                     "default": false
                 }
@@ -331,7 +331,7 @@
                 "disable_automatic_update_check": {
                     "type": "boolean",
                     "title": "Disable automatic update check",
-                    "description": "Zigbee devices may request a firmware update, and do so frequently, causing Zigbee2MQTT to reach out to third party servers. If you disable these device initiated checks, you can still initiate a firmware update check manually.",
+                    "description": "Zigbee devices may request a firmware update, and do so frequently, causing Zigbee2Matter to reach out to third party servers. If you disable these device initiated checks, you can still initiate a firmware update check manually.",
                     "default": false
                 },
                 "zigbee_ota_override_index_location": {
@@ -442,7 +442,7 @@
                 "disable_ui_serving": {
                     "type": ["boolean", "null"],
                     "title": "Disable UI serving",
-                    "description": "If true, the frontend UI is not served, only the WebSocket is maintained by Zigbee2MQTT (you are required to serve a standalone UI yourself as needed).",
+                    "description": "If true, the frontend UI is not served, only the WebSocket is maintained by Zigbee2Matter (you are required to serve a standalone UI yourself as needed).",
                     "requiresRestart": true
                 }
             },
@@ -693,8 +693,8 @@
                                 "app_name": {
                                     "type": "string",
                                     "title": "Localhost",
-                                    "description": "The name of the application (Default: Zigbee2MQTT).",
-                                    "default": "Zigbee2MQTT"
+                                    "description": "The name of the application (Default: Zigbee2Matter).",
+                                    "default": "Zigbee2Matter"
                                 },
                                 "eol": {
                                     "type": "string",
@@ -855,7 +855,7 @@
         },
         "health": {
             "title": "Health",
-            "description": "Periodically check the health of Zigbee2MQTT",
+            "description": "Periodically check the health of Zigbee2Matter",
             "type": "object",
             "properties": {
                 "interval": {
@@ -971,7 +971,7 @@
                 "disable_automatic_update_check": {
                     "type": "boolean",
                     "title": "Disable automatic update check",
-                    "description": "Zigbee devices may request a firmware update, and do so frequently, causing Zigbee2MQTT to reach out to third party servers. If you disable these device initiated checks, you can still initiate a firmware update check manually.",
+                    "description": "Zigbee devices may request a firmware update, and do so frequently, causing Zigbee2Matter to reach out to third party servers. If you disable these device initiated checks, you can still initiate a firmware update check manually.",
                     "default": false
                 }
             },

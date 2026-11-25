@@ -267,7 +267,7 @@ function migrateToTwo(
     };
     const haLegacyEntityAttrs: SettingsRemove = {
         path: ["homeassistant", "legacy_entity_attributes"],
-        note: "Entity attributes (homeassistant.legacy_entity_attributes setting) has been removed. This means that entities discovered by Zigbee2MQTT will no longer have entity attributes (Home Assistant entity attributes are accessed via e.g. states.binary_sensor.my_sensor.attributes).",
+        note: "Entity attributes (homeassistant.legacy_entity_attributes setting) has been removed. This means that entities discovered by Zigbee2Matter will no longer have entity attributes (Home Assistant entity attributes are accessed via e.g. states.binary_sensor.my_sensor.attributes).",
         noteIf: noteIfWasTrue,
     };
     const otaIkeaUseTestUrl: SettingsRemove = {

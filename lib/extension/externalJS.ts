@@ -230,7 +230,7 @@ export default abstract class ExternalJSExtension<M> extends Extension {
             } catch (error) {
                 logger.error(
                     `Invalid external ${this.bridgeBusTopic} '${extension.name}' was ignored and renamed to prevent interference ` +
-                        `with Zigbee2MQTT. (${(error as Error).message})`,
+                        `with Zigbee2Matter. (${(error as Error).message})`,
                 );
                 // biome-ignore lint/style/noNonNullAssertion: always Error
                 logger.debug((error as Error).stack!);

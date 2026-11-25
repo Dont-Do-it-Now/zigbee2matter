@@ -133,12 +133,12 @@ export class Controller {
         this.state.start();
 
         if (abortSignal.aborted) {
-            logger.info(`Zigbee2MQTT start aborted, reason=${abortSignal.reason}`);
+            logger.info(`Zigbee2Matter start aborted, reason=${abortSignal.reason}`);
             return;
         }
 
         const info = await utils.getZigbee2MQTTVersion();
-        logger.info(`Starting Zigbee2MQTT version ${info.version} (commit #${info.commitHash})`);
+        logger.info(`Starting Zigbee2Matter version ${info.version} (commit #${info.commitHash})`);
 
         // Start zigbee
         let storedCoordinator: ReturnType<typeof readBackupIdentity>;
@@ -185,7 +185,7 @@ export class Controller {
         }
 
         if (abortSignal.aborted) {
-            logger.info(`Zigbee2MQTT start aborted, reason=${abortSignal.reason}`);
+            logger.info(`Zigbee2Matter start aborted, reason=${abortSignal.reason}`);
             return;
         }
 
@@ -215,7 +215,7 @@ export class Controller {
         }
 
         if (abortSignal.aborted) {
-            logger.info(`Zigbee2MQTT start aborted, reason=${abortSignal.reason}`);
+            logger.info(`Zigbee2Matter start aborted, reason=${abortSignal.reason}`);
             return;
         }
 
@@ -224,7 +224,7 @@ export class Controller {
             await this.startExtension(extension);
 
             if (abortSignal.aborted) {
-                logger.info(`Zigbee2MQTT start aborted, reason=${abortSignal.reason}`);
+                logger.info(`Zigbee2Matter start aborted, reason=${abortSignal.reason}`);
                 return;
             }
         }
@@ -236,7 +236,7 @@ export class Controller {
                     await this.publishEntityState(entity, this.state.get(entity), "publishCached");
 
                     if (abortSignal.aborted) {
-                        logger.info(`Zigbee2MQTT start aborted, reason=${abortSignal.reason}`);
+                        logger.info(`Zigbee2Matter start aborted, reason=${abortSignal.reason}`);
                         return;
                     }
                 }
@@ -247,7 +247,7 @@ export class Controller {
             utils.publishLastSeen(data, settings.get(), false, this.publishEntityState).catch(/* v8 ignore next */ () => {});
         });
 
-        logger.info("Zigbee2MQTT started!");
+        logger.info("Zigbee2Matter started!");
 
         this.sdNotify = await initSdNotify();
 
@@ -380,7 +380,7 @@ export class Controller {
     }
 
     async stop(restart = false, code = 0, signal: NodeJS.Signals | undefined = undefined): Promise<void> {
-        logger.info(`Stopping Zigbee2MQTT (restart=${restart}, code=${code}, signal=${signal})`);
+        logger.info(`Stopping Zigbee2Matter (restart=${restart}, code=${code}, signal=${signal})`);
 
         this.#startAbortController?.abort(signal ?? "STOPABORT");
         this.sdNotify?.notifyStopping();
@@ -404,9 +404,9 @@ export class Controller {
 
         try {
             await this.zigbee.stop();
-            logger.info("Stopped Zigbee2MQTT");
+            logger.info("Stopped Zigbee2Matter");
         } catch (error) {
-            logger.error(`Failed to stop Zigbee2MQTT (${(error as Error).stack})`);
+            logger.error(`Failed to stop Zigbee2Matter (${(error as Error).stack})`);
             localCode = 1;
         }
 
