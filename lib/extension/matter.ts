@@ -472,7 +472,7 @@ export default class Matter extends Extension {
     private async startMatter(): Promise<void> {
         const matterSettings = settings.get().matter;
         const requestedNetwork = matterSettings.network ?? {};
-        const network = selectMatterMdnsInterface(requestedNetwork);
+        const network = selectMatterMdnsInterface({...requestedNetwork, ipv4: true, ipv6: true});
         if (!requestedNetwork.mdnsInterface && network.mdnsInterface) {
             logger.info(`Matter mDNS automatically selected network interface: ${network.mdnsInterface}`);
         }
@@ -998,7 +998,22 @@ export default class Matter extends Extension {
 
         const source = this.matterSourceFor(device, endpoint, entry);
         const group = this.composedGroup(device);
-        if (group[0] !== key.endpoint) return source;
+        if (group.length > 0 && group[0] !== key.endpoint) return source;
+
+        if (group.length === 0) {
+            const mapping = planEndpointMapping(source.exposes, {isPrimaryEndpoint: source.isPrimaryEndpoint});
+            if (mapping.capabilities.temperature && mapping.capabilities.humidity) {
+                const sensorPart = (id: "temperature" | "humidity", label: string) => ({
+                    id,
+                    label,
+                    stateFields: [id],
+                    source: {...source, exposes: source.exposes.filter((expose) => expose.type === "numeric" && expose.name === id)},
+                });
+                return {...source, composed: [sensorPart("temperature", "Temperature"), sensorPart("humidity", "Humidity")]};
+            }
+        }
+
+        if (group.length === 0) return source;
 
         // Composed device: this (first gang's) entry is the bridged root, every gang becomes a child part.
         const composed = group.flatMap((id) => {

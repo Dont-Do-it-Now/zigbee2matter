@@ -11,9 +11,6 @@ configuration:
   matter_enabled:
     name: Enable Matter bridge
     description: Expose Zigbee devices to a Matter network. On by default.
-  matter_ipv4:
-    name: Matter IPv4 advertisement
-    description: Also advertise Matter mDNS over IPv4. Turning this off disables only IPv4; IPv6 mDNS remains enabled.
   matter_passcode:
     name: Commissioning passcode
   matter_discriminator:

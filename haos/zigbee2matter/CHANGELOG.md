@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.26.2
+- Automatically advertise the Matter bridge over IPv4 and IPv6 and hide the IPv4 toggle.
+- Expose temperature and humidity as separate Matter child endpoints for broader controller compatibility.
+- Log Matter command dispatch-to-state-observation latency to diagnose slow device responses.
+
 ## 2026.11.26.1
 - Log the effective Matter mDNS interfaces and advertised IP addresses to diagnose post-NOC commissioning failures.
 

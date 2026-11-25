@@ -8,13 +8,13 @@ export ZIGBEE2MATTER_CONFIG_FRONTEND_HOST=0.0.0.0
 export ZIGBEE2MATTER_CONFIG_FRONTEND_PORT=8080
 export ZIGBEE2MATTER_CONFIG_ADVANCED_LOG_LEVEL="$(bashio::config 'log_level')"
 export ZIGBEE2MATTER_CONFIG_MATTER_ENABLED="$(bashio::config 'matter_enabled')"
-export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_IPV4="$(bashio::config 'matter_ipv4')"
+export ZIGBEE2MATTER_CONFIG_MATTER_NETWORK_IPV4="$(bashio::config 'matter_enabled')"
 export ZIGBEE2MATTER_CONFIG_API_ENABLED="$(bashio::config 'api_enabled')"
 export ZIGBEE2MATTER_CONFIG_API_HOST="$(bashio::config 'api_host')"
 export ZIGBEE2MATTER_CONFIG_API_PORT="$(bashio::config 'api_port')"
 
 # SDK mDNS 전역 설정(T039). Advertise on all external interfaces.
-export MATTER_MDNS_IPV4="$(bashio::config 'matter_ipv4')"
+export MATTER_MDNS_IPV4="$(bashio::config 'matter_enabled')"
 if bashio::config.has_value 'matter_passcode'; then
     export ZIGBEE2MATTER_CONFIG_MATTER_PASSCODE="$(bashio::config 'matter_passcode')"
 fi

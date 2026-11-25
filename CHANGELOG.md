@@ -4,6 +4,10 @@
 
 ### Bug Fixes
 
+* Advertise Matter mDNS over IPv4 and IPv6 whenever the Matter bridge is enabled, without a separate IPv4 option.
+* Expose temperature and humidity as separate Matter child endpoints for controller compatibility.
+* Log Matter command dispatch-to-state-observation latency for troubleshooting slow responses.
+
 * Log the effective Matter mDNS interfaces and advertised IP addresses to diagnose post-NOC commissioning failures.
 * Log Matter commissioning windows, finalized fabric changes, and operational CASE session transitions.
 * Automatically select the sole non-virtual IPv6 interface for Matter mDNS and keep the interface selector hidden.

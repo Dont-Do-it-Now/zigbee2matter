@@ -39,7 +39,6 @@ map: []
 options:
   serial_device: null
   matter_enabled: true
-  matter_ipv4: false
   api_enabled: true
   api_host: 127.0.0.1
   api_port: 8090
@@ -49,7 +48,6 @@ schema:
   serial_port: str?
   serial_adapter: list(zstack|ember|deconz|zigate|zboss|ezsp|zoh)?
   matter_enabled: bool
-  matter_ipv4: bool
   matter_passcode: int(1,99999998)?
   matter_discriminator: int(0,4095)?
   matter_port: port?

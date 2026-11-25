@@ -101,6 +101,8 @@ interface ZigbeeMatterPartSource {
     id: string;
     /** 컨트롤러가 gang을 구분하도록 FixedLabel로 노출할 이름(예: left/center/right). */
     label: string;
+    /** Composed sensors receive only their matching properties from the shared Zigbee state. */
+    stateFields?: readonly string[];
     source: ZigbeeMatterEndpointSource;
 }
 
@@ -151,6 +153,7 @@ interface EndpointRuntime {
     signature: string;
     /** 합성(composed) root일 때만: Zigbee endpoint ID -> gang runtime. */
     parts?: Map<string, EndpointRuntime>;
+    stateFields?: readonly string[];
 }
 
 interface FactoryOptions {
@@ -314,6 +317,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 },
             });
             this.bindCommands(gang.instance, `${entry.endpointId}/${part.id}`, part.source.send, gang);
+            gang.stateFields = part.stateFields;
             parts.set(part.id, gang);
             unsupported.push(...plan.unsupported);
             signatures.push(`${part.id}:${gang.signature}`);
@@ -490,9 +494,17 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 report(error);
             }
         }
+        if (part === undefined && [...runtime.parts.values()].some((child) => child.stateFields !== undefined)) {
+            for (const [partId, child] of runtime.parts) {
+                if (child.stateFields === undefined) continue;
+                const childState = Object.fromEntries(Object.entries(rest).filter(([key]) => child.stateFields?.includes(key)));
+                if (Object.keys(childState).length > 0) await this.applyState(child, `${entry.endpointId}/${partId}`, childState, report);
+            }
+            return;
+        }
         const partId = part ?? runtime.parts.keys().next().value;
-        const gang = partId === undefined ? undefined : runtime.parts.get(partId);
-        if (gang !== undefined) await this.applyState(gang, `${entry.endpointId}/${partId}`, rest, report);
+        const child = partId === undefined ? undefined : runtime.parts.get(partId);
+        if (child !== undefined) await this.applyState(child, `${entry.endpointId}/${partId}`, rest, report);
     }
 
     private async applyState(
