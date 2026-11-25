@@ -341,6 +341,7 @@ export class MatterSdkRuntime {
                 return this.getCommissioningCode();
             },
             closeWindow: async () => {
+                if (this.node === undefined || this.protocol === undefined) return false;
                 const commissioner = this.commissioner();
                 if (commissioner.windowStatus === WINDOW_NOT_OPEN) return false;
                 await commissioner.endCommissioning();
@@ -450,7 +451,9 @@ async function loadProtocol(): Promise<MatterProtocolModule> {
     const moduleName: string = "@matter/main/protocol";
     try {
         const loaded = (await import(moduleName)) as unknown as MatterProtocolModule;
-        if (!loaded.DeviceCommissioner || !loaded.FabricManager) throw new Error("Matter SDK protocol module lacks DeviceCommissioner/FabricManager");
+        if (!loaded.DeviceCommissioner || !loaded.FabricManager) {
+            throw new Error("Matter SDK protocol module lacks DeviceCommissioner/FabricManager");
+        }
 
         return loaded;
     } catch (error) {
