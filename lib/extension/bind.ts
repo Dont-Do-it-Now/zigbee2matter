@@ -380,8 +380,7 @@ export default class Bind extends Extension {
 
                     successfulClusters.push(cluster);
                     logger.info(
-                        `Successfully ${type === "bind" ? "bound" : "unbound"} cluster '${cluster}' from '${resolvedSource.name}' ` +
-                            `to '${resolvedTarget.name}'`,
+                        `Successfully ${type === "bind" ? "bound" : "unbound"} cluster '${cluster}' from '${resolvedSource.name}' to '${resolvedTarget.name}'`,
                     );
                 } catch (error) {
                     failedClusters.push(cluster);

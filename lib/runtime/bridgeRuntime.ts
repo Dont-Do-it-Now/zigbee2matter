@@ -1,11 +1,18 @@
 /** Core·EventStream·API·Matter adapter를 묶는 composition root(T032/T053/T056/T057). */
+import {ApiAuth, type AuthOptions, type TokenRecord} from "../api/auth";
+import {DiagnosticRegistry} from "../api/diagnostics";
+import {AuthFailureRateLimiter} from "../api/rateLimit";
+import {ApiServer, type ApiServerOptions} from "../api/server";
 import type EventBus from "../eventBus";
 import {EventStream} from "../events";
 import PlatformFanout, {type Platform, type PlatformFanoutOptions, type PlatformListener} from "../events/fanout";
-import {ApiAuth, type AuthOptions, type TokenRecord} from "../api/auth";
-import {ApiServer, type ApiServerOptions} from "../api/server";
-import {AuthFailureRateLimiter} from "../api/rateLimit";
-import {DiagnosticRegistry} from "../api/diagnostics";
+import type {BridgeId} from "../identity";
+import ServiceLifecycle from "../lifecycle";
+import {CommissioningManager} from "../matter/commissioning";
+import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
+import {EndpointRegistry, type EndpointRegistryOptions, type RegistryKey} from "../matter/endpointRegistry";
+import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
+import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
     MatterSdkEndpointAdapter,
     MatterSdkRuntime,
@@ -13,18 +20,11 @@ import {
     type MatterFabricStore,
     type MatterNodeOptions,
 } from "../matter/sdkRuntime";
-import {DynamicEndpointCoordinator, DynamicEndpointRuntime, type DynamicEndpointAdapter} from "../matter/dynamicEndpoints";
-import {EndpointRegistry, type EndpointRegistryOptions, type RegistryKey} from "../matter/endpointRegistry";
-import {FileEndpointRegistryStore} from "../matter/endpointRegistryStore";
-import type {BridgeId} from "../identity";
-import {BackupFileStore} from "../storage/backupStore";
-import type {PersistentSnapshot} from "../storage/backup";
 import StateReconciler from "../state/reconciliation";
 import StateSnapshotCoordinator from "../state/snapshot";
-import ServiceLifecycle from "../lifecycle";
+import type {PersistentSnapshot} from "../storage/backup";
+import {BackupFileStore} from "../storage/backupStore";
 import data from "../util/data";
-import {CommissioningManager} from "../matter/commissioning";
-import {MultiBridgeRegistry, MultiBridgeRuntime, type BridgeNodeRuntimeFactory} from "../matter/multiBridge";
 import {
     assertRestoreApplied,
     assertSnapshotProvider,

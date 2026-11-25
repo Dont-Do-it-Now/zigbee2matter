@@ -173,8 +173,7 @@ If **NOT** all features work, please follow the \
 [How To Support new devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html).
 ${
     tuyaManufacturerNames.length > 0
-        ? "Since this is a Tuya also consider " +
-            "[How To Support new Tuya devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/02_support_new_tuya_devices.html)."
+        ? "Since this is a Tuya also consider [How To Support new Tuya devices](https://www.zigbee2mqtt.io/advanced/support-new-devices/02_support_new_tuya_devices.html)."
         : ""
 }
 

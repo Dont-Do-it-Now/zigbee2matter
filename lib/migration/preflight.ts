@@ -82,7 +82,12 @@ function checkVersions(input: PreflightInput, issues: PreflightIssue[]): void {
         if (value === undefined) {
             issues.push({category: "version", severity: "warn", code: "VERSION_UNKNOWN", detail: `${key} 버전을 확인할 수 없습니다.`});
         } else if (supported && !supported.includes(value)) {
-            issues.push({category: "version", severity: "block", code: "VERSION_UNSUPPORTED", detail: `${key} 버전 '${value}'은 지원 목록에 없습니다.`});
+            issues.push({
+                category: "version",
+                severity: "block",
+                code: "VERSION_UNSUPPORTED",
+                detail: `${key} 버전 '${value}'은 지원 목록에 없습니다.`,
+            });
         }
     }
 }
@@ -92,15 +97,30 @@ function checkAdapter(input: PreflightInput, issues: PreflightIssue[]): void {
     const transport = adapter.transport ?? "serial";
 
     if (adapter.adapter && !supportedAdapters.includes(adapter.adapter)) {
-        issues.push({category: "adapter", severity: "block", code: "ADAPTER_UNSUPPORTED", detail: `adapter '${adapter.adapter}'은 지원 목록에 없습니다.`});
+        issues.push({
+            category: "adapter",
+            severity: "block",
+            code: "ADAPTER_UNSUPPORTED",
+            detail: `adapter '${adapter.adapter}'은 지원 목록에 없습니다.`,
+        });
     }
 
     if ((transport === "tcp" || transport === "socket") && (!adapter.adapter || !adapter.port)) {
-        issues.push({category: "adapter", severity: "block", code: "TCP_ADAPTER_REQUIRED", detail: "TCP/socket transport는 adapter와 port를 명시해야 합니다."});
+        issues.push({
+            category: "adapter",
+            severity: "block",
+            code: "TCP_ADAPTER_REQUIRED",
+            detail: "TCP/socket transport는 adapter와 port를 명시해야 합니다.",
+        });
     }
 
     if (transport === "mdns" && !adapter.adapter) {
-        issues.push({category: "adapter", severity: "warn", code: "MDNS_ADAPTER_UNCONFIRMED", detail: "mDNS adapter 결과가 아직 확정되지 않았습니다."});
+        issues.push({
+            category: "adapter",
+            severity: "warn",
+            code: "MDNS_ADAPTER_UNCONFIRMED",
+            detail: "mDNS adapter 결과가 아직 확정되지 않았습니다.",
+        });
     }
 
     if (transport === "unknown") {
@@ -173,7 +193,12 @@ function checkConflicts(input: PreflightInput, issues: PreflightIssue[]): void {
     for (const id of input.automationIds ?? []) {
         const normalized = id.trim();
         if (!normalized || ids.has(normalized)) {
-            issues.push({category: "conflict", severity: "block", code: "DUPLICATE_AUTOMATION_ID", detail: `automation ID '${id}'가 비어 있거나 중복됩니다.`});
+            issues.push({
+                category: "conflict",
+                severity: "block",
+                code: "DUPLICATE_AUTOMATION_ID",
+                detail: `automation ID '${id}'가 비어 있거나 중복됩니다.`,
+            });
         }
         ids.add(normalized);
     }

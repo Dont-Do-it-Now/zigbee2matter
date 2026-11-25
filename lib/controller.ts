@@ -7,6 +7,7 @@ import {
     type BridgeBusPublishOptions,
     InProcessBridgeBus,
 } from "./bridgeBus"; // z2m-fork: T005/T006 replaces ./mqtt import, T006 BASE_TOPIC
+import {checkStartupReplacement, readBackupIdentity} from "./coordinatorReplacement"; // z2m-fork: T026
 import EventBus from "./eventBus";
 // Extensions
 import ExtensionAvailability from "./extension/availability";
@@ -18,6 +19,7 @@ import ExtensionExternalConverters from "./extension/externalConverters";
 import ExtensionExternalExtensions from "./extension/externalExtensions";
 import ExtensionGroups from "./extension/groups";
 import ExtensionHealth from "./extension/health";
+import ExtensionMatter, {type MatterExtensionOptions} from "./extension/matter"; // z2m-fork: T009/O4 Matter·API·명령 조립은 extension이 소유
 import ExtensionNetworkMap from "./extension/networkMap";
 import ExtensionOnEvent from "./extension/onEvent";
 import ExtensionOTAUpdate from "./extension/otaUpdate";
@@ -25,7 +27,6 @@ import ExtensionPublish from "./extension/publish";
 import ExtensionReceive from "./extension/receive";
 import State from "./state";
 import type {Zigbee2MQTTAPI} from "./types/api";
-import ExtensionMatter, {type MatterExtensionOptions} from "./extension/matter"; // z2m-fork: T009/O4 Matter·API·명령 조립은 extension이 소유
 import data from "./util/data";
 import logger from "./util/logger";
 import {initSdNotify} from "./util/sd-notify";
@@ -33,7 +34,6 @@ import * as settings from "./util/settings";
 import {stringify} from "./util/stringify";
 import utils from "./util/utils";
 import Zigbee from "./zigbee";
-import {checkStartupReplacement, readBackupIdentity} from "./coordinatorReplacement"; // z2m-fork: T026
 
 export type ControllerOptions = MatterExtensionOptions; // z2m-fork: T009
 

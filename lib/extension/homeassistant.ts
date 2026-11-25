@@ -798,8 +798,7 @@ export class HomeAssistant extends Extension {
                     discoveryEntry.discovery_payload.action_topic = true;
                     discoveryEntry.discovery_payload.action_template = stateValueTemplate(
                         state.property,
-                        `{% set values = {None:None,'idle':'idle','heat':'heating','cool':'cooling','fan_only':'fan'} %}` +
-                            `{{ values[value_json["${state.property}"]] }}`,
+                        `{% set values = {None:None,'idle':'idle','heat':'heating','cool':'cooling','fan_only':'fan'} %}{{ values[value_json["${state.property}"]] }}`,
                     );
                 }
 
@@ -1004,9 +1003,7 @@ export class HomeAssistant extends Extension {
                     assert(position, `Cover must have 'position' when it has 'running'`);
                     const runningProperty = featurePropertyWithoutEndpoint(running);
                     const positionProperty = featurePropertyWithoutEndpoint(position);
-                    discoveryEntry.discovery_payload.value_template =
-                        `{% if "${runningProperty}" in value_json and value_json["${runningProperty}"] and "${positionProperty}" in value_json %} ` +
-                        `{% if value_json["${positionProperty}"] > 0 %} closing {% else %} opening {% endif %} {% else %} stopped {% endif %}`;
+                    discoveryEntry.discovery_payload.value_template = `{% if "${runningProperty}" in value_json and value_json["${runningProperty}"] and "${positionProperty}" in value_json %} {% if value_json["${positionProperty}"] > 0 %} closing {% else %} opening {% endif %} {% else %} stopped {% endif %}`;
                 }
 
                 // If curtains have `motor_state` or `moving` property, lookup for possible
@@ -1150,8 +1147,7 @@ export class HomeAssistant extends Extension {
                     discoveryEntry.discovery_payload.preset_mode_command_topic = endpointName ? modeEmulatedSpeed.property : "fan_mode";
                     discoveryEntry.discovery_payload.preset_mode_value_template = stateValueTemplate(
                         modeEmulatedSpeed.property,
-                        `{{ value_json["${modeEmulatedSpeed.property}"] if value_json["${modeEmulatedSpeed.property}"] in [${presetList}] ` +
-                            `else 'None' }}`,
+                        `{{ value_json["${modeEmulatedSpeed.property}"] if value_json["${modeEmulatedSpeed.property}"] in [${presetList}] else 'None' }}`,
                     );
                     discoveryEntry.discovery_payload.preset_modes = presets;
 
@@ -1731,10 +1727,7 @@ export class HomeAssistant extends Extension {
                     payload_install: `{"id": "${entity.ieeeAddr}"}`,
                     value_template: stateValueTemplate(
                         "update",
-                        `{"latest_version":"{{ value_json['update']['latest_version'] }}",` +
-                            `"installed_version":"{{ value_json['update']['installed_version'] }}",` +
-                            `"update_percentage":{{ value_json['update'].get('progress', 'null') }},` +
-                            `"in_progress":{{ (value_json['update'].get('state') == 'updating')|lower }}}`,
+                        `{"latest_version":"{{ value_json['update']['latest_version'] }}","installed_version":"{{ value_json['update']['installed_version'] }}","update_percentage":{{ value_json['update'].get('progress', 'null') }},"in_progress":{{ (value_json['update'].get('state') == 'updating')|lower }}}`,
                     ),
                 },
             };

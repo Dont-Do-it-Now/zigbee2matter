@@ -61,8 +61,7 @@ export default class Zigbee {
 
         logger.debug(
             () =>
-                `Using zigbee-herdsman with settings: '` +
-                    `${stringify(herdsmanSettings).replaceAll(stringify(herdsmanSettings.network.networkKey), '"HIDDEN"')}'`,
+                `Using zigbee-herdsman with settings: '${stringify(herdsmanSettings).replaceAll(stringify(herdsmanSettings.network.networkKey), '"HIDDEN"')}'`,
         );
 
         let startResult: StartResult;
@@ -206,8 +205,7 @@ export default class Zigbee {
                 logger.info(`Device '${name}' is supported, identified as: ${vendor} ${description} (${model})`);
             } else {
                 logger.warning(
-                    `Device '${name}' with Zigbee model '${data.device.zh.modelID}' and manufacturer name '${data.device.zh.manufacturerName}' ` +
-                        `is NOT supported, please follow https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html`,
+                    `Device '${name}' with Zigbee model '${data.device.zh.modelID}' and manufacturer name '${data.device.zh.manufacturerName}' is NOT supported, please follow https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html`,
                 );
             }
         } else if (data.status === "failed") {

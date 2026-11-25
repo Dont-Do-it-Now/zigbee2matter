@@ -11,9 +11,7 @@ export function sendNotFound(request: IncomingMessage, response: ServerResponse)
     const method = /* v8 ignore next */ request.method ?? "GET";
     const url = /* v8 ignore next */ request.url ?? "/";
     const message = escapeHtml(`Cannot ${method} ${encodeURI(url)}`);
-    const body =
-        `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n` +
-        `<body>\n<pre>${message}</pre>\n</body>\n</html>\n`;
+    const body = `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>${message}</pre>\n</body>\n</html>\n`;
 
     response.setHeader("Content-Security-Policy", "default-src 'none'");
     response.setHeader("X-Content-Type-Options", "nosniff");
