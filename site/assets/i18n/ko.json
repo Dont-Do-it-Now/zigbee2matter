@@ -39,7 +39,7 @@
             [
                 "haos",
                 "Home Assistant OS",
-                "<ol><li>저장소 루트에서 Windows는 <code>haos/prepare-local.ps1</code>, Linux/macOS는 <code>haos/prepare-local.sh</code>를 실행합니다.</li><li>전체 <code>haos/zigbee2matter</code> 폴더를 Samba add-ons 공유 또는 SSH로 HAOS의 <code>/addons/zigbee2matter</code>에 복사합니다.</li><li>Home Assistant의 <strong>설정 → 애드온 → 애드온 스토어</strong>에서 새로고침한 뒤 로컬 Zigbee2Matter add-on을 설치합니다.</li><li>애드온 옵션에 serial port와 adapter를 지정하고 실행합니다.</li></ol><p>Matter mDNS와 UDP 5540을 위해 host networking을 사용합니다. 설정과 Zigbee 데이터는 <code>/data</code>에 저장되고 Home Assistant 백업에 포함됩니다.</p>"
+                "<p><a class=\"primary-link\" href=\"https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FDont-Do-it-Now%2Fzigbee2matter\">Home Assistant에 Zigbee2Matter 저장소 추가</a></p><ol><li>열린 저장소 추가 창에서 미리 입력된 URL을 확인하고 <strong>추가</strong>를 누릅니다.</li><li>창을 닫고 앱 스토어를 새로고침한 뒤 <strong>Zigbee2Matter</strong>를 설치합니다.</li><li>앱 설정에서 코디네이터의 serial port와 adapter를 지정하고 실행합니다. Home Assistant 사이드바에서 frontend를 엽니다.</li></ol><p>Matter mDNS와 UDP 5540을 위해 host networking을 사용합니다. 설정과 Zigbee 데이터는 <code>/data</code>에 저장되고 Home Assistant 백업에 포함됩니다. Docker와 소스 설치는 아래 플랫폼별 안내를 따릅니다.</p>"
             ],
             [
                 "docker",

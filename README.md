@@ -7,6 +7,10 @@
 
 Project documentation: [Zigbee2Matter GitHub Pages](https://dont-do-it-now.github.io/zigbee2matter/) · [한국어 문서](https://dont-do-it-now.github.io/zigbee2matter/?lang=ko)
 
+[![Open Home Assistant and add the Zigbee2Matter app repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FDont-Do-it-Now%2Fzigbee2matter)
+
+For Home Assistant OS, use the button to add the repository, then install **Zigbee2Matter** from the app store. No source copying or local image build is needed.
+
 Zigbee2Matter connects a Zigbee network to Matter ecosystems while keeping the proven Zigbee device, converter, coordinator, and interview paths from Zigbee2MQTT. It replaces the broker-dependent runtime boundary with an in-process bridge bus and adds Matter, REST, and WebSocket adapters.
 
 This repository is a fork and an independent project. It is not an official Zigbee2MQTT or Connectivity Standards Alliance product.

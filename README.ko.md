@@ -7,6 +7,10 @@
 
 프로젝트 문서: [Zigbee2Matter 문서](https://dont-do-it-now.github.io/zigbee2matter/) · [한국어 문서](https://dont-do-it-now.github.io/zigbee2matter/?lang=ko)
 
+[![Home Assistant에 Zigbee2Matter 앱 저장소 추가](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FDont-Do-it-Now%2Fzigbee2matter)
+
+Home Assistant OS에서는 버튼으로 저장소를 추가한 뒤 앱 스토어에서 **Zigbee2Matter**를 설치하세요. 소스 복사나 로컬 이미지 빌드는 필요하지 않습니다.
+
 Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이터·인터뷰 경로를 유지하면서 Zigbee 네트워크를 Matter 생태계에 연결합니다. 브로커에 의존하는 실행 경계를 in-process bridge bus로 교체하고 Matter, REST, WebSocket adapter를 추가합니다.
 
 이 저장소는 독립적으로 유지되는 포크입니다. 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다.

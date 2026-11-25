@@ -33,4 +33,4 @@ COPY rootfs /
 RUN chmod a+x /etc/services.d/zigbee2matter/run /etc/services.d/zigbee2matter/finish
 
 ARG BUILD_VERSION
-LABEL io.hass.version="${BUILD_VERSION}" io.hass.type="addon" io.hass.name="Zigbee2Matter"
+LABEL io.hass.version="${BUILD_VERSION}" io.hass.type="addon" io.hass.name="Zigbee2Matter" org.opencontainers.image.source="https://github.com/Dont-Do-it-Now/zigbee2matter"

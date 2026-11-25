@@ -15,13 +15,18 @@ Zigbee 기기를 Matter 로 노출하는 브리지입니다. MQTT broker 가 필
 ## 시리얼
 `serial_port` 에 `/dev/serial/by-id/...` 또는 `tcp://host:port`(adapter 필수)를 지정합니다.
 
-## HAOS 로컬 설치
-1. 개발 PC에서 `haos/prepare-local.sh`(Windows: `haos/prepare-local.ps1`) 실행 -> `haos/zigbee2matter/app/` 에 빌드용 소스가 복사됩니다.
-2. `haos/zigbee2matter` 폴더 전체를 HAOS 의 `/addons/zigbee2matter` 로 복사(Samba `addons` 공유 또는 SSH).
-3. 설정 -> 애드온 -> 애드온 스토어 -> 새로고침 -> 로컬 애드온 "Zigbee2Matter" 설치(첫 빌드는 tsc/pnpm 때문에 오래 걸립니다).
+## Home Assistant OS 설치
+1. [Home Assistant에 Zigbee2Matter 저장소 추가](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FDont-Do-it-Now%2Fzigbee2matter) 버튼을 눌러 미리 입력된 저장소를 추가합니다.
+2. 앱 스토어에서 **Zigbee2Matter**를 설치합니다.
+3. 앱 설정에서 코디네이터의 `serial_port`와 `serial_adapter`를 지정하고 시작합니다.
 
-## 사전 빌드 이미지(선택)
-`prepare-local` 후 `haos/zigbee2matter` 를 컨텍스트로 이미지를 빌드해 레지스트리에 push 하고, `config.yaml` 의 `image: ghcr.io/OWNER/zigbee2matter-addon-{arch}` 주석을 해제(OWNER 교체)합니다. 이 경우 `repository.yaml` 저장소로 설치합니다.
+GitHub Actions가 amd64/aarch64 이미지를 빌드해 배포하므로 HAOS에 파일을 복사하거나 로컬에서 이미지를 빌드할 필요가 없습니다.
+
+### 로컬 개발 설치
+개발 PC에서 `haos/prepare-local.sh`(Windows: `haos/prepare-local.ps1`)를 실행한 뒤 `haos/zigbee2matter` 폴더를 HAOS의 `/addons/zigbee2matter`에 복사해 로컬 앱으로 설치합니다.
+
+## 릴리스 이미지
+애드온 버전은 `config.yaml`의 `version`이 기준입니다. 새 버전을 배포할 때 버전을 올리면 GitHub Actions가 해당 버전의 amd64/aarch64 이미지를 GHCR에 게시합니다.
 
 ## 상태
 설치·업데이트·재시작·HA Core 중지·백업 복원·amd64/aarch64 시험은 NOT RUN 입니다.

@@ -2,12 +2,11 @@ name: Zigbee2Matter
 slug: zigbee2matter
 version: "2.14.3"
 description: Zigbee to Matter bridge without MQTT broker
-url: https://github.com/reizeo/zigbee2matter
+url: https://github.com/Dont-Do-it-Now/zigbee2matter
+image: ghcr.io/dont-do-it-now/zigbee2matter-addon
 arch:
   - amd64
   - aarch64
-# 기본은 로컬 빌드(haos/prepare-local.* 로 app/ 준비). 사전 빌드 이미지를 쓰려면 아래 주석을 해제하고 OWNER 를 교체한다.
-#image: ghcr.io/OWNER/zigbee2matter-addon-{arch}
 init: false
 startup: application
 boot: auto
