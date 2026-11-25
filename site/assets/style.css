@@ -370,12 +370,13 @@ select:focus-visible {
     background: var(--soft);
 }
 .device-facet summary {
+    position: relative;
     display: flex;
     min-height: 48px;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 0 14px;
+    padding: 0 40px 0 14px;
     cursor: pointer;
     list-style: none;
 }
@@ -383,11 +384,19 @@ select:focus-visible {
     display: none;
 }
 .device-facet summary::after {
-    content: "⌄";
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: translateY(-70%) rotate(45deg);
     color: var(--muted);
 }
 .device-facet[open] summary::after {
-    content: "⌃";
+    transform: translateY(-20%) rotate(225deg);
 }
 .device-facet summary span {
     margin-left: auto;
@@ -395,8 +404,21 @@ select:focus-visible {
     font-size: 0.85rem;
 }
 .facet-search {
-    width: calc(100% - 20px);
-    margin: 0 10px 8px;
+    width: calc(100% - 16px);
+    min-height: 40px;
+    margin: 0 8px 8px;
+    padding: 8px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    color: var(--ink);
+    background: transparent;
+    font: inherit;
+}
+.facet-search:focus-visible {
+    border-bottom-color: var(--accent);
+    outline: none;
+    box-shadow: 0 1px 0 var(--accent);
 }
 .facet-options {
     position: absolute;

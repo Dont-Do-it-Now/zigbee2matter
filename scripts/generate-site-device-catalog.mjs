@@ -10,7 +10,7 @@ function getFeatureNames(exposes = []) {
     const names = new Set();
     const visit = (items) => {
         for (const item of items) {
-            if (item?.name) names.add(item.name);
+            if (item?.name && !/^\d+$/.test(item.name)) names.add(item.name);
             if (Array.isArray(item?.features)) visit(item.features);
         }
     };
