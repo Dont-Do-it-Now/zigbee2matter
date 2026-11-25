@@ -1,5 +1,6 @@
 import type {BridgeBus} from "../bridgeBus/types";
 import type EventBus from "../eventBus";
+import logger from "../util/logger";
 import type CommandLoopGuard from "./loopGuard";
 import {
     BRIDGE_RESPONSE_PREFIX,
@@ -16,7 +17,6 @@ import {
 } from "./mapping";
 import {authorizeByScope} from "./permissions";
 import type CommandRetryPolicy from "./retry";
-import logger from "../util/logger";
 import type {
     AuthDecision,
     Command,
@@ -399,7 +399,10 @@ export default class CommandRouter {
                 const topic = buildEntityTopic(pending.name, pending.endpoint, command.operation);
                 pending.dispatched = true;
                 pending.dispatchedAt = this.now();
-                if (command.source === "matter") logger.info(`Matter command dispatched: ${pending.name}${pending.endpoint ? `/${pending.endpoint}` : ""} fields=${Object.keys(command.value).join(",")}`);
+                if (command.source === "matter")
+                    logger.info(
+                        `Matter command dispatched: ${pending.name}${pending.endpoint ? `/${pending.endpoint}` : ""} fields=${Object.keys(command.value).join(",")}`,
+                    );
                 this.deps.bridgeBus.onMessage(topic, JSON.stringify(command.value));
             }
         } catch {
@@ -425,7 +428,8 @@ export default class CommandRouter {
         for (const [requestId, pending] of [...this.pending]) {
             if (pending.stateTopic === data.topic && pending.dispatched && this.reportMatches(pending, data.payload)) {
                 // Optimistic (set) or cached/reported (get) state: cannot be told apart from a device report here -> `executed`, never `confirmed`.
-                if (pending.command.source === "matter") logger.info(`Matter command state observed: ${pending.name} elapsed=${this.now() - (pending.dispatchedAt ?? this.now())}ms`);
+                if (pending.command.source === "matter")
+                    logger.info(`Matter command state observed: ${pending.name} elapsed=${this.now() - (pending.dispatchedAt ?? this.now())}ms`);
                 this.settle(requestId, "executed", {});
             }
         }
@@ -492,7 +496,10 @@ export default class CommandRouter {
         } else if (pending.command.operation === "request") {
             this.settle(requestId, "timeout", {errorCode: "TIMEOUT", errorMessage: "no response before deadline"});
         } else {
-            if (pending.command.source === "matter") logger.warning(`Matter command state not observed: ${pending.name ?? "unknown"} elapsed=${this.now() - (pending.dispatchedAt ?? this.now())}ms`);
+            if (pending.command.source === "matter")
+                logger.warning(
+                    `Matter command state not observed: ${pending.name ?? "unknown"} elapsed=${this.now() - (pending.dispatchedAt ?? this.now())}ms`,
+                );
             this.settle(requestId, "unknown", {errorCode: "TIMEOUT", errorMessage: "no state report before deadline"});
         }
     }
