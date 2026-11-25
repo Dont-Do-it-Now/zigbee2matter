@@ -38,6 +38,19 @@ const DEFAULT_AVAILABLE_META: ZigbeeOtaImageMeta = {
     url: "https://example.com/my.ota",
 };
 
+function expectOtaUpdatePayload(update: Record<string, unknown>): void {
+    const expected = {...update, job_id: expect.stringMatching(/^ota-/)};
+    const matches = mockBridgeBusPublish.mock.calls.filter(([topic, payload]) => {
+        if (topic !== "zigbee2matter/bulb") return false;
+
+        const published = JSON.parse(payload).update;
+        return Object.entries(update).every(([key, value]) => published[key] === value);
+    });
+
+    expect(matches).toHaveLength(1);
+    expect(JSON.parse(matches[0][1])).toMatchObject({update: expected});
+}
+
 describe("Extension: OTAUpdate", () => {
     let controller: Controller;
 
@@ -148,23 +161,16 @@ describe("Extension: OTAUpdate", () => {
         expect(devices.bulb.save).toHaveBeenCalledTimes(1);
         expect(devices.bulb.endpoints[0].read).toHaveBeenCalledWith("genBasic", ["dateCode", "swBuildId"], {sendPolicy: "immediate"});
         expect(devices.bulb.endpoints[0].read).toHaveBeenCalledWith("genBasic", ["dateCode", "swBuildId"], {sendPolicy: undefined});
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "updating", progress: 0, remaining: 36001}}),
-            {
-                retain: true,
-            },
-        );
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "updating", progress: 10, remaining: 3600}}),
-            {retain: true},
-        );
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "idle", installed_version: 90, latest_version: 90, latest_release_notes: null, latest_source: null}}),
-            {retain: true},
-        );
+        expectOtaUpdatePayload({state: "updating", progress: 0, remaining: 36001, job_status: "running"});
+        expectOtaUpdatePayload({state: "updating", progress: 10, remaining: 3600, job_status: "running"});
+        expectOtaUpdatePayload({
+            state: "idle",
+            installed_version: 90,
+            latest_version: 90,
+            latest_release_notes: null,
+            latest_source: null,
+            job_status: "completed",
+        });
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/response/device/ota_update/update",
             stringify({
@@ -209,11 +215,14 @@ describe("Extension: OTAUpdate", () => {
         expect(devices.bulb.interview).toHaveBeenCalledTimes(1);
         expect(devices.bulb.save).toHaveBeenCalledTimes(2);
 
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "idle", installed_version: 2, latest_version: 2, latest_release_notes: null, latest_source: null}}),
-            {retain: true},
-        );
+        expectOtaUpdatePayload({
+            state: "idle",
+            installed_version: 2,
+            latest_version: 2,
+            latest_release_notes: null,
+            latest_source: null,
+            job_status: "completed",
+        });
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/info", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/definitions", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
@@ -249,11 +258,14 @@ describe("Extension: OTAUpdate", () => {
         expect(devices.bulb.interview).toHaveBeenCalledTimes(1);
         expect(devices.bulb.save).toHaveBeenCalledTimes(2);
 
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "idle", installed_version: 2, latest_version: 2, latest_release_notes: null, latest_source: null}}),
-            {retain: true},
-        );
+        expectOtaUpdatePayload({
+            state: "idle",
+            installed_version: 2,
+            latest_version: 2,
+            latest_release_notes: null,
+            latest_source: null,
+            job_status: "completed",
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
             `Interview of 'bulb' (${devices.bulb.ieeeAddr}) failed: Error: dragons. Re-try manually after some time.`,
         );
@@ -296,11 +308,14 @@ describe("Extension: OTAUpdate", () => {
         );
         expect(devices.bulb.interview).toHaveBeenCalledTimes(1);
 
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "idle", installed_version: 2, latest_version: 2, latest_release_notes: null, latest_source: null}}),
-            {retain: true},
-        );
+        expectOtaUpdatePayload({
+            state: "idle",
+            installed_version: 2,
+            latest_version: 2,
+            latest_release_notes: null,
+            latest_source: null,
+            job_status: "completed",
+        });
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/info", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/definitions", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
@@ -345,11 +360,14 @@ describe("Extension: OTAUpdate", () => {
         );
         expect(devices.bulb.interview).toHaveBeenCalledTimes(1);
 
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb",
-            stringify({update: {state: "idle", installed_version: 2, latest_version: 2, latest_release_notes: null, latest_source: null}}),
-            {retain: true},
-        );
+        expectOtaUpdatePayload({
+            state: "idle",
+            installed_version: 2,
+            latest_version: 2,
+            latest_release_notes: null,
+            latest_source: null,
+            job_status: "completed",
+        });
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/info", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/definitions", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/devices", expect.any(String), {retain: true});
