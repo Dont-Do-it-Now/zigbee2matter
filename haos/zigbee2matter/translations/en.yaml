@@ -1,7 +1,7 @@
 configuration:
   serial_device:
-    name: Zigbee dongle (coordinator)
-    description: Choose a connected USB Zigbee coordinator. Leave empty for automatic discovery. For a network coordinator, enter a manual port.
+    name: Zigbee coordinator device
+    description: Select a Zigbee USB coordinator detected by Home Assistant OS before starting. For a network coordinator, use the manual port setting.
   serial_port:
     name: Manual port (advanced)
     description: Enter a custom path or network port (tcp://host:port). The selected dongle path takes precedence.

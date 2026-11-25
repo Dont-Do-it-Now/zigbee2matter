@@ -1,7 +1,7 @@
 {
     "domain": "zigbee2matter",
     "name": "Zigbee2Matter",
-    "version": "2026.11.25.2",
+    "version": "2026.11.25.3",
     "documentation": "https://github.com/reizeo/zigbee2matter/tree/main/custom_components/zigbee2matter",
     "issue_tracker": "https://github.com/reizeo/zigbee2matter/issues",
     "codeowners": [],

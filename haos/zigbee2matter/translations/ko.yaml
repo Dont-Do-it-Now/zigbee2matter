@@ -1,7 +1,7 @@
 configuration:
   serial_device:
-    name: Zigbee 동글(코디네이터)
-    description: 연결된 USB Zigbee 코디네이터를 선택합니다. 비워 두면 자동 탐색합니다. 네트워크 코디네이터는 수동 포트를 입력하세요.
+    name: Zigbee 코디네이터 장치
+    description: HAOS에서 감지한 Zigbee USB 코디네이터를 선택해야 실행할 수 있습니다. 네트워크 코디네이터는 수동 포트 설정을 사용하세요.
   serial_port:
     name: 수동 포트(고급)
     description: 사용자 지정 경로나 네트워크 포트(tcp://host:port)를 입력합니다. 동글을 선택하면 동글 경로가 우선합니다.

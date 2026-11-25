@@ -7,7 +7,7 @@ For the Korean installation guide, see the [localized documentation](https://don
 ## Home Assistant OS installation
 1. Select **Add Zigbee2Matter repository to Home Assistant** to add the prefilled repository URL.
 2. Close the dialog, refresh the App store, and install **Zigbee2Matter**.
-3. In the app configuration, select the **Zigbee dongle (coordinator)**, or leave it empty for automatic discovery. For a network coordinator, enter `tcp://host:port` under **Manual port (advanced)**.
+3. In the app configuration, select the required **Zigbee coordinator device** from the detected devices. For a network coordinator, enter `tcp://host:port` under **Manual port (advanced)**.
 4. Start the app. The Matter bridge is enabled by default; the IPv4 advertisement option only adds IPv4 mDNS. IPv6 mDNS remains enabled and is required for Matter discovery.
 
 ### Connect the bridge to Home Assistant Matter
