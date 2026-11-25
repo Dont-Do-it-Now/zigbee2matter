@@ -39,6 +39,7 @@
     "license": "GPL-3.0",
     "dependencies": {
         "@matter/main": "0.18.0",
+        "@matter/nodejs": "0.18.0",
         "ajv": "^8.20.0",
         "bind-decorator": "^1.0.11",
         "debounce": "^3.0.0",
