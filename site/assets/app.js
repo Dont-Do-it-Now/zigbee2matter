@@ -52,7 +52,18 @@ async function setupDeviceSearch(t) {
     const exposesSearch = document.querySelector("#exposes-search");
     const vendorSelection = document.querySelector("#vendor-selection");
     const exposesSelection = document.querySelector("#exposes-selection");
-    if (!input || !output || !status || !vendorOptions || !exposesOptions || !vendorSearch || !exposesSearch || !vendorSelection || !exposesSelection) return;
+    if (
+        !input ||
+        !output ||
+        !status ||
+        !vendorOptions ||
+        !exposesOptions ||
+        !vendorSearch ||
+        !exposesSearch ||
+        !vendorSelection ||
+        !exposesSelection
+    )
+        return;
     let devices;
     try {
         const response = await fetch("assets/devices.json");
@@ -73,23 +84,25 @@ async function setupDeviceSearch(t) {
     const populateOptions = (container, search, values, selected) => {
         container.replaceChildren();
         const query = search.value.trim().toLocaleLowerCase();
-        values.filter((value) => value.toLocaleLowerCase().includes(query)).forEach((value) => {
-            const label = document.createElement("label");
-            label.className = "facet-option";
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = selected.has(value);
-            checkbox.addEventListener("change", () => {
-                if (checkbox.checked) selected.add(value);
-                else selected.delete(value);
-                updateSelectionLabels();
-                showResults();
+        values
+            .filter((value) => value.toLocaleLowerCase().includes(query))
+            .forEach((value) => {
+                const label = document.createElement("label");
+                label.className = "facet-option";
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = selected.has(value);
+                checkbox.addEventListener("change", () => {
+                    if (checkbox.checked) selected.add(value);
+                    else selected.delete(value);
+                    updateSelectionLabels();
+                    showResults();
+                });
+                const text = document.createElement("span");
+                text.textContent = value;
+                label.append(checkbox, text);
+                container.append(label);
             });
-            const text = document.createElement("span");
-            text.textContent = value;
-            label.append(checkbox, text);
-            container.append(label);
-        });
     };
     const showResults = () => {
         const query = input.value.trim().toLocaleLowerCase();
@@ -102,21 +115,20 @@ async function setupDeviceSearch(t) {
             );
         });
         const visible = matches.slice(0, 80);
-        status.textContent = query || selectedVendors.size || selectedExposes.size
-            ? t.devices.count.replace("{count}", matches.length).replace("{shown}", visible.length)
-            : t.devices.limit.replace("{count}", matches.length).replace("{shown}", visible.length);
+        status.textContent =
+            query || selectedVendors.size || selectedExposes.size
+                ? t.devices.count.replace("{count}", matches.length).replace("{shown}", visible.length)
+                : t.devices.limit.replace("{count}", matches.length).replace("{shown}", visible.length);
         if (!matches.length) {
             output.innerHTML = `<p class="empty-state">${t.devices.empty}</p>`;
             return;
         }
         output.innerHTML = visible
-            .map(
-                (device) => {
-                    const [imageUrl, ...fallbacks] = deviceImageUrls(device);
-                    const detailsUrl = `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(device.model)}.html`;
-                    return `<article class="device-card"><h2><a href="${detailsUrl}" target="_blank" rel="noopener">${escapeHTML(device.model)}</a></h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p><a class="device-image-frame" href="${detailsUrl}" target="_blank" rel="noopener" aria-label="${escapeHTML(t.devices.openDetails.replace("{model}", device.model))}"><img class="device-image" src="${escapeHTML(imageUrl)}" data-fallbacks="${escapeHTML(JSON.stringify(fallbacks))}" alt="${escapeHTML(`${device.vendor} ${device.model}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`;
-                },
-            )
+            .map((device) => {
+                const [imageUrl, ...fallbacks] = deviceImageUrls(device);
+                const detailsUrl = `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(device.model)}.html`;
+                return `<article class="device-card"><h2><a href="${detailsUrl}" target="_blank" rel="noopener">${escapeHTML(device.model)}</a></h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p><a class="device-image-frame" href="${detailsUrl}" target="_blank" rel="noopener" aria-label="${escapeHTML(t.devices.openDetails.replace("{model}", device.model))}"><img class="device-image" src="${escapeHTML(imageUrl)}" data-fallbacks="${escapeHTML(JSON.stringify(fallbacks))}" alt="${escapeHTML(`${device.vendor} ${device.model}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`;
+            })
             .join("");
         output.querySelectorAll(".device-image").forEach((image) => {
             image.addEventListener("error", () => {
