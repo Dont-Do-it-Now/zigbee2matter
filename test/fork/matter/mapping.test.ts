@@ -252,4 +252,15 @@ describe("planEndpointMapping", () => {
     it("returns no button list without an action enum", () => {
         expect(planEndpointMapping([temperature]).buttons).toEqual([]);
     });
+
+    it("maps illuminance only in lux and water leak to the Matter water leak detector", () => {
+        const illuminance: MappingExpose = {type: "numeric", name: "illuminance", unit: "lx", access: 1};
+        const waterLeak: MappingExpose = {type: "binary", name: "water_leak", access: 1};
+        const plan = planEndpointMapping([illuminance, waterLeak]);
+
+        expect(plan.capabilities.illuminance).toBe(illuminance);
+        expect(plan.capabilities.waterLeak).toBe(waterLeak);
+        expect(plan.mappings.find((mapping) => mapping.ruleId === "water-leak")).toMatchObject({matterDeviceType: "WaterLeakDetector", supported: true});
+        expect(planEndpointMapping([{...illuminance, unit: "raw"}]).capabilities.illuminance).toBeUndefined();
+    });
 });

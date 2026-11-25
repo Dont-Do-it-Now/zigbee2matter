@@ -205,6 +205,8 @@ const SENSOR_DEVICES = {
     humidity: "humidity-sensor",
     contact: "contact-sensor",
     occupancy: "occupancy-sensor",
+    illuminance: "light-sensor",
+    waterLeak: "water-leak-detector",
 } as const;
 
 const DEVICE_EXPORTS: Readonly<Record<string, string>> = {
@@ -217,6 +219,8 @@ const DEVICE_EXPORTS: Readonly<Record<string, string>> = {
     "humidity-sensor": "HumiditySensorDevice",
     "contact-sensor": "ContactSensorDevice",
     "occupancy-sensor": "OccupancySensorDevice",
+    "light-sensor": "LightSensorDevice",
+    "water-leak-detector": "WaterLeakDetectorDevice",
 };
 
 /** Matter char strings are limited in UTF-8 bytes (nodeLabel/productName 32, productLabel 64); longer friendly names fail endpoint validation. */
@@ -354,7 +358,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             plan.capabilities.occupancy === undefined
                 ? {}
                 : {occupancySensing: {occupancySensorType: 0, occupancySensorTypeBitmap: {passiveInfrared: true}}};
-        const contactInit = plan.capabilities.contact === undefined ? {} : {booleanState: {stateValue: false}};
+        const contactInit = plan.capabilities.contact === undefined && plan.capabilities.waterLeak === undefined ? {} : {booleanState: {stateValue: false}};
         const buttons = new Map<string, ButtonRuntime>();
         const parts: MatterEndpointInstance[] = [];
         if (plan.switchDefinition !== undefined) {
@@ -563,6 +567,10 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             });
         }
         if (caps.contact !== undefined && typeof state.contact === "boolean") patch.booleanState = {stateValue: state.contact};
+        if (caps.waterLeak !== undefined && typeof state.water_leak === "boolean") patch.booleanState = {stateValue: state.water_leak};
+        if (caps.illuminance !== undefined && typeof state.illuminance === "number" && Number.isFinite(state.illuminance)) {
+            patch.illuminanceMeasurement = {measuredValue: state.illuminance <= 0 ? 0 : Math.max(1, Math.round(10000 * Math.log10(state.illuminance) + 1))};
+        }
         // occupancy capability는 `occupancy` 또는 `presence`(mmWave) expose에서 온다.
         const occupied = state[caps.occupancy?.name ?? "occupancy"];
         if (caps.occupancy !== undefined && typeof occupied === "boolean") patch.occupancySensing = {occupancy: occupancyToMatter(occupied)};
@@ -665,7 +673,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (caps.lock) return this.lockDefinition(base, source, await loadExtraBehaviors(caps));
         if (caps.thermostat) return thermostatDefinition(base, caps.thermostat, await loadExtraBehaviors(caps));
 
-        const sensor = (["temperature", "humidity", "contact", "occupancy"] as const).find((id) => caps[id] !== undefined);
+        const sensor = (["temperature", "humidity", "contact", "occupancy", "illuminance", "waterLeak"] as const).find((id) => caps[id] !== undefined);
         if (sensor !== undefined) {
             const device = await loadDevice(SENSOR_DEVICES[sensor]);
             return {...base, definition: device.with(...(await loadExtraBehaviors(caps, sensor))) as EndpointDefinition};
@@ -776,6 +784,13 @@ async function loadExtraBehaviors(caps: Capabilities, primarySensor?: string): P
         behaviors.push((await import("@matter/main/behaviors/relative-humidity-measurement")).RelativeHumidityMeasurementServer);
     }
     if (caps.contact && primarySensor !== "contact") behaviors.push((await import("@matter/main/behaviors/boolean-state")).BooleanStateServer);
+    if (caps.waterLeak && primarySensor !== "waterLeak") {
+        const {WaterLeakDetectorRequirements} = await import("@matter/main/devices/water-leak-detector");
+        behaviors.push(WaterLeakDetectorRequirements.BooleanStateServer);
+    }
+    if (caps.illuminance && primarySensor !== "illuminance") {
+        behaviors.push((await import("@matter/main/behaviors/illuminance-measurement")).IlluminanceMeasurementServer);
+    }
     // OccupancySensorDevice는 OccupancySensing을 필수 기능(PIR) 없이 선언하므로 primary여도 항상 PassiveInfrared로 붙인다.
     if (caps.occupancy) {
         behaviors.push((await import("@matter/main/behaviors/occupancy-sensing")).OccupancySensingServer.with("PassiveInfrared"));

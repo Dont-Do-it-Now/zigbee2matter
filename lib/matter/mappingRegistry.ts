@@ -125,6 +125,8 @@ export type CapabilityId =
     | "humidity"
     | "contact"
     | "occupancy"
+    | "illuminance"
+    | "waterLeak"
     | "power"
     | "energy"
     | "voltage"
@@ -143,6 +145,7 @@ export const SUPPORTED_MATTER_CLUSTERS: readonly string[] = [
     "RelativeHumidityMeasurement",
     "BooleanState",
     "OccupancySensing",
+    "IlluminanceMeasurement",
     "ElectricalPowerMeasurement",
     "ElectricalEnergyMeasurement",
 ];
@@ -244,6 +247,23 @@ const DEFAULT_RULES: readonly CapabilityRule[] = [
         requiredClusters: ["OccupancySensing"],
     },
     {
+        id: "illuminance",
+        capability: "illuminance",
+        exposeType: "numeric",
+        featureName: "illuminance",
+        matterDeviceType: "LightSensor",
+        requiredClusters: ["IlluminanceMeasurement"],
+        unit: "lx",
+    },
+    {
+        id: "water-leak",
+        capability: "waterLeak",
+        exposeType: "binary",
+        featureName: "water_leak",
+        matterDeviceType: "WaterLeakDetector",
+        requiredClusters: ["BooleanState"],
+    },
+    {
         id: "power",
         capability: "power",
         exposeType: "numeric",
@@ -336,6 +356,8 @@ export function planEndpointMapping(allExposes: readonly MappingExpose[], option
         const mapping = evaluated.find((item) => item.ruleId === rule.id);
         const expose = flattened.find((item) => item.type === rule.exposeType && (rule.featureName === undefined || item.name === rule.featureName));
         if (mapping?.supported !== true || expose === undefined) continue;
+        // BooleanState는 contact와 water leak가 공유한다. 한 endpoint에 둘 다 등록하면 클러스터 의미가 모호해진다.
+        if (rule.capability === "waterLeak" && capabilities.contact !== undefined) continue;
 
         const quantity = UNIT_QUANTITY[rule.capability];
         if (quantity !== undefined && !isKnownElectricalUnit(quantity, expose.unit)) continue;
