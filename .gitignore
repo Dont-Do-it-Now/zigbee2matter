@@ -81,6 +81,7 @@ data-bench
 
 # Local planning and evidence (kept outside the project history)
 docs/
+.omc/
 
 # commit-user-lookup.json
 scripts/commit-user-lookup.json
