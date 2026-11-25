@@ -98,7 +98,8 @@ function prepareFrontendIndex(index: string): string {
         if (value === "MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, isKorean() ? "내부 메시지 경로" : "Internal bus");
     };
     const update = () => {
-        document.title = document.title.replace("Zigbee2MQTT", "Zigbee2Matter");
+        // Assigning document.title always replaces the <title> text node, which re-triggers the observer (infinite loop).
+        if (document.title.includes("Zigbee2MQTT")) document.title = document.title.replace("Zigbee2MQTT", "Zigbee2Matter");
         document.querySelectorAll("a[href*='donate']").forEach((original) => {
             const link = document.createElement("a");
             link.className = original.className;
