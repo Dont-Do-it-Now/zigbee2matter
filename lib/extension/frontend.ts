@@ -110,15 +110,17 @@ function prepareFrontendIndex(index: string): string {
             original.replaceWith(link);
         });
         if (!document.getElementById("z2m-matter-link")) {
-            const donate = document.querySelector("a[href*='CONTRIBUTING.md']");
-            const nav = donate?.parentElement ?? document.querySelector("nav, aside");
-            if (nav) {
+            // windfront sidebar: <ul class="menu"><li><a href=".../contribute">. Add our item right above it.
+            const contribute = document.querySelector("a[href$='/contribute']")?.closest("li");
+            if (contribute?.parentElement) {
+                const item = document.createElement("li");
                 const link = document.createElement("a");
                 link.id = "z2m-matter-link";
                 link.href = new URL("matter", location.href).pathname + location.search;
+                link.className = "btn btn-sm btn-outline btn-primary";
                 link.textContent = isKorean() ? "Matter 연결" : "Matter connections";
-                link.style.cssText = "display:block;padding:16px;color:inherit;text-decoration:none";
-                nav.insertBefore(link, donate ?? null);
+                item.append(link);
+                contribute.parentElement.insertBefore(item, contribute);
             }
         }
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
