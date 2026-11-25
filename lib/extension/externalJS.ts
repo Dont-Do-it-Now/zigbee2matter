@@ -183,13 +183,13 @@ export default abstract class ExternalJSExtension<M> extends Extension {
 
         const {name, code} = message;
 
+        if (!name.endsWith(".mjs") && !name.endsWith(".js") && !name.endsWith(".cjs")) {
+            return utils.getResponse(message, {}, "JavaScript file must have '.mjs', '.js' or '.cjs' extension");
+        }
+
         const trust = evaluateExternalJSTrust(name);
         if (!trust.allowed) {
             return utils.getResponse(message, {}, "External JavaScript is disabled or the file name is invalid");
-        }
-
-        if (!name.endsWith(".mjs") && !name.endsWith(".js") && !name.endsWith(".cjs")) {
-            return utils.getResponse(message, {}, "JavaScript file must have '.mjs', '.js' or '.cjs' extension");
         }
 
         const filePath = this.getFilePath(name, true);

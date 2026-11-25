@@ -120,6 +120,7 @@ describe("Extension: Bridge", () => {
                         cache_state_persistent: true,
                         cache_state_send_on_startup: true,
                         channel: 11,
+                        coordinator_replacement_approved: false,
                         elapsed: false,
                         ext_pan_id: [221, 221, 221, 221, 221, 221, 221, 221],
                         last_seen: "disable",
@@ -4400,17 +4401,21 @@ describe("Extension: Bridge", () => {
             1,
             {
                 "configuration.yaml": expect.any(Buffer),
+                "bridge-identity.json": expect.any(Buffer),
                 [path.join("ext_converters", "123", "myfile.js")]: expect.any(Buffer),
                 [path.join("ext_converters", "afile.js")]: expect.any(Buffer),
+                "network-identity.json": expect.any(Buffer),
                 "state.json": expect.any(Buffer),
             },
             {level: 6},
             expect.any(Function),
         );
         expect(Object.keys(mockFflateZip.mock.calls[0][0])).toStrictEqual([
+            "bridge-identity.json",
             "configuration.yaml",
             path.join("ext_converters", "123", "myfile.js"),
             path.join("ext_converters", "afile.js"),
+            "network-identity.json",
             "state.json",
         ]);
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
@@ -4441,28 +4446,18 @@ describe("Extension: Bridge", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/response/restart", stringify({data: {}, status: "ok"}), {});
     });
 
-    it("Change options and apply - homeassistant", async () => {
+    it("Ignores legacy Home Assistant discovery options", async () => {
         expect(controller.getExtension("HomeAssistant")).toBeUndefined();
         await mockBridgeBusEvents.message("zigbee2matter/bridge/request/options", stringify({options: {homeassistant: {enabled: true}}}));
-        await expect(vi.waitUntil(() => controller.getExtension("HomeAssistant"))).resolves.toBeDefined();
+        await flushPromises();
+        expect(settings.get().homeassistant.enabled).toBe(true);
+        expect(controller.getExtension("HomeAssistant")).toBeUndefined();
         expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bridge/info", expect.any(String), {retain: true});
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/response/options",
             stringify({data: {restart_required: true}, status: "ok"}),
             {},
         );
-
-        // Change an option
-        await mockBridgeBusEvents.message(
-            "zigbee2matter/bridge/request/options",
-            stringify({options: {homeassistant: {enabled: true, experimental_event_entities: true}}}),
-        );
-        // @ts-expect-error - private property
-        await vi.waitUntil(() => controller.getExtension("HomeAssistant")?.experimentalEventEntities === true);
-
-        // revert
-        await mockBridgeBusEvents.message("zigbee2matter/bridge/request/options", stringify({options: {homeassistant: {enabled: false}}}));
-        await vi.waitUntil(() => controller.getExtension("HomeAssistant") === undefined);
     });
 
     it("Change options and apply - log_level", async () => {

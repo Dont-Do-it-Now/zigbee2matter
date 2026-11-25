@@ -589,7 +589,7 @@
                 "log_namespaced_levels": {
                     "type": "object",
                     "propertyNames": {
-                        "pattern": "^(z2m|zhc|zh)(:[a-z0-9]{1,})*$"
+                        "pattern": "^(z2m|zhc|zh)(:[A-Za-z0-9]{1,})*$"
                     },
                     "additionalProperties": {
                         "type": "string",
