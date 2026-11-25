@@ -1,9 +1,12 @@
 # Changelog
 
+## 2026.11.25.5
+- Match the Matter disconnect confirmation phrase and dialog text to the selected frontend language.
+
 ## 2026.11.25.4
 - Add a Matter connection page with QR and manual setup codes.
 - Explain sharing the bridge with additional Matter platforms through an existing controller.
-- Require typing the Korean confirmation phrase "연결해제" before removing a Matter fabric.
+- Require typing a localized confirmation phrase before removing a Matter fabric.
 - Document Home Assistant Matter Server setup for existing and new servers.
 - Label the MQTT-compatible topic as an internal BridgeBus message path.
 - Improve coordinator discovery conflict diagnostics and setup guidance.
