@@ -31,7 +31,7 @@ export interface MatterServerNode {
         readonly commissioning?: {
             readonly discriminator: number;
             readonly commissioned?: boolean;
-            readonly pairingCodes?: {readonly manualPairingCode: string};
+            readonly pairingCodes?: {readonly manualPairingCode: string; readonly qrPairingCode: string};
             readonly fabrics?: Readonly<Record<string, SdkFabricInformation>>;
         };
     };
@@ -321,11 +321,12 @@ export class MatterSdkRuntime {
     getCommissioningCode(): CommissioningCode {
         const commissioning = this.node?.state?.commissioning;
         const setupCode = commissioning?.pairingCodes?.manualPairingCode;
-        if (setupCode === undefined || commissioning === undefined) {
+        const qrCode = commissioning?.pairingCodes?.qrPairingCode;
+        if (setupCode === undefined || qrCode === undefined || commissioning === undefined) {
             throw new Error("Matter commissioning code is not available before the SDK node is created");
         }
 
-        return {setupCode, discriminator: commissioning.discriminator};
+        return {setupCode, qrCode, discriminator: commissioning.discriminator};
     }
 
     /**

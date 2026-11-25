@@ -59,6 +59,7 @@ export interface RestRouterDeps {
         readonly openCommissioningWindow?: (input: unknown) => Promise<unknown>;
         readonly closeCommissioningWindow?: () => Promise<boolean>;
         readonly listFabrics?: () => readonly unknown[];
+        readonly removeFabric?: (fabricIndex: number) => Promise<boolean>;
         readonly listEndpoints?: () => readonly unknown[];
     };
     readonly origin?: {allowedOrigins?: readonly string[]; allowSameHost?: boolean};
@@ -178,6 +179,16 @@ export class RestApiRouter {
         if (req.method === "GET" && pathname === "/matter/fabrics") {
             if (!this.deps.matterManagement?.listFabrics) throw new ApiError("NOT_FOUND", "Matter fabrics unavailable");
             this.writeJson(res, 200, {fabrics: redactSecrets(this.deps.matterManagement.listFabrics())});
+            return;
+        }
+        if (req.method === "DELETE" && pathname.startsWith("/matter/fabrics/")) {
+            const matter = this.deps.matterManagement;
+            if (!matter?.removeFabric) throw new ApiError("NOT_FOUND", "Matter fabric removal unavailable");
+            const fabricIndex = Number(pathname.slice("/matter/fabrics/".length));
+            if (!Number.isSafeInteger(fabricIndex) || fabricIndex < 1) throw new ApiError("INVALID_ARGUMENT", "Invalid fabric index");
+            const body = await readJson(req, this.maxBodyBytes);
+            if (!isRecord(body) || body.confirmation !== "연결해제") throw new ApiError("INVALID_ARGUMENT", "Type 연결해제 to remove this Matter connection");
+            this.writeJson(res, 200, {removed: await matter.removeFabric(fabricIndex)});
             return;
         }
         if (req.method === "GET" && pathname === "/matter/endpoints") {

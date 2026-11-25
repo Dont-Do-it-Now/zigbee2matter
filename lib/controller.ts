@@ -122,7 +122,7 @@ export class Controller {
         if (settings.get().frontend.enabled) {
             const {Frontend} = await import("./extension/frontend.js");
 
-            this.extensions.add(new Frontend(...this.extensionArgs));
+            this.extensions.add(new Frontend(...this.extensionArgs, (name) => this.getExtension(name)));
         }
 
         // z2m-fork: T006 HomeAssistant extension is not registered (MQTT Discovery removed, T052 re-introduces HA mapping via Matter)
@@ -267,7 +267,7 @@ export class Controller {
                     /* v8 ignore start */
                     const {Frontend} = await import("./extension/frontend.js");
 
-                    extension = new Frontend(...this.extensionArgs);
+                    extension = new Frontend(...this.extensionArgs, (extensionName) => this.getExtension(extensionName));
 
                     break;
                     /* v8 ignore stop */

@@ -10,6 +10,7 @@ export interface CommissioningWindow {
     readonly id: string;
     readonly discriminator: number;
     readonly setupCode: string;
+    readonly qrCode: string;
     readonly openedAt: number;
     readonly expiresAt: number;
     readonly administratorId: string;
@@ -18,6 +19,7 @@ export interface CommissioningWindow {
 export interface CommissioningCode {
     readonly setupCode: string;
     readonly discriminator: number;
+    readonly qrCode: string;
 }
 
 /** SDK가 보고하는 fabric. addedAt 같은 SDK에 없는 값은 만들지 않는다. */
@@ -72,6 +74,8 @@ export class CommissioningManager {
             code &&
             typeof code.setupCode === "string" &&
             code.setupCode.length > 0 &&
+            typeof code.qrCode === "string" &&
+            code.qrCode.length > 0 &&
             Number.isSafeInteger(code.discriminator) &&
             code.discriminator >= 0 &&
             code.discriminator <= 4095;
@@ -80,6 +84,7 @@ export class CommissioningManager {
             id: this.idFactory(),
             discriminator: code.discriminator,
             setupCode: code.setupCode,
+            qrCode: code.qrCode,
             openedAt,
             expiresAt: openedAt + durationMs,
             administratorId,

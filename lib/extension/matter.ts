@@ -242,6 +242,7 @@ export default class Matter extends Extension {
                               openCommissioningWindow: (input) => this.openCommissioningWindow(input),
                               closeCommissioningWindow: () => this.runtime.commissioning.closeWindow(),
                               listFabrics: () => this.runtime.commissioning.listFabrics(),
+                              removeFabric: (fabricIndex) => this.runtime.commissioning.removeFabric(fabricIndex),
                               listEndpoints: () => this.runtime.currentEndpointRegistry?.list() ?? [],
                           },
                           // T021: 요청자에게만 보내는 조회이므로 스트림에 snapshot 이벤트를 발행하지 않는다.
@@ -858,6 +859,9 @@ export default class Matter extends Extension {
     private async openCommissioningWindow(input: unknown): Promise<unknown> {
         if (!isRecord(input) || typeof input.administratorId !== "string" || typeof input.durationMs !== "number") {
             throw new ApiError("INVALID_ARGUMENT", "administratorId and durationMs are required");
+        }
+        if (this.runtime.commissioning.listFabrics().length > 0) {
+            throw new ApiError("CONFLICT", "Use an existing Matter fabric controller to share this bridge with another platform");
         }
 
         return await this.runtime.commissioning.openWindow(input.administratorId, input.durationMs);
