@@ -245,6 +245,7 @@ export function write(): void {
     // In case the setting is defined in a separate file (e.g. !secret network_key) update it there.
     for (const [ns, key] of [
         ["advanced", "network_key"],
+        ["frontend", "host"],
         ["frontend", "auth_token"],
         ["api", "auth_token"],
     ]) {
@@ -364,6 +365,10 @@ function read(): Partial<Settings> {
 
     if (s.frontend?.auth_token) {
         s.frontend.auth_token = interpretValue(s.frontend.auth_token);
+    }
+
+    if (s.frontend?.host) {
+        s.frontend.host = interpretValue(s.frontend.host);
     }
 
     if (s.api?.auth_token) {

@@ -141,8 +141,16 @@ const SAMPLE_SETTINGS_SAVE = {
         enabled: true,
         port: 8080,
     },
+    api: {
+        enabled: settings.defaults.api!.enabled,
+        host: settings.defaults.api!.host,
+        port: settings.defaults.api!.port,
+    },
     homeassistant: {
         enabled: true,
+    },
+    matter: {
+        enabled: settings.defaults.matter!.enabled,
     },
     onboarding: true,
 };
