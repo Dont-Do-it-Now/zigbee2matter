@@ -1,22 +1,22 @@
 configuration:
   serial_device:
-    name: 코디네이터 장치
-    description: 감지된 USB/시리얼 코디네이터를 선택합니다. 비워 두면 자동 탐색하거나 네트워크 코디네이터를 사용할 수 있습니다.
+    name: Zigbee 동글(코디네이터)
+    description: 연결된 USB Zigbee 코디네이터를 선택합니다. 비워 두면 자동 탐색합니다. 네트워크 코디네이터는 수동 포트를 입력하세요.
   serial_port:
     name: 수동 포트(고급)
-    description: 사용자 지정 경로나 네트워크 포트(tcp://host:port)를 입력합니다. 코디네이터 장치를 선택하면 이 값보다 우선합니다.
+    description: 사용자 지정 경로나 네트워크 포트(tcp://host:port)를 입력합니다. 동글을 선택하면 동글 경로가 우선합니다.
   serial_adapter:
     name: 어댑터
     description: 코디네이터 어댑터 종류. tcp:// 이거나 자동 탐색이 실패하면 필수.
   matter_enabled:
-    name: Matter 브리지 사용
-    description: Matter 브리지 노드를 시작합니다.
+    name: Matter 브리지 활성화
+    description: Zigbee 장치를 Matter 네트워크에 노출하려면 켭니다. 기본값은 꺼짐입니다.
   matter_mdns_interface:
     name: Matter mDNS 인터페이스
-    description: mDNS 를 이 네트워크 인터페이스(예 enp0s3)로 제한. 비우면 내부가 아닌 모든 인터페이스 사용.
+    description: Matter mDNS를 지정한 네트워크 인터페이스(예 enp0s3)로 제한합니다. 비우면 모든 외부 인터페이스를 사용합니다.
   matter_ipv4:
-    name: Matter IPv4 mDNS
-    description: IPv4 로도 광고합니다. 기본은 IPv6 전용.
+    name: Matter IPv4 광고
+    description: Matter mDNS를 IPv4로도 광고합니다. 기본값은 꺼짐이며 IPv6로 광고합니다.
   matter_passcode:
     name: 커미셔닝 passcode
   matter_discriminator:
@@ -28,12 +28,12 @@ configuration:
     description: REST/WebSocket 관리 API 사용.
   api_host:
     name: API 바인드 호스트
-    description: LAN 에서 필요하지 않으면 127.0.0.1 유지. loopback 이 아니면 토큰 필수.
+    description: 기본값 127.0.0.1은 Home Assistant 내부 접근용입니다. LAN에 공개하려면 0.0.0.0과 API 토큰을 설정하세요.
   api_port:
     name: API 포트
   api_auth_token:
     name: API 토큰
-    description: 관리 API Bearer 토큰.
+    description: LAN에서 관리 API에 접근할 때 사용할 Bearer 토큰을 직접 지정하세요. 기본 토큰은 없습니다.
   frontend_auth_token:
     name: 프론트엔드 토큰
     description: 8080 포트 웹 UI 접근 토큰. host network 이므로 미설정 시 HA 인증 없이 LAN 에서 UI 에 접근할 수 있다.

@@ -1,22 +1,22 @@
 configuration:
   serial_device:
-    name: Coordinator device
-    description: Choose the detected USB/serial coordinator. Leave empty for automatic discovery or a network coordinator.
+    name: Zigbee dongle (coordinator)
+    description: Choose a connected USB Zigbee coordinator. Leave empty for automatic discovery. For a network coordinator, enter a manual port.
   serial_port:
     name: Manual port (advanced)
-    description: Optional custom path or network port (tcp://host:port). The selected coordinator device takes precedence.
+    description: Enter a custom path or network port (tcp://host:port). The selected dongle path takes precedence.
   serial_adapter:
     name: Adapter
     description: Coordinator adapter type. Required for tcp:// and when auto-discovery fails.
   matter_enabled:
     name: Enable Matter bridge
-    description: Start the Matter bridge node.
+    description: Turn this on to expose Zigbee devices to a Matter network. Off by default.
   matter_mdns_interface:
     name: Matter mDNS interface
-    description: Restrict mDNS to this network interface (e.g. enp0s3). Empty uses all non-internal interfaces.
+    description: Restrict Matter mDNS to this network interface (e.g. enp0s3). Empty uses all external interfaces.
   matter_ipv4:
-    name: Matter IPv4 mDNS
-    description: Also advertise over IPv4. Default is IPv6 only.
+    name: Matter IPv4 advertisement
+    description: Also advertise Matter mDNS over IPv4. Off by default; IPv6 is used.
   matter_passcode:
     name: Commissioning passcode
   matter_discriminator:
@@ -28,12 +28,12 @@ configuration:
     description: Enable the REST/WebSocket management API.
   api_host:
     name: API bind host
-    description: Keep 127.0.0.1 unless the API is needed from the LAN. A token is required for non-loopback hosts.
+    description: 127.0.0.1 allows Home Assistant internal access. To expose the API on your LAN, set 0.0.0.0 and provide an API token.
   api_port:
     name: API port
   api_auth_token:
     name: API token
-    description: Bearer token for the management API.
+    description: Set a Bearer token for LAN access to the management API. No default token is provided.
   frontend_auth_token:
     name: Frontend token
     description: Token required by the web UI on port 8080. The add-on uses host network, so without it the UI is reachable from the LAN without Home Assistant authentication.

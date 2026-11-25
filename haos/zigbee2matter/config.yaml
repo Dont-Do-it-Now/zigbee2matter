@@ -1,6 +1,6 @@
 name: Zigbee2Matter
 slug: zigbee2matter
-version: "2026.11.25"
+version: "2026.11.25.1"
 description: Zigbee to Matter bridge without MQTT broker
 url: https://github.com/Dont-Do-it-Now/zigbee2matter
 image: ghcr.io/dont-do-it-now/zigbee2matter-addon
@@ -34,7 +34,6 @@ udev: true
 # 영속 데이터는 /data (Supervisor backup 포함). 추가 map 없음.
 map: []
 options:
-  serial_device:
   matter_enabled: false
   matter_ipv4: false
   api_enabled: true
