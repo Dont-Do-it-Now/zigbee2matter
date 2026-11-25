@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.25.20
+- Log Matter commissioning window lifecycle, finalized fabric changes, and operational CASE session transitions without exposing pairing codes or certificate payloads.
+
 ## 2026.11.25.19
 - Automatically select the sole non-virtual IPv6 interface for Matter mDNS to avoid advertising operational addresses on Home Assistant and Docker bridges.
 

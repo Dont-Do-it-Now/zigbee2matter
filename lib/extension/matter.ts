@@ -503,7 +503,9 @@ export default class Matter extends Extension {
         });
         await this.restoreMatterEndpoints();
         this.runtime.commissioning.onFabricsChanged((fabricIndex, action) => {
-            this.runtime.events.publish("transient", "matter/fabrics", {fabricIndex, action, fabrics: this.runtime.commissioning.listFabrics()});
+            const fabrics = this.runtime.commissioning.listFabrics();
+            logger.info(`Matter fabric ${action} after commissioning finalization (index=${fabricIndex}, committed=${fabrics.length})`);
+            this.runtime.events.publish("transient", "matter/fabrics", {fabricIndex, action, fabrics});
         });
     }
 

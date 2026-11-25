@@ -9,6 +9,7 @@ import type {EndpointRegistryEntry} from "./endpointRegistry";
 import type {BridgeNodeConfig, BridgeNodeRuntime, BridgeNodeRuntimeFactory} from "./multiBridge";
 import {type MatterNetworkConfig, toMatterEnvVars, toServerNodeNetworkState} from "./networkConfig";
 import type {FeatureDecision} from "./unsupportedFeatures";
+import logger from "../util/logger";
 
 /**
  * 구독/보고(T040)는 SDK가 소유한다. 상태는 `endpoint.set(...)`(MatterEndpointFactory.updateState)로만 갱신하고,
@@ -28,6 +29,10 @@ export interface MatterServerNode {
                 off(observer: (fabricIndex: number, action: FabricChangeAction) => void): void;
             };
         };
+        readonly sessions?: {
+            readonly opened?: {on(observer: (session: MatterSessionSummary) => void): void};
+            readonly closed?: {on(observer: (session: MatterSessionSummary) => void): void};
+        };
     };
     readonly state?: {
         readonly operationalCredentials?: {readonly supportedFabrics?: number};
@@ -38,6 +43,12 @@ export interface MatterServerNode {
             readonly fabrics?: Readonly<Record<string, SdkFabricInformation>>;
         };
     };
+}
+
+interface MatterSessionSummary {
+    readonly peerNodeId: bigint | number;
+    readonly fabric?: {readonly fabricIndex: number};
+    readonly numberOfActiveSubscriptions?: number;
 }
 
 /** @matter/protocol ExposedFabricInformation 중 사용하는 필드. */
@@ -327,6 +338,16 @@ export class MatterSdkRuntime {
             this.nodeId = options.id;
             this.vendorId = options.vendorId;
             this.productId = options.productId;
+            node.events?.sessions?.opened?.on((session) => {
+                logger.info(
+                    `Matter operational CASE session opened (fabric=${session.fabric?.fabricIndex ?? "unknown"}, peer=${String(session.peerNodeId)})`,
+                );
+            });
+            node.events?.sessions?.closed?.on((session) => {
+                logger.warning(
+                    `Matter operational CASE session closed (fabric=${session.fabric?.fabricIndex ?? "unknown"}, peer=${String(session.peerNodeId)})`,
+                );
+            });
             this.started = false;
             this.appliedEnvironment = environment;
             this.appliedEnvironmentNames = appliedEnvironmentNames;
@@ -441,9 +462,15 @@ export class MatterSdkRuntime {
                 if (fabrics.some((fabric) => !this.confirmedFabricIndexes.has(fabric.fabricIndex))) {
                     throw new Error("Matter commissioning is still in progress");
                 }
-                if (this.confirmedFabricIndexes.size > 0) return await this.openEnhancedCommissioningWindow(durationMs);
+                const windowType = this.confirmedFabricIndexes.size > 0 ? "enhanced" : "basic";
+                logger.info(`Matter commissioning window opening (type=${windowType}, duration=${durationMs}ms, fabrics=${fabrics.length})`);
+                if (this.confirmedFabricIndexes.size > 0) {
+                    const code = await this.openEnhancedCommissioningWindow(durationMs);
+                    logger.info(`Matter commissioning window opened (type=${windowType}, duration=${durationMs}ms)`);
+                    return code;
+                }
                 await this.commissioner().allowBasicCommissioning({timeout: sdk.Millis(durationMs)});
-
+                logger.info(`Matter commissioning window opened (type=${windowType}, duration=${durationMs}ms)`);
                 return this.getCommissioningCode();
             },
             closeWindow: async () => {
@@ -451,6 +478,7 @@ export class MatterSdkRuntime {
                 const commissioner = this.commissioner();
                 if (commissioner.windowStatus === WINDOW_NOT_OPEN) return false;
                 await commissioner.endCommissioning();
+                logger.info("Matter commissioning window closed by local request");
 
                 return true;
             },

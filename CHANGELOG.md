@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Log Matter commissioning windows, finalized fabric changes, and operational CASE session transitions.
 * Automatically select the sole non-virtual IPv6 interface for Matter mDNS and keep the interface selector hidden.
 * Keep the Matter platform list visible when a status request fails, and isolate Home Assistant status errors.
 * Show Matter fabrics only after the commissioning fail-safe ends, and prevent retries from treating a pending fabric as an existing platform.
