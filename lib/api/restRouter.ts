@@ -4,7 +4,6 @@ import type {IncomingMessage, ServerResponse} from "node:http";
 import {BackupInputError} from "../storage/backup";
 import {type ApiAuth, ApiError, authorizeRequest, type Principal, redactSecrets, type Scope, toApiError} from "./auth";
 import type {AuthFailureRateLimiter} from "./rateLimit";
-import {getMatterLocale} from "../util/matterLocale";
 
 export interface RestDevice {
     readonly id: string;
@@ -188,8 +187,8 @@ export class RestApiRouter {
             const fabricIndex = Number(pathname.slice("/matter/fabrics/".length));
             if (!Number.isSafeInteger(fabricIndex) || fabricIndex < 1) throw new ApiError("INVALID_ARGUMENT", "Invalid fabric index");
             const body = await readJson(req, this.maxBodyBytes);
-            const locale = getMatterLocale(req.headers["accept-language"]);
-            if (!isRecord(body) || body.confirmation !== locale.confirmationPhrase) throw new ApiError("INVALID_ARGUMENT", locale.invalidConfirmation);
+            // Language-neutral confirmation word (keep in sync with the frontend Matter page).
+            if (!isRecord(body) || body.confirmation !== "REMOVE") throw new ApiError("INVALID_ARGUMENT", 'Type "REMOVE" to remove this Matter connection.');
             this.writeJson(res, 200, {removed: await matter.removeFabric(fabricIndex)});
             return;
         }

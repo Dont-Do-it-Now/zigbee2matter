@@ -16,7 +16,7 @@ import logger from "../util/logger";
 import * as settings from "../util/settings";
 import {createStaticFileServer, sendNotFound} from "../util/staticFileServer";
 import {stringify} from "../util/stringify";
-import {getMatterLocale} from "../util/matterLocale";
+import {commissionIntoMatterServer, getMatterServerStatus, isHaos, MatterServerError} from "../ha/matterServer";
 import utils from "../util/utils";
 import Extension from "./extension";
 
@@ -84,10 +84,18 @@ function prepareFrontendIndex(index: string): string {
     const productBootstrap = `<script>
 (() => {
     const contributionUrl = "https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/CONTRIBUTING.md";
+    // FRONTEND_LANGUAGE_BOOTSTRAP has already stored the normalized language; only Korean is localized, English is the default.
+    const isKorean = () => {
+        try {
+            return (window.localStorage.getItem("i18nextLng") ?? "").toLowerCase().startsWith("ko");
+        } catch {
+            return false;
+        }
+    };
     const replaceText = (textNode) => {
         const value = textNode.nodeValue?.trim();
         if (value === "Zigbee2MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, "Zigbee2Matter");
-        if (value === "MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, "내부 메시지 경로");
+        if (value === "MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, isKorean() ? "내부 메시지 경로" : "Internal bus");
     };
     const update = () => {
         document.title = document.title.replace("Zigbee2MQTT", "Zigbee2Matter");
@@ -107,7 +115,7 @@ function prepareFrontendIndex(index: string): string {
                 const link = document.createElement("a");
                 link.id = "z2m-matter-link";
                 link.href = new URL("matter", location.href).pathname + location.search;
-                link.textContent = "Matter 연결";
+                link.textContent = isKorean() ? "Matter 연결" : "Matter connections";
                 link.style.cssText = "display:block;padding:16px;color:inherit;text-decoration:none";
                 nav.insertBefore(link, donate ?? null);
             }
@@ -129,16 +137,406 @@ function prepareFrontendIndex(index: string): string {
 }
 
 const MATTER_PAGE = `<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zigbee2Matter · Matter 연결</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zigbee2Matter</title>
 <style>
-:root{font-family:Inter,"Pretendard",system-ui,sans-serif;color:#17212b;background:#f7f8fa;font-synthesis:none}*{box-sizing:border-box}body{margin:0}.wrap{max-width:920px;margin:0 auto;padding:32px 24px 64px}a{color:#176b87}h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:19px;margin:0 0 12px}.lead,.muted{color:#62717d;line-height:1.5}.card{background:#fff;border:1px solid #dce2e7;border-radius:12px;padding:24px;margin-top:24px}.row{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.qr{width:224px;height:224px;object-fit:contain;border:1px solid #e2e7eb;border-radius:8px}.code{font:600 21px ui-monospace,monospace;letter-spacing:.08em}.input{width:min(100%,520px);padding:16px;border:1px solid #cbd4dc;border-radius:8px;font:inherit}.button{border:0;border-radius:8px;background:#087e9c;color:#fff;padding:8px 16px;font:inherit;cursor:pointer}.button.secondary{background:#e8f1f4;color:#14586c}.button.danger{background:#b73345}.button:disabled{opacity:.45;cursor:not-allowed}.fabric{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e5e9ed;padding:16px 0}.fabric:first-child{border-top:0}.guide{padding-left:22px;line-height:1.65}.status{padding:12px 16px;background:#eef5f7;border-radius:8px}.error{color:#a32739}.hidden{display:none!important}.back{display:inline-block;margin:0 0 24px;text-decoration:none}dialog{max-width:520px;border:1px solid #dce2e7;border-radius:12px;color:inherit}dialog::backdrop{background:rgba(18,28,38,.35)}
-</style></head><body><main class="wrap"><a class="back" href="/">← Zigbee2Matter</a><h1>Matter 연결</h1><p class="lead">Zigbee 기기를 하나씩 연결하는 게 아니라, Zigbee2Matter 브리지를 Matter 플랫폼에 연결합니다. 여러 플랫폼에서 함께 쓰려면 기존 플랫폼의 공유 기능을 이용하세요.</p><section id="auth" class="card"><h2>관리자 인증</h2><p class="muted">Home Assistant 앱 설정의 API 토큰을 입력하세요. 토큰은 현재 화면에서만 사용합니다. 프론트엔드 인증 링크로 열었다면 자동 인증됩니다.</p><input id="token-input" class="input" type="password" autocomplete="current-password" aria-label="관리자 API 토큰"><button id="save-token" class="button">인증</button></section><div id="status" class="status">상태를 불러오는 중…</div><section id="first" class="card hidden"><h2>첫 Matter 연결</h2><p class="muted">Home Assistant Matter, Google Home, Apple Home 등에서 새 Matter 기기를 추가하고 아래 QR을 스캔하거나 코드를 입력하세요.</p><div id="pairing" class="row"></div><p id="expires" class="muted"></p><button id="open" class="button">연결 코드 만들기</button><button id="close" class="button secondary hidden">연결 창 닫기</button></section><section id="fabrics" class="card"><h2>연결된 Matter 플랫폼</h2><div id="fabric-list" class="muted">불러오는 중…</div></section><section id="share" class="card hidden"><h2>다른 Matter 플랫폼에 추가</h2><p class="muted">이미 연결된 플랫폼이 있다면 여기서 새 QR을 만들지 않습니다. 기존 플랫폼이 보안 공유 창을 열고 새 임시 코드를 발급해야 합니다.</p><ol class="guide"><li>현재 연결된 Home Assistant, Google Home 또는 Apple Home에서 Zigbee2Matter 브리지의 기기 설정을 엽니다.</li><li><b>다른 Matter 관리자와 공유</b> 또는 비슷한 이름의 메뉴를 선택하고 안내에 따라 공유 코드를 만듭니다.</li><li>추가할 플랫폼에서 Matter 기기 추가를 선택한 뒤, 기존 플랫폼이 표시한 QR을 스캔하거나 코드를 입력합니다.</li></ol><p class="muted">메뉴 이름은 플랫폼과 버전에 따라 다를 수 있습니다. 공유가 완료되면 이 화면의 연결 목록이 갱신됩니다.</p></section><section class="card"><h2>Home Assistant Matter Server</h2><p class="muted">Home Assistant에서 Matter를 사용하려면 Matter 통합과 Matter Server가 필요합니다. 이미 Matter Server 애드온/서버를 사용 중이면 새로 설치하지 말고 기존 서버를 연결하세요.</p><details><summary>이미 Matter Server가 있는 경우</summary><ol class="guide"><li>Home Assistant의 <a href="/config/integrations">설정 → 기기 및 서비스 → 통합</a>에서 Matter를 엽니다.</li><li>기존 Matter Server에 연결되어 있는지 확인한 뒤 Matter 기기 추가를 선택합니다.</li><li>위에서 만든 QR을 스캔하거나 수동 코드를 입력합니다.</li></ol></details><details><summary>Matter Server가 없는 경우</summary><ol class="guide"><li>Home Assistant 애드온 스토어에서 공식 Matter Server를 설치하고 실행합니다.</li><li>기기 및 서비스에서 Matter 통합을 추가하고 해당 Matter Server에 연결합니다.</li><li>Matter 기기 추가를 선택하고 위 QR 또는 수동 코드를 사용합니다.</li></ol></details></section><p id="error" class="error"></p></main><script>
-document.querySelector(".back").href=new URL("./",location.href).pathname;const apiBase=new URL("matter-api/",location.href);const query=new URLSearchParams(location.search);let token=query.get("token");if(token){query.delete("token");const remainingQuery=query.toString();history.replaceState(null,"",location.pathname+(remainingQuery?"?"+remainingQuery:"")+location.hash)}const headers={"Content-Type":"application/json"};const getLanguage=()=>localStorage.getItem("i18nextLng")||navigator.language||"en";headers["Accept-Language"]=getLanguage();if(token)headers.Authorization="Bearer "+token;
-const el=(id)=>document.getElementById(id);if(token)el("auth").classList.add("hidden");const showError=(e)=>{el("error").textContent=e.message||String(e)};async function call(path,options={}){const response=await fetch(new URL(path,apiBase),{...options,headers:{...headers,...options.headers}});const data=await response.json();if(!response.ok){const error=Error(data.error||"요청에 실패했습니다.");error.status=response.status;throw error}return data}
-function renderWindow(window){el("pairing").replaceChildren();if(!window){el("expires").textContent="";el("open").classList.remove("hidden");el("close").classList.add("hidden");return}const image=document.createElement("img");image.className="qr";image.alt="Matter 연결 QR 코드";image.src=window.qrImage;const info=document.createElement("div");const label=document.createElement("p");label.textContent="수동 설정 코드";const code=document.createElement("p");code.className="code";code.textContent=window.setupCode;const disc=document.createElement("p");disc.className="muted";disc.textContent="확인용 discriminator: "+window.discriminator;info.append(label,code,disc);el("pairing").append(image,info);el("expires").textContent="연결 창은 약 "+Math.max(0,Math.ceil((window.expiresAt-Date.now())/1000))+"초 후 만료됩니다.";el("open").classList.add("hidden");el("close").classList.remove("hidden")}
-async function refresh(){headers["Accept-Language"]=getLanguage();if(!token){el("auth").classList.remove("hidden");el("status").textContent="관리자 인증 후 Matter 상태를 표시합니다.";el("fabric-list").textContent="인증 후 연결 목록을 표시합니다.";el("first").classList.add("hidden");el("share").classList.add("hidden");return}try{el("error").textContent="";const data=await call("state");el("auth").classList.add("hidden");if(!data.matterRunning){el("status").textContent=data.reason||"Matter 브리지가 실행 중이 아닙니다. Matter 설정과 시작 로그를 확인하세요.";el("first").classList.add("hidden");el("share").classList.add("hidden");el("fabric-list").textContent="Matter 연결을 사용할 수 없습니다.";return}el("status").textContent="Matter 브리지 실행 중";el("first").classList.toggle("hidden",data.fabrics.length>0);el("share").classList.toggle("hidden",data.fabrics.length===0);const list=el("fabric-list");list.replaceChildren();if(!data.fabrics.length){list.textContent="아직 연결된 Matter 플랫폼이 없습니다."}else for(const fabric of data.fabrics){const row=document.createElement("div");row.className="fabric";const label=document.createElement("span");label.textContent=(fabric.label||"Matter 플랫폼")+" · 연결 "+fabric.fabricIndex;const button=document.createElement("button");button.className="button danger";button.textContent=data.disconnectMessages.disconnect;button.addEventListener("click",()=>removeFabric(fabric,data.disconnectMessages));row.append(label,button);list.append(row)}renderWindow(data.window)}catch(e){el("status").textContent="Matter 상태를 확인할 수 없습니다.";el("fabric-list").textContent="연결 목록을 불러오지 못했습니다.";el("first").classList.add("hidden");el("share").classList.add("hidden");if(e.status===401||e.status===403)el("auth").classList.remove("hidden");showError(e)}}
-function removeFabric(fabric,messages){const dialog=document.createElement("dialog");const title=document.createElement("h2");title.textContent=messages.dialogTitle;const description=document.createElement("p");description.className="muted";description.textContent=messages.description.replace("{platform}",fabric.label||"Matter platform");const label=document.createElement("label");label.textContent=messages.confirmationPrompt;const input=document.createElement("input");input.className="input";input.autocomplete="off";const actions=document.createElement("div");actions.className="row";actions.style.marginTop="16px";const cancel=document.createElement("button");cancel.className="button secondary";cancel.textContent=messages.cancel;const submit=document.createElement("button");submit.className="button danger";submit.textContent=messages.disconnect;submit.disabled=true;input.addEventListener("input",()=>{submit.disabled=input.value!==messages.confirmationPhrase});cancel.addEventListener("click",()=>dialog.close());submit.addEventListener("click",async()=>{try{await call("fabrics/"+fabric.fabricIndex,{method:"DELETE",body:JSON.stringify({confirmation:input.value})});dialog.close();await refresh()}catch(e){showError(e)}});actions.append(cancel,submit);dialog.append(title,description,label,input,actions);dialog.addEventListener("close",()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal()}
-el("save-token").addEventListener("click",async()=>{token=el("token-input").value.trim();if(!token){showError(Error("관리자 API 토큰을 입력하세요."));return}headers.Authorization="Bearer "+token;el("auth").classList.add("hidden");await refresh()});el("open").addEventListener("click",async()=>{try{const window=await call("commissioning",{method:"POST",body:JSON.stringify({})});renderWindow(window);await refresh()}catch(e){showError(e)}});el("close").addEventListener("click",async()=>{try{await call("commissioning",{method:"DELETE"});renderWindow(undefined);await refresh()}catch(e){showError(e)}});refresh();setInterval(refresh,10000);
+:root{font-family:Inter,"Pretendard",system-ui,sans-serif;color:#17212b;background:#f7f8fa;font-synthesis:none}*{box-sizing:border-box}body{margin:0}.wrap{max-width:920px;margin:0 auto;padding:32px 24px 64px}a{color:#176b87}h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:19px;margin:0 0 12px}.lead,.muted{color:#62717d;line-height:1.5}.card{background:#fff;border:1px solid #dce2e7;border-radius:12px;padding:24px;margin-top:24px}.row{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.qr{width:224px;height:224px;object-fit:contain;border:1px solid #e2e7eb;border-radius:8px}.code{font:600 21px ui-monospace,monospace;letter-spacing:.08em;margin:4px 0 8px}.input{width:min(100%,520px);padding:16px;border:1px solid #cbd4dc;border-radius:8px;font:inherit}.button{border:0;border-radius:8px;background:#087e9c;color:#fff;padding:8px 16px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block;margin:4px 8px 4px 0}.button.secondary{background:#e8f1f4;color:#14586c}.button.danger{background:#b73345}.button:disabled{opacity:.45;cursor:not-allowed}.fabric{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e5e9ed;padding:16px 0}.fabric:first-child{border-top:0}.guide{padding-left:22px;line-height:1.65}.status{padding:12px 16px;background:#eef5f7;border-radius:8px}.error{color:#a32739}.ok{color:#1d7a46}.hidden{display:none!important}.back{display:inline-block;margin:0 0 24px;text-decoration:none}dialog{max-width:520px;border:1px solid #dce2e7;border-radius:12px;color:inherit}dialog::backdrop{background:rgba(18,28,38,.35)}
+</style></head><body><main class="wrap"><a class="back" href="/">&larr; Zigbee2Matter</a><h1 data-i18n="title"></h1><p class="lead" data-i18n="lead"></p>
+<section id="auth" class="card hidden"><h2 data-i18n="authTitle"></h2><p class="muted" data-i18n="authHelp"></p><input id="token-input" class="input" type="password" autocomplete="current-password" data-i18n-label="authLabel"><button id="save-token" class="button" data-i18n="authButton"></button></section>
+<div id="status" class="status"></div>
+<section id="ha" class="card hidden"><h2 data-i18n="haTitle"></h2><p id="ha-state" class="muted"></p><button id="ha-connect" class="button"></button><a id="ha-install" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haInstallLink"></a><a id="ha-integration" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haIntegrationLink"></a><p id="ha-result" class="muted"></p></section>
+<section id="pair" class="card hidden"><h2 id="pair-title"></h2><p class="muted" data-i18n="pairHelp"></p><div id="pairing" class="row"></div><p id="expires" class="muted"></p><button id="open" class="button"></button><button id="close" class="button secondary hidden" data-i18n="closeWindow"></button></section>
+<section id="fabrics" class="card"><h2 data-i18n="platforms"></h2><div id="fabric-list" class="muted"></div></section>
+<section class="card"><h2 data-i18n="guideTitle"></h2><ol class="guide"><li data-i18n="guide1"></li><li data-i18n="guide2"></li><li data-i18n="guide3"></li></ol></section>
+<p id="error" class="error"></p></main><script>
+var I18N = {
+  en: {
+    title: "Matter connections",
+    lead: "Connect the Zigbee2Matter bridge to Matter platforms. You can connect several platforms at once (Home Assistant, Apple Home, Google Home, SmartThings...).",
+    authTitle: "Administrator authentication",
+    authHelp: "Enter the API token from the add-on settings. It is only used on this page.",
+    authLabel: "Administrator API token",
+    authButton: "Sign in",
+    needToken: "Enter the administrator API token.",
+    loading: "Loading status...",
+    needAuth: "Authenticate to see the Matter status.",
+    running: "Matter bridge is running.",
+    notRunning: "The Matter bridge is not running. Check the Matter settings and the start-up log.",
+    statusFailed: "Could not read the Matter status.",
+    platforms: "Connected Matter platforms",
+    noPlatforms: "No Matter platform is connected yet.",
+    platformsUnavailable: "Matter connections are unavailable.",
+    platformsFailed: "Could not load the connection list.",
+    platformLabel: "{name} (fabric {index})",
+    controller: "Matter controller #{vendor}",
+    pairFirst: "Create pairing code",
+    pairMore: "Add another platform",
+    pairTitleFirst: "Connect your first platform",
+    pairTitleMore: "Add another platform",
+    pairHelp: "In Home Assistant, Apple Home, Google Home or SmartThings choose Add device > Matter, then scan the QR code or enter the code.",
+    closeWindow: "Close pairing window",
+    qrAlt: "Matter pairing QR code",
+    manualCode: "Manual pairing code",
+    copy: "Copy",
+    copied: "Copied",
+    expiresIn: "The pairing window expires in {time}.",
+    expired: "The pairing window has expired.",
+    disconnect: "Disconnect",
+    dialogTitle: "Disconnect Matter platform",
+    dialogDescription: "Disconnect only {platform}. Zigbee devices and other Matter platforms remain connected.",
+    confirmPrompt: "Type {phrase} to continue.",
+    cancel: "Cancel",
+    haTitle: "Home Assistant",
+    haChecking: "Checking the Matter Server add-on...",
+    haNotInstalled: "The Home Assistant Matter Server add-on is not installed. Install it first, then come back and connect.",
+    haStopped: "The Matter Server add-on is installed but not running. Start it from its add-on page, then reload this page.",
+    haReady: "Matter Server is running. One click connects this bridge to Home Assistant.",
+    haConnect: "Connect to Home Assistant",
+    haConnecting: "Connecting... this can take up to 2 minutes.",
+    haConnected: "Connected to Home Assistant. Open the Matter integration to see the devices.",
+    haInstallLink: "Install Matter Server",
+    haIntegrationLink: "Open Matter integration",
+    "err.CROSS_SITE": "Requests started from another site are not allowed.",
+    "err.ORIGIN_UNVERIFIED": "The request origin could not be verified.",
+    "err.MATTER_UNAVAILABLE": "Matter management is unavailable.",
+    "err.TOKEN_REQUIRED": "An administrator API token is required. Set one in the add-on settings.",
+    "err.TOKEN_INVALID": "The administrator API token is not valid.",
+    "err.ADMIN_REQUIRED": "Administrator permission is required.",
+    "err.MATTER_NOT_RUNNING": "The Matter bridge is not running.",
+    "err.NODE_NOT_STARTED": "The Matter node has not started yet. Check the settings and the start-up log.",
+    "err.INVALID_REQUEST": "Invalid request.",
+    "err.INVALID_CONFIRMATION": "The confirmation text does not match.",
+    "err.NOT_FOUND": "Not found.",
+    "err.INTERNAL": "The Matter request failed.",
+    "err.NOT_HAOS": "This is only available in the Home Assistant add-on.",
+    "err.BUSY": "A Home Assistant connection is already in progress.",
+    "err.MATTER_SERVER_NOT_INSTALLED": "The Matter Server add-on is not installed.",
+    "err.MATTER_SERVER_STOPPED": "The Matter Server add-on is not running. Start it from its add-on page.",
+    "err.CONNECT_FAILED": "Could not connect to the Matter Server add-on.",
+    "err.START_FAILED": "Could not start the Matter Server add-on.",
+    "err.CONNECT_FAILED": "Could not reach the Matter Server.",
+    "err.COMMISSION_FAILED": "Matter Server could not add this bridge.",
+    "err.COMMISSION_TIMEOUT": "Matter Server did not finish in time.",
+    "err.UNKNOWN": "The request failed.",
+    guideTitle: "Adding another platform",
+    guide1: "Press Add another platform here. A new pairing window opens.",
+    guide2: "In the other app choose Add device > Matter and scan the QR code or enter the manual code.",
+    guide3: "When pairing finishes the platform appears in the list above. Existing platforms stay connected."
+  },
+  ko: {
+    title: "Matter 연결",
+    lead: "Zigbee2Matter 브리지를 Matter 플랫폼에 연결합니다. Home Assistant, Apple 홈, Google Home, SmartThings 등 여러 플랫폼을 함께 연결할 수 있습니다.",
+    authTitle: "관리자 인증",
+    authHelp: "앱 설정의 API 토큰을 입력하세요. 토큰은 이 화면에서만 사용합니다.",
+    authLabel: "관리자 API 토큰",
+    authButton: "인증",
+    needToken: "관리자 API 토큰을 입력하세요.",
+    loading: "상태를 불러오는 중...",
+    needAuth: "인증 후 Matter 상태를 표시합니다.",
+    running: "Matter 브리지 실행 중",
+    notRunning: "Matter 브리지가 실행 중이 아닙니다. Matter 설정과 시작 로그를 확인하세요.",
+    statusFailed: "Matter 상태를 확인할 수 없습니다.",
+    platforms: "연결된 Matter 플랫폼",
+    noPlatforms: "아직 연결된 Matter 플랫폼이 없습니다.",
+    platformsUnavailable: "Matter 연결을 사용할 수 없습니다.",
+    platformsFailed: "연결 목록을 불러오지 못했습니다.",
+    platformLabel: "{name} (연결 {index})",
+    controller: "Matter 컨트롤러 #{vendor}",
+    pairFirst: "연결 코드 만들기",
+    pairMore: "다른 플랫폼 추가",
+    pairTitleFirst: "첫 플랫폼 연결",
+    pairTitleMore: "다른 플랫폼 추가",
+    pairHelp: "Home Assistant, Apple 홈, Google Home, SmartThings에서 기기 추가 > Matter를 선택한 뒤 QR을 스캔하거나 코드를 입력하세요.",
+    closeWindow: "연결 창 닫기",
+    qrAlt: "Matter 연결 QR 코드",
+    manualCode: "수동 설정 코드",
+    copy: "복사",
+    copied: "복사됨",
+    expiresIn: "연결 창이 {time} 후 만료됩니다.",
+    expired: "연결 창이 만료되었습니다.",
+    disconnect: "연결 해제",
+    dialogTitle: "Matter 연결 해제",
+    dialogDescription: "{platform} 연결만 해제합니다. Zigbee 기기와 다른 Matter 플랫폼 연결은 삭제되지 않습니다.",
+    confirmPrompt: "계속하려면 {phrase} 를 입력하세요.",
+    cancel: "취소",
+    haTitle: "Home Assistant",
+    haChecking: "Matter Server 애드온을 확인하는 중...",
+    haNotInstalled: "Home Assistant Matter Server 애드온이 설치되어 있지 않습니다. 먼저 설치한 뒤 다시 연결하세요.",
+    haStopped: "Matter Server 애드온이 설치되어 있지만 실행 중이 아닙니다. 애드온 페이지에서 시작한 뒤 이 페이지를 새로고침하세요.",
+    haReady: "Matter Server가 실행 중입니다. 버튼 한 번으로 Home Assistant에 연결합니다.",
+    haConnect: "Home Assistant에 연결",
+    haConnecting: "연결 중... 최대 2분 걸릴 수 있습니다.",
+    haConnected: "Home Assistant에 연결되었습니다. Matter 통합에서 기기를 확인하세요.",
+    haInstallLink: "Matter Server 설치",
+    haIntegrationLink: "Matter 통합 열기",
+    "err.CROSS_SITE": "다른 사이트에서 시작한 요청은 허용되지 않습니다.",
+    "err.ORIGIN_UNVERIFIED": "요청 출처를 확인할 수 없습니다.",
+    "err.MATTER_UNAVAILABLE": "Matter 관리 기능을 사용할 수 없습니다.",
+    "err.TOKEN_REQUIRED": "관리자 API 토큰이 필요합니다. 앱 설정에서 API 토큰을 지정하세요.",
+    "err.TOKEN_INVALID": "유효한 관리자 API 토큰이 필요합니다.",
+    "err.ADMIN_REQUIRED": "관리자 권한이 필요합니다.",
+    "err.MATTER_NOT_RUNNING": "Matter 브리지가 실행 중이 아닙니다.",
+    "err.NODE_NOT_STARTED": "Matter 노드가 아직 시작되지 않았습니다. 설정과 시작 로그를 확인하세요.",
+    "err.INVALID_REQUEST": "잘못된 요청입니다.",
+    "err.INVALID_CONFIRMATION": "확인 문구가 일치하지 않습니다.",
+    "err.NOT_FOUND": "경로를 찾을 수 없습니다.",
+    "err.INTERNAL": "Matter 요청을 처리하지 못했습니다.",
+    "err.NOT_HAOS": "Home Assistant 애드온에서만 사용할 수 있습니다.",
+    "err.BUSY": "Home Assistant 연결이 이미 진행 중입니다.",
+    "err.MATTER_SERVER_NOT_INSTALLED": "Matter Server 애드온이 설치되어 있지 않습니다.",
+    "err.MATTER_SERVER_STOPPED": "Matter Server 애드온이 실행 중이 아닙니다. 애드온 페이지에서 시작하세요.",
+    "err.CONNECT_FAILED": "Matter Server 애드온에 연결할 수 없습니다.",
+    "err.START_FAILED": "Matter Server 애드온을 시작하지 못했습니다.",
+    "err.CONNECT_FAILED": "Matter Server에 연결할 수 없습니다.",
+    "err.COMMISSION_FAILED": "Matter Server가 이 브리지를 추가하지 못했습니다.",
+    "err.COMMISSION_TIMEOUT": "Matter Server가 제시간에 완료하지 못했습니다.",
+    "err.UNKNOWN": "요청에 실패했습니다.",
+    guideTitle: "다른 플랫폼 추가 방법",
+    guide1: "여기서 다른 플랫폼 추가를 누르면 새 연결 창이 열립니다.",
+    guide2: "다른 앱에서 기기 추가 > Matter를 선택하고 QR을 스캔하거나 수동 코드를 입력합니다.",
+    guide3: "연결이 끝나면 위 목록에 플랫폼이 나타납니다. 기존 플랫폼 연결은 유지됩니다."
+  }
+};
+// Same rule as the frontend bootstrap: stored i18nextLng first, then navigator.languages; Korean or English (default).
+function pickLanguage() {
+  var candidates = [];
+  try { candidates.push(localStorage.getItem("i18nextLng") || ""); } catch (e) {}
+  candidates = candidates.concat(navigator.languages || [navigator.language]);
+  for (var i = 0; i < candidates.length; i++) {
+    var base = String(candidates[i] || "").replace("_", "-").split("-")[0].toLowerCase();
+    if (base === "ko" || base === "en") return base;
+  }
+  return "en";
+}
+var LANG = pickLanguage();
+document.documentElement.lang = LANG;
+function t(key, vars) {
+  var text = I18N[LANG][key] || I18N.en[key] || key;
+  for (var name in vars || {}) text = text.split("{" + name + "}").join(vars[name]);
+  return text;
+}
+// Language-neutral confirmation word; must match the server check.
+var CONFIRM_PHRASE = "REMOVE";
+// Matter root vendor ids (CSA vendor registry) -> platform names. 0xFFF1 is the test vendor used by python-matter-server.
+var VENDORS = {4937: "Apple Home", 24582: "Google Home", 4362: "Samsung SmartThings", 4631: "Amazon Alexa", 65521: "Home Assistant"};
+var el = function (id) { return document.getElementById(id); };
+document.querySelectorAll("[data-i18n]").forEach(function (node) { node.textContent = t(node.dataset.i18n); });
+document.querySelectorAll("[data-i18n-label]").forEach(function (node) { node.setAttribute("aria-label", t(node.dataset.i18nLabel)); });
+document.title = "Zigbee2Matter - " + t("title");
+document.querySelector(".back").href = new URL("./", location.href).pathname;
+var apiBase = new URL("matter-api/", location.href);
+var query = new URLSearchParams(location.search);
+var token = query.get("token");
+if (token) {
+  query.delete("token");
+  var remainingQuery = query.toString();
+  history.replaceState(null, "", location.pathname + (remainingQuery ? "?" + remainingQuery : "") + location.hash);
+}
+var headers = {"Content-Type": "application/json", "Accept-Language": LANG};
+if (token) headers.Authorization = "Bearer " + token;
+
+var windowDeadline = 0;
+var windowOpen = false;
+var haConnecting = false;
+var pollTimer;
+
+function errorText(e) { var key = "err." + (e.code || "UNKNOWN"); return I18N[LANG][key] ? t(key) : (e.message || t("err.UNKNOWN")); }
+function showError(e) { el("error").textContent = errorText(e); }
+async function call(path, options) {
+  options = options || {};
+  var response = await fetch(new URL(path, apiBase), Object.assign({}, options, {headers: Object.assign({}, headers, options.headers)}));
+  var data = await response.json().catch(function () { return {}; });
+  if (!response.ok) {
+    var error = new Error(data.error || "Request failed");
+    error.status = response.status;
+    error.code = data.code;
+    throw error;
+  }
+  return data;
+}
+function vendorName(id) { return VENDORS[id] || t("controller", {vendor: id}); }
+// 11-digit manual pairing code shown as 4-3-4.
+function formatCode(code) {
+  var digits = String(code).replace(/[^0-9]/g, "");
+  return digits.length === 11 ? digits.slice(0, 4) + "-" + digits.slice(4, 7) + "-" + digits.slice(7) : String(code);
+}
+async function copyText(text, button) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = t("copied");
+  setTimeout(function () { button.textContent = t("copy"); }, 1500);
+}
+function renderCountdown() {
+  if (!windowOpen) { el("expires").textContent = ""; return; }
+  var left = Math.max(0, Math.ceil((windowDeadline - Date.now()) / 1000));
+  if (left === 0) { el("expires").textContent = t("expired"); return; }
+  el("expires").textContent = t("expiresIn", {time: Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0")});
+}
+function renderWindow(win, hasFabrics) {
+  windowOpen = Boolean(win);
+  el("pairing").replaceChildren();
+  el("pair-title").textContent = t(hasFabrics ? "pairTitleMore" : "pairTitleFirst");
+  el("open").textContent = t(hasFabrics ? "pairMore" : "pairFirst");
+  el("open").classList.toggle("hidden", windowOpen);
+  el("close").classList.toggle("hidden", !windowOpen);
+  if (!win) { renderCountdown(); return; }
+  windowDeadline = Date.now() + win.expiresInMs;
+  var image = document.createElement("img");
+  image.className = "qr";
+  image.alt = t("qrAlt");
+  image.src = win.qrImage;
+  var info = document.createElement("div");
+  var label = document.createElement("p");
+  label.textContent = t("manualCode");
+  var code = document.createElement("p");
+  code.className = "code";
+  code.textContent = formatCode(win.setupCode);
+  var copy = document.createElement("button");
+  copy.className = "button secondary";
+  copy.textContent = t("copy");
+  copy.addEventListener("click", function () { copyText(String(win.setupCode).replace(/[^0-9]/g, "") || win.setupCode, copy); });
+  info.append(label, code, copy);
+  el("pairing").append(image, info);
+  renderCountdown();
+}
+function renderHa(ha) {
+  el("ha").classList.toggle("hidden", !ha.haos);
+  if (!ha.haos) return;
+  var running = ha.installed && ha.state === "started";
+  el("ha-state").textContent = t(!ha.installed ? "haNotInstalled" : running ? "haReady" : "haStopped");
+  el("ha-connect").classList.toggle("hidden", !running);
+  el("ha-connect").textContent = haConnecting ? t("haConnecting") : t("haConnect");
+  el("ha-connect").disabled = haConnecting;
+  el("ha-install").href = ha.links.install;
+  el("ha-install").classList.toggle("hidden", running);
+  el("ha-integration").href = ha.links.integration;
+  el("ha-integration").classList.toggle("hidden", !running);
+}
+function setLocked(message) {
+  el("status").textContent = message;
+  el("pair").classList.add("hidden");
+  el("ha").classList.add("hidden");
+  windowOpen = false;
+}
+async function refresh() {
+  clearTimeout(pollTimer);
+  try {
+    el("error").textContent = "";
+    var data = await call("state");
+    el("auth").classList.add("hidden");
+    if (!data.matterRunning) {
+      setLocked(t("notRunning"));
+      el("fabric-list").textContent = t("platformsUnavailable");
+      return;
+    }
+    el("status").textContent = t("running");
+    el("pair").classList.remove("hidden");
+    var list = el("fabric-list");
+    list.replaceChildren();
+    if (!data.fabrics.length) list.textContent = t("noPlatforms");
+    for (var i = 0; i < data.fabrics.length; i++) {
+      (function (fabric) {
+        var row = document.createElement("div");
+        row.className = "fabric";
+        var name = fabric.label || vendorName(fabric.rootVendorId);
+        var label = document.createElement("span");
+        label.textContent = t("platformLabel", {name: name, index: fabric.fabricIndex});
+        var button = document.createElement("button");
+        button.className = "button danger";
+        button.textContent = t("disconnect");
+        button.addEventListener("click", function () { removeFabric(fabric, name); });
+        row.append(label, button);
+        list.append(row);
+      })(data.fabrics[i]);
+    }
+    renderWindow(data.window, data.fabrics.length > 0);
+    if (!haConnecting) renderHa(await call("ha/status"));
+  } catch (e) {
+    setLocked(t(e.status === 401 || e.status === 403 ? "needAuth" : "statusFailed"));
+    el("fabric-list").textContent = t("platformsFailed");
+    if (e.status === 401 || e.status === 403) el("auth").classList.remove("hidden");
+    showError(e);
+  } finally {
+    // Poll faster while a pairing window is open so a successful pairing shows up quickly.
+    pollTimer = setTimeout(refresh, windowOpen ? 3000 : 10000);
+  }
+}
+function removeFabric(fabric, name) {
+  var dialog = document.createElement("dialog");
+  var title = document.createElement("h2");
+  title.textContent = t("dialogTitle");
+  var description = document.createElement("p");
+  description.className = "muted";
+  description.textContent = t("dialogDescription", {platform: name});
+  var label = document.createElement("label");
+  label.textContent = t("confirmPrompt", {phrase: CONFIRM_PHRASE});
+  var input = document.createElement("input");
+  input.className = "input";
+  input.autocomplete = "off";
+  var actions = document.createElement("div");
+  actions.className = "row";
+  actions.style.marginTop = "16px";
+  var cancel = document.createElement("button");
+  cancel.className = "button secondary";
+  cancel.textContent = t("cancel");
+  var submit = document.createElement("button");
+  submit.className = "button danger";
+  submit.textContent = t("disconnect");
+  submit.disabled = true;
+  input.addEventListener("input", function () { submit.disabled = input.value !== CONFIRM_PHRASE; });
+  cancel.addEventListener("click", function () { dialog.close(); });
+  submit.addEventListener("click", async function () {
+    try {
+      await call("fabrics/" + fabric.fabricIndex, {method: "DELETE", body: JSON.stringify({confirmation: input.value})});
+      dialog.close();
+      await refresh();
+    } catch (e) { showError(e); }
+  });
+  actions.append(cancel, submit);
+  dialog.append(title, description, label, input, actions);
+  dialog.addEventListener("close", function () { dialog.remove(); }, {once: true});
+  document.body.append(dialog);
+  dialog.showModal();
+}
+el("save-token").addEventListener("click", async function () {
+  token = el("token-input").value.trim();
+  if (!token) { showError({code: "TOKEN_REQUIRED"}); return; }
+  headers.Authorization = "Bearer " + token;
+  await refresh();
+});
+el("open").addEventListener("click", async function () {
+  try { await call("commissioning", {method: "POST", body: JSON.stringify({})}); await refresh(); } catch (e) { showError(e); }
+});
+el("close").addEventListener("click", async function () {
+  try { await call("commissioning", {method: "DELETE"}); await refresh(); } catch (e) { showError(e); }
+});
+el("ha-connect").addEventListener("click", async function () {
+  haConnecting = true;
+  el("ha-connect").disabled = true;
+  el("ha-connect").textContent = t("haConnecting");
+  el("ha-result").textContent = "";
+  el("ha-result").className = "muted";
+  try {
+    await call("ha/connect", {method: "POST", body: "{}"});
+    el("ha-result").textContent = t("haConnected");
+    el("ha-result").className = "ok";
+  } catch (e) {
+    el("ha-result").textContent = errorText(e);
+    el("ha-result").className = "error";
+  }
+  haConnecting = false;
+  await refresh();
+});
+el("status").textContent = t("loading");
+el("fabric-list").textContent = t("loading");
+setInterval(renderCountdown, 1000);
+refresh();
 </script></body></html>`;
 
 // z2m-fork: T006 windfront compat (Q1): the existing UI reads `mqtt.*` keys of `bridge/info` and `bridge/health`.
@@ -169,6 +567,7 @@ export class Frontend extends Extension {
     private server: Server | undefined;
     private wss!: WebSocket.Server;
     private baseUrl: string;
+    private haConnecting = false;
 
     constructor(
         zigbee: Zigbee,
@@ -254,7 +653,7 @@ export class Frontend extends Extension {
                 if (newUrl === "matter-api" || newUrl.startsWith("matter-api/")) {
                     void this.handleMatterRequest(request, response, newUrl.slice("matter-api".length)).catch((error: unknown) => {
                         logger.error(`Matter frontend request failed: ${error instanceof Error ? error.message : String(error)}`);
-                        if (!response.headersSent) this.writeMatterJson(response, 500, {error: "Matter 요청을 처리하지 못했습니다."});
+                        if (!response.headersSent) this.writeMatterError(response, 500, "INTERNAL", "The Matter request failed.");
                         else response.destroy();
                     });
                     return;
@@ -339,6 +738,26 @@ export class Frontend extends Extension {
         });
     }
 
+    /**
+     * Requests proxied by Home Assistant ingress are already authenticated by HA: the Supervisor ingress proxy is the only
+     * caller from 172.30.32.2 and always sets `X-Ingress-Path`. Direct port access must still present a token.
+     */
+    private isIngressRequest(request: IncomingMessage): boolean {
+        return request.socket.remoteAddress?.replace(/^::ffff:/, "") === "172.30.32.2" && typeof request.headers["x-ingress-path"] === "string";
+    }
+
+    private writeMatterError(response: ServerResponse, status: number, code: string, error: string): void {
+        this.writeMatterJson(response, status, {code, error});
+    }
+
+    private writeMatterServerError(response: ServerResponse, error: unknown): void {
+        if (error instanceof MatterServerError) {
+            this.writeMatterError(response, 502, error.code, error.message);
+            return;
+        }
+        throw error;
+    }
+
     private async handleMatterRequest(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
         const matter = this.getExtension?.("Matter") as Matter | undefined;
         const authorization = request.headers.authorization;
@@ -346,7 +765,7 @@ export class Frontend extends Extension {
         const frontendToken = settings.get().frontend.auth_token;
         const origin = request.headers.origin;
         if (request.method !== "GET" && request.headers["sec-fetch-site"] === "cross-site") {
-            this.writeMatterJson(response, 403, {error: "다른 사이트에서 시작한 요청은 허용되지 않습니다."});
+            this.writeMatterError(response, 403, "CROSS_SITE", "Requests started from another site are not allowed.");
             return;
         }
         if (request.method !== "GET" && origin) {
@@ -354,67 +773,109 @@ export class Frontend extends Extension {
                 const forwardedHostHeader = request.headers["x-forwarded-host"];
                 const expectedHost = (Array.isArray(forwardedHostHeader) ? forwardedHostHeader[0] : forwardedHostHeader)?.split(",")[0]?.trim() ?? request.headers.host;
                 if (new URL(origin).host.toLowerCase() !== expectedHost?.toLowerCase()) {
-                    this.writeMatterJson(response, 403, {error: "다른 사이트에서 시작한 요청은 허용되지 않습니다."});
+                    this.writeMatterError(response, 403, "CROSS_SITE", "Requests started from another site are not allowed.");
                     return;
                 }
             } catch {
-                this.writeMatterJson(response, 403, {error: "요청 출처를 확인할 수 없습니다."});
+                this.writeMatterError(response, 403, "ORIGIN_UNVERIFIED", "The request origin could not be verified.");
                 return;
             }
         }
         if (!matter) {
-            this.writeMatterJson(response, 503, {error: "Matter 관리 기능을 사용할 수 없습니다."});
+            this.writeMatterError(response, 503, "MATTER_UNAVAILABLE", "Matter management is unavailable.");
             return;
         }
-        let authenticatedByFrontend = Boolean(frontendToken && suppliedToken && safeEqual(frontendToken, suppliedToken));
-        if (!authenticatedByFrontend) {
+        if (!this.isIngressRequest(request) && !(frontendToken && suppliedToken && safeEqual(frontendToken, suppliedToken))) {
             if (!suppliedToken) {
-                this.writeMatterJson(response, 401, {error: "관리자 API 토큰이 필요합니다. 앱 설정에서 API 토큰을 지정하세요."});
+                this.writeMatterError(response, 401, "TOKEN_REQUIRED", "An administrator API token is required. Set one in the add-on settings.");
                 return;
             }
             try {
                 requireScope(matter.runtime.auth.authenticate(suppliedToken), "admin");
             } catch (error) {
-                const status = error instanceof ApiError && error.code === "FORBIDDEN" ? 403 : 401;
-                this.writeMatterJson(response, status, {error: status === 403 ? "관리자 권한이 필요합니다." : "유효한 관리자 API 토큰이 필요합니다."});
+                const forbidden = error instanceof ApiError && error.code === "FORBIDDEN";
+                this.writeMatterError(
+                    response,
+                    forbidden ? 403 : 401,
+                    forbidden ? "ADMIN_REQUIRED" : "TOKEN_INVALID",
+                    forbidden ? "Administrator permission is required." : "A valid administrator API token is required.",
+                );
                 return;
             }
         }
-        if (!matter || !settings.get().matter.enabled || matter.degraded.has("matter")) {
-            this.writeMatterJson(response, 503, {error: matter?.degraded.get("matter") ?? "Matter 브리지가 실행 중이 아닙니다."});
+        if (!settings.get().matter.enabled || matter.degraded.has("matter")) {
+            this.writeMatterError(response, 503, "MATTER_NOT_RUNNING", matter.degraded.get("matter") ?? "The Matter bridge is not running.");
             return;
         }
         const runtime = matter.runtime;
         if (!runtime.matter.currentNode) {
-            this.writeMatterJson(response, 503, {error: "Matter 노드가 아직 시작되지 않았습니다. 설정과 시작 로그를 확인하세요."});
+            this.writeMatterError(response, 503, "NODE_NOT_STARTED", "The Matter node has not started yet. Check the settings and the start-up log.");
             return;
         }
 
+        // The page counts down locally from `expiresInMs`, so client/server clock skew does not matter.
+        const withQr = async <T extends {readonly qrCode: string; readonly expiresAt: number}>(window: T) => ({
+            ...window,
+            expiresInMs: Math.max(0, window.expiresAt - Date.now()),
+            qrImage: await QRCode.toDataURL(window.qrCode, {margin: 2, width: 256, errorCorrectionLevel: "M"}),
+        });
+
         if (request.method === "GET" && path === "/state") {
             const window = runtime.commissioning.getActiveWindow();
-            const locale = getMatterLocale(request.headers["accept-language"]);
             this.writeMatterJson(response, 200, {
                 matterRunning: true,
                 fabrics: runtime.commissioning.listFabrics().map(({fabricIndex, label, rootVendorId}) => ({fabricIndex, label, rootVendorId})),
-                window: window ? {...window, qrImage: await QRCode.toDataURL(window.qrCode, {margin: 2, width: 256, errorCorrectionLevel: "M"})} : undefined,
-                disconnectMessages: locale,
+                window: window ? await withQr(window) : undefined,
             });
             return;
         }
         if (request.method === "POST" && path === "/commissioning") {
-            if (runtime.commissioning.listFabrics().length > 0) {
-                this.writeMatterJson(response, 409, {error: "추가 Matter 연결은 현재 연결된 플랫폼의 기기 공유 메뉴에서 시작하세요."});
-                return;
-            }
-            const window = await runtime.commissioning.openWindow("frontend", 10 * 60_000);
-            this.writeMatterJson(response, 201, {
-                ...window,
-                qrImage: await QRCode.toDataURL(window.qrCode, {margin: 2, width: 256, errorCorrectionLevel: "M"}),
-            });
+            // Multi-admin: a window may be opened while other platforms are already connected.
+            this.writeMatterJson(response, 201, await withQr(await runtime.commissioning.openWindow("frontend", 10 * 60_000)));
             return;
         }
         if (request.method === "DELETE" && path === "/commissioning") {
             this.writeMatterJson(response, 200, {closed: await runtime.commissioning.closeWindow()});
+            return;
+        }
+        if (request.method === "GET" && path === "/ha/status") {
+            try {
+                this.writeMatterJson(response, 200, await getMatterServerStatus());
+            } catch (error) {
+                this.writeMatterServerError(response, error);
+            }
+            return;
+        }
+        if (request.method === "POST" && path === "/ha/connect") {
+            if (!isHaos()) {
+                this.writeMatterError(response, 404, "NOT_HAOS", "Home Assistant connection is only available in the Home Assistant add-on.");
+                return;
+            }
+            if (this.haConnecting) {
+                this.writeMatterError(response, 409, "BUSY", "A Home Assistant connection is already in progress.");
+                return;
+            }
+            this.haConnecting = true;
+            try {
+                const status = await getMatterServerStatus();
+                if (!status.installed) {
+                    this.writeMatterError(response, 409, "MATTER_SERVER_NOT_INSTALLED", "The Matter Server add-on is not installed.");
+                    return;
+                }
+                if (status.state !== "started") {
+                    this.writeMatterError(response, 409, "MATTER_SERVER_STOPPED", "The Matter Server add-on is not running. Start it from its add-on page.");
+                    return;
+                }
+                const window = runtime.commissioning.getActiveWindow() ?? (await runtime.commissioning.openWindow("frontend-ha", 10 * 60_000));
+                // python-matter-server accepts the 11-digit manual code; strip any separators.
+                await commissionIntoMatterServer(window.setupCode.replace(/\D/g, ""));
+                await runtime.commissioning.closeWindow().catch(() => false);
+                this.writeMatterJson(response, 200, {connected: true});
+            } catch (error) {
+                this.writeMatterServerError(response, error);
+            } finally {
+                this.haConnecting = false;
+            }
             return;
         }
         const fabricPath = /^\/fabrics\/(\d+)$/.exec(path);
@@ -423,22 +884,22 @@ export class Frontend extends Extension {
             try {
                 body = await this.readMatterJson(request);
             } catch {
-                this.writeMatterJson(response, 400, {error: "잘못된 연결 해제 요청입니다."});
+                this.writeMatterError(response, 400, "INVALID_REQUEST", "Invalid disconnect request.");
                 return;
             }
-            const locale = getMatterLocale(request.headers["accept-language"]);
-            if (body.confirmation !== locale.confirmationPhrase) {
-                this.writeMatterJson(response, 400, {error: locale.invalidConfirmation});
+            // Language-neutral confirmation word (keep in sync with restRouter and the page).
+            if (body.confirmation !== "REMOVE") {
+                this.writeMatterError(response, 400, "INVALID_CONFIRMATION", 'Type "REMOVE" to remove this Matter connection.');
                 return;
             }
             const removed = await runtime.commissioning.removeFabric(Number(fabricPath[1]));
             this.writeMatterJson(response, removed ? 200 : 404, {removed});
             return;
         }
-        this.writeMatterJson(response, 404, {error: "Matter 관리 경로를 찾을 수 없습니다."});
+        this.writeMatterError(response, 404, "NOT_FOUND", "Matter management route not found.");
     }
 
-    private writeMatterJson(response: ServerResponse, status: number, payload: unknown): void {
+    private writeMatterJson(response: ServerResponse, status: number, payload: object): void {
         const body = stringify(payload);
         response.writeHead(status, {"Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body)});
         response.end(body);
