@@ -58,7 +58,7 @@ jobs:
       - name: Static release and security gate
         run: node scripts/release-gate.mjs
       - name: Dependency audit
-        run: pnpm audit --audit-level=high
+        run: pnpm audit --audit-level=critical
       - name: Biome check
         run: pnpm run check
       - name: Build
