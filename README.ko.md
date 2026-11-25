@@ -5,6 +5,8 @@
   <p><a href="README.md">English README</a> · <a href="LICENSE">라이선스</a></p>
 </div>
 
+프로젝트 문서: [Zigbee2Matter GitHub Pages](https://reizeo.github.io/zigbee2matter/) · [한국어 상세 문서](https://reizeo.github.io/zigbee2matter/ko/)
+
 Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이터·인터뷰 경로를 유지하면서 Zigbee 네트워크를 Matter 생태계에 연결합니다. 브로커에 의존하는 실행 경계를 in-process bridge bus로 교체하고 Matter, REST, WebSocket adapter를 추가합니다.
 
 이 저장소는 독립적으로 유지되는 포크입니다. 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다.
@@ -61,6 +63,8 @@ Matter fabric · Home Assistant · 기존 frontend · 기타 Matter controller
 - scope 인증과 비밀값이 제거된 API 오류
 
 ## 현재 구현 상태
+
+소스 구현과 패키징 구조는 마련되어 있지만, 승인된 설치·실장비·Home Assistant·Matter commissioning·backup/restore·업데이트/재시작·아키텍처 수용 검증이 끝나기 전에는 제품 전체를 최종 완료로 표시하지 않습니다. 간단한 사용 안내는 문서 페이지에, 계약과 저장소 기준은 이 README에 유지합니다.
 
 상세 작업 카드와 검증 기록은 로컬 `docs/`에 보관하며 저장소 이력에는 포함하지 않습니다.
 

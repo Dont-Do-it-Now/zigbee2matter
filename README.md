@@ -5,6 +5,8 @@
   <p><a href="README.ko.md">한국어 README</a> · <a href="LICENSE">License</a></p>
 </div>
 
+Project documentation: [Zigbee2Matter GitHub Pages](https://reizeo.github.io/zigbee2matter/) · [Korean documentation](https://reizeo.github.io/zigbee2matter/ko/)
+
 Zigbee2Matter connects a Zigbee network to Matter ecosystems while keeping the proven Zigbee device, converter, coordinator, and interview paths from Zigbee2MQTT. It replaces the broker-dependent runtime boundary with an in-process bridge bus and adds Matter, REST, and WebSocket adapters.
 
 This repository is a fork and an independent project. It is not an official Zigbee2MQTT or Connectivity Standards Alliance product.
@@ -54,6 +56,8 @@ Matter fabrics · Home Assistant · existing frontend · other Matter controller
 The main contracts cover stable identities, revisioned state, explicit command results, ordered events with replay/resync, adapter boundaries, and redacted scoped API errors.
 
 ## Current implementation
+
+The source implementation and packaging structure are present, but the product is not marked as fully accepted until the authorized installation, hardware, Home Assistant, Matter commissioning, backup/restore, update/restart, and architecture acceptance checks are complete. The documentation site is the concise project guide; this README remains the contract and repository reference.
 
 Detailed task cards and verification records are maintained locally under `docs/` and are excluded from repository history.
 
