@@ -84,6 +84,12 @@ function prepareFrontendIndex(index: string): string {
     const productBootstrap = `<script>
 (() => {
     const contributionUrl = "https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/CONTRIBUTING.md";
+    // windfront uses a HashRouter, so "#/matter" would render a blank page; send it to the server-rendered /matter page.
+    const redirectMatterHash = () => {
+        if (/^#[/]matter(?:[/?]|$)/.test(location.hash)) location.replace(new URL("matter", location.href.split("#")[0]).href);
+    };
+    redirectMatterHash();
+    window.addEventListener("hashchange", redirectMatterHash);
     // FRONTEND_LANGUAGE_BOOTSTRAP has already stored the normalized language; only Korean is localized, English is the default.
     const isKorean = () => {
         try {
@@ -92,14 +98,24 @@ function prepareFrontendIndex(index: string): string {
             return false;
         }
     };
+    const attributes = ["title", "aria-label", "alt", "placeholder", "data-tip"];
+    // Every write is guarded by "still contains the old brand", so our own mutations never re-trigger the observer endlessly.
+    const replaceAttributes = (element) => {
+        for (const name of attributes) {
+            const current = element.getAttribute?.(name);
+            if (current?.includes("Zigbee2MQTT")) element.setAttribute(name, current.replaceAll("Zigbee2MQTT", "Zigbee2Matter"));
+        }
+    };
     const replaceText = (textNode) => {
-        const value = textNode.nodeValue?.trim();
-        if (value === "Zigbee2MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, "Zigbee2Matter");
+        const current = textNode.nodeValue ?? "";
+        if (current.includes("Zigbee2MQTT")) textNode.nodeValue = current.replaceAll("Zigbee2MQTT", "Zigbee2Matter");
+        const value = current.trim();
         if (value === "MQTT") textNode.nodeValue = (textNode.nodeValue ?? "").replace(value, isKorean() ? "내부 메시지 경로" : "Internal bus");
     };
     const update = () => {
         // Assigning document.title always replaces the <title> text node, which re-triggers the observer (infinite loop).
-        if (document.title.includes("Zigbee2MQTT")) document.title = document.title.replace("Zigbee2MQTT", "Zigbee2Matter");
+        if (document.title.includes("Zigbee2MQTT")) document.title = document.title.replaceAll("Zigbee2MQTT", "Zigbee2Matter");
+        document.querySelectorAll(attributes.map((name) => "[" + name + "*='Zigbee2MQTT']").join(",")).forEach(replaceAttributes);
         document.querySelectorAll("a[href*='donate']").forEach((original) => {
             const link = document.createElement("a");
             link.className = original.className;
@@ -131,12 +147,12 @@ function prepareFrontendIndex(index: string): string {
     };
     new MutationObserver((mutations) => {
         if (mutations.some((mutation) => mutation.type === "childList")) update();
-        else mutations.forEach((mutation) => replaceText(mutation.target));
-    }).observe(document.documentElement, {childList: true, characterData: true, subtree: true});
+        else mutations.forEach((mutation) => (mutation.type === "attributes" ? replaceAttributes(mutation.target) : replaceText(mutation.target)));
+    }).observe(document.documentElement, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: attributes});
     document.addEventListener("DOMContentLoaded", update, {once: true});
 })();
 </script>`;
-    return index.replace("</head>", `${FRONTEND_LANGUAGE_BOOTSTRAP}${productBootstrap}</head>`);
+    return index.replaceAll("Zigbee2MQTT", "Zigbee2Matter").replace("</head>", `${FRONTEND_LANGUAGE_BOOTSTRAP}${productBootstrap}</head>`);
 }
 
 const MATTER_PAGE = `<!doctype html>
