@@ -1,6 +1,8 @@
 /** matter.js 0.18 ServerNode 실행 adapter(T032/T033/T034). */
 import {readFile} from "node:fs/promises";
+import {join} from "node:path";
 import type {ResolvedAttestation} from "./attestation";
+import {guardMatterBigIntJson, repairBigIntStorage} from "./bigintJson";
 import type {CommissioningBackend, CommissioningCode, FabricChangeAction, FabricRecord} from "./commissioning";
 import type {DynamicEndpointAdapter} from "./dynamicEndpoints";
 import type {EndpointRegistryEntry} from "./endpointRegistry";
@@ -229,6 +231,18 @@ export class MatterSdkRuntime {
             const sdk = await this.load();
             this.protocol ??= await loadProtocol();
             if (options.storagePath !== undefined) applyStoragePath(sdk, options.storagePath);
+            // zigbee-herdsman의 전역 BigInt.prototype.toJSON 패치가 matter.js 저장소의 bigint를 문자열로 망가뜨리는 문제 방지 + 기존 데이터 복구.
+            guardMatterBigIntJson();
+            if (options.storagePath !== undefined) {
+                const repaired = await repairBigIntStorage(
+                    join(options.storagePath, options.id),
+                    sdk as unknown as Parameters<typeof repairBigIntStorage>[1],
+                );
+                if (repaired > 0)
+                    (sdk as unknown as {Logger: {get(name: string): {warn(message: string): void}}}).Logger.get("MatterStorage").warn(
+                        `Repaired ${repaired} Matter storage file(s) whose bigint values had been saved as strings`,
+                    );
+            }
             const commissioning =
                 options.passcode === undefined || options.discriminator === undefined
                     ? undefined
