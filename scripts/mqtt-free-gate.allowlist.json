@@ -39,6 +39,13 @@
             "reason": "windfront 2.15.1 크래시 호환(T006 REWORK, Q1). WS 출력 전용"
         },
         {
+            "file": "lib/extension/frontend.ts",
+            "pattern": "value === \"MQTT\"",
+            "category": "windfront-label-rename",
+            "max": 1,
+            "reason": "windfront 화면의 'MQTT' 라벨을 내부 버스 문구로 치환하는 비교 문자열"
+        },
+        {
             "file": "lib/extension/configure.ts",
             "pattern": "mqtt_message",
             "category": "identifier",
