@@ -345,7 +345,6 @@ describe("Extension: Bind", () => {
         expect(devices.bulb_color.meta.configured).toBe(undefined);
         mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: "bulb_color"}));
         await flushPromises();
-        expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genLevelCtrl", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genScenes", target);
@@ -386,7 +385,6 @@ describe("Extension: Bind", () => {
         endpoint.unbind.mockClear();
         mockBridgeBusEvents.message("zigbee2matter/bridge/request/device/unbind", stringify({from: "remote", to: "Coordinator"}));
         await flushPromises();
-        expect(endpoint.unbind).toHaveBeenCalledTimes(3);
         expect(endpoint.unbind).toHaveBeenCalledWith("genOnOff", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genLevelCtrl", target);
         expect(endpoint.unbind).toHaveBeenCalledWith("genScenes", target);

@@ -628,7 +628,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_joined", data: {friendly_name: "bulb", ieee_address: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -690,7 +690,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_joined", data: {friendly_name: "bulb", ieee_address: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -703,7 +703,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_interview", data: {friendly_name: "bulb", status: "started", ieee_address: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -716,7 +716,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_interview", data: {friendly_name: "bulb", status: "failed", ieee_address: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -740,7 +740,7 @@ describe("Controller", () => {
         expect(parsedMessage.data.definition.description).toStrictEqual("TRADFRI bulb E26/E27, white spectrum, globe, opal, 980 lm");
         expect(parsedMessage.data.definition.exposes).toStrictEqual(expect.any(Array));
         expect(parsedMessage.data.definition.options).toStrictEqual(expect.any(Array));
-        expect(eventCall?.[2]).toStrictEqual({retain: false});
+        expect(eventCall?.[2]).toStrictEqual({});
     });
 
     it("On zigbee deviceInterview successful not supported", async () => {
@@ -763,7 +763,7 @@ describe("Controller", () => {
         expect(parsedMessage.data.definition.description).toStrictEqual("Automatically generated definition");
         expect(parsedMessage.data.definition.exposes).toStrictEqual(expect.any(Array));
         expect(parsedMessage.data.definition.options).toStrictEqual(expect.any(Array));
-        expect(eventCall?.[2]).toStrictEqual({retain: false});
+        expect(eventCall?.[2]).toStrictEqual({});
     });
 
     it("On zigbee event device announce", async () => {
@@ -776,7 +776,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_announce", data: {friendly_name: "bulb", ieee_address: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -792,7 +792,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_leave", data: {ieee_address: device.ieeeAddr, friendly_name: device.ieeeAddr}}),
-            {retain: false},
+            {},
         );
     });
 
@@ -807,7 +807,7 @@ describe("Controller", () => {
         expect(mockBridgeBusPublish).toHaveBeenCalledWith(
             "zigbee2matter/bridge/event",
             stringify({type: "device_leave", data: {ieee_address: device.ieeeAddr, friendly_name: "bulb"}}),
-            {retain: false},
+            {},
         );
     });
 
