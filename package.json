@@ -32,7 +32,10 @@
         "prepack": "pnpm run clean && pnpm run build",
         "clean": "node -e \"for (const p of ['coverage', 'dist', 'tsconfig.tsbuildinfo']) require('node:fs').rmSync(p, {recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0})\""
     },
-    "author": "Koen Kanters",
+    "author": "Reizeo",
+    "contributors": [
+        "Koen Kanters (upstream Zigbee2MQTT)"
+    ],
     "license": "GPL-3.0",
     "dependencies": {
         "@matter/main": "0.18.0",
