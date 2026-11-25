@@ -4,10 +4,24 @@ import {createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync, t
 const BACKUP_VERSION = 1;
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
+/** scrypt 파라미터(node 기본값). envelope에 기록하고 복원 시 동일한 값만 허용해 비용 조작(DoS)을 막는다. */
+const SCRYPT_PARAMS = {N: 16384, r: 8, p: 1} as const;
+
+/** 잘못된 입력(passphrase/envelope 손상)으로 인한 백업 오류. API 계층에서 INVALID_ARGUMENT로 매핑한다. 비밀은 담지 않는다. */
+export class BackupInputError extends Error {
+    readonly code = "INVALID_ARGUMENT" as const;
+
+    constructor(message: string) {
+        super(message);
+        this.name = "BackupInputError";
+    }
+}
 
 export interface BackupEnvelope {
     version: typeof BACKUP_VERSION;
     algorithm: typeof ALGORITHM;
+    /** 구버전 envelope에는 없다(기본 파라미터로 간주). */
+    kdf?: {name: "scrypt"; N: number; r: number; p: number};
     salt: string;
     iv: string;
     tag: string;
@@ -33,7 +47,7 @@ export const MIN_PASSPHRASE_LENGTH = 12;
 
 export function validatePassphrase(passphrase: unknown): asserts passphrase is string {
     if (typeof passphrase !== "string" || passphrase.length < MIN_PASSPHRASE_LENGTH) {
-        throw new Error(`backup passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`);
+        throw new BackupInputError(`backup passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`);
     }
 }
 
@@ -51,6 +65,7 @@ export function createBackup(payload: unknown, passphrase: string): string {
     const envelope: BackupEnvelope = {
         version: BACKUP_VERSION,
         algorithm: ALGORITHM,
+        kdf: {name: "scrypt", ...SCRYPT_PARAMS},
         salt: key.salt.toString("base64url"),
         iv: key.iv.toString("base64url"),
         tag: cipher.getAuthTag().toString("base64url"),
@@ -66,11 +81,11 @@ export function restoreBackup<T>(encoded: string, passphrase: string): T {
     try {
         envelope = JSON.parse(encoded) as BackupEnvelope;
     } catch {
-        throw new Error("invalid backup envelope");
+        throw new BackupInputError("invalid backup envelope");
     }
 
     if (!isBackupEnvelope(envelope)) {
-        throw new Error("unsupported or invalid backup envelope");
+        throw new BackupInputError("unsupported or invalid backup envelope");
     }
 
     try {
@@ -78,7 +93,7 @@ export function restoreBackup<T>(encoded: string, passphrase: string): T {
         const iv = decodeBase64Url(envelope.iv, 12, 12);
         const tag = decodeBase64Url(envelope.tag, 16, 16);
         const ciphertext = decodeBase64Url(envelope.ciphertext, 1);
-        const key = scryptSync(passphrase, salt, KEY_LENGTH);
+        const key = scryptSync(passphrase, salt, KEY_LENGTH, SCRYPT_PARAMS);
         const decipher = createDecipheriv(ALGORITHM, key, iv);
         decipher.setAuthTag(tag);
         const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
@@ -91,7 +106,7 @@ export function restoreBackup<T>(encoded: string, passphrase: string): T {
 
         return JSON.parse(plaintext.toString("utf8")) as T;
     } catch {
-        throw new Error("backup decryption or validation failed");
+        throw new BackupInputError("backup decryption or validation failed");
     }
 }
 
@@ -132,6 +147,7 @@ function isBackupEnvelope(value: unknown): value is BackupEnvelope {
     return (
         envelope.version === BACKUP_VERSION &&
         envelope.algorithm === ALGORITHM &&
+        (envelope.kdf === undefined || isDefaultKdf(envelope.kdf)) &&
         typeof envelope.salt === "string" &&
         typeof envelope.iv === "string" &&
         typeof envelope.tag === "string" &&
@@ -139,6 +155,13 @@ function isBackupEnvelope(value: unknown): value is BackupEnvelope {
         typeof envelope.checksum === "string" &&
         /^[0-9a-f]{64}$/.test(envelope.checksum)
     );
+}
+
+function isDefaultKdf(kdf: unknown): boolean {
+    if (typeof kdf !== "object" || kdf === null) return false;
+    const value = kdf as Record<string, unknown>;
+
+    return value.name === "scrypt" && value.N === SCRYPT_PARAMS.N && value.r === SCRYPT_PARAMS.r && value.p === SCRYPT_PARAMS.p;
 }
 
 function decodeBase64Url(value: string, minimumLength: number, exactLength?: number): Buffer {
@@ -155,7 +178,7 @@ function decodeBase64Url(value: string, minimumLength: number, exactLength?: num
 
 function validatePersistentSnapshot(snapshot: unknown): asserts snapshot is PersistentSnapshot {
     if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
-        throw new Error("invalid persistent snapshot");
+        throw new BackupInputError("invalid persistent snapshot");
     }
 
     const value = snapshot as Partial<PersistentSnapshot>;
@@ -167,12 +190,12 @@ function validatePersistentSnapshot(snapshot: unknown): asserts snapshot is Pers
         value.fabric === undefined ||
         value.endpointRegistry === undefined
     ) {
-        throw new Error("persistent snapshot identity, fabric or endpoint registry is missing");
+        throw new BackupInputError("persistent snapshot identity, fabric or endpoint registry is missing");
     }
 }
 
 function deriveKey(passphrase: string, salt: Buffer): {key: Buffer; salt: Buffer; iv: Buffer} {
-    if (typeof passphrase !== "string" || passphrase.length === 0) throw new Error("backup passphrase is required");
+    if (typeof passphrase !== "string" || passphrase.length === 0) throw new BackupInputError("backup passphrase is required");
 
-    return {key: scryptSync(passphrase, salt, KEY_LENGTH), salt, iv: randomBytes(12)};
+    return {key: scryptSync(passphrase, salt, KEY_LENGTH, SCRYPT_PARAMS), salt, iv: randomBytes(12)};
 }

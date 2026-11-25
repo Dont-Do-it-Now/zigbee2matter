@@ -1,6 +1,6 @@
-import {chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, fsyncSync} from "node:fs";
-import path from "node:path";
 import {randomUUID} from "node:crypto";
+import {chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync} from "node:fs";
+import path from "node:path";
 import type {TokenRecord} from "./auth";
 
 /** File-backed API token hashes. Token secrets are never written by this store. */

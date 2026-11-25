@@ -1,12 +1,14 @@
 /** 디렉터리/파일 단위 snapshot 경계(T061/T062). 파일 내용은 해석하지 않고 바이트 그대로 보존한다. */
 import {randomUUID} from "node:crypto";
-import {lstat, mkdir, readdir, readFile, rename, rm, writeFile} from "node:fs/promises";
+import {chmod, lstat, mkdir, readdir, readFile, rename, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 
 export interface FileSetEntry {
     /** 루트 기준 상대 경로(`/` 구분). */
     path: string;
     data: string;
+    /** 원본 파일 권한(하위 9비트). 구버전 snapshot에는 없으며 복원 시 0600을 쓴다. */
+    mode?: number;
 }
 
 export interface FileSet {
@@ -63,7 +65,10 @@ export async function readDirectoryFileSet(root: string, attempts = 5): Promise<
         try {
             const before = await signature(root, files);
             const entries: FileSetEntry[] = [];
-            for (const file of files) entries.push({path: file, data: (await readFile(path.join(root, file))).toString("base64")});
+            for (const file of files) {
+                const target = path.join(root, file);
+                entries.push({path: file, data: (await readFile(target)).toString("base64"), mode: (await lstat(target)).mode & 0o777});
+            }
             if ((await signature(root, files)) === before) return {format: "zigbee2matter.fileset", version: 1, files: entries};
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -79,7 +84,8 @@ export async function readNamedFileSet(root: string, names: readonly string[]): 
     const files: FileSetEntry[] = [];
     for (const name of names) {
         try {
-            files.push({path: name, data: (await readFile(path.join(root, name))).toString("base64")});
+            const target = path.join(root, name);
+            files.push({path: name, data: (await readFile(target)).toString("base64"), mode: (await lstat(target)).mode & 0o777});
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
@@ -103,19 +109,25 @@ export function validateFileSet(set: unknown): asserts set is FileSet {
         ) {
             throw new Error("file set entry path is unsafe");
         }
+        if (file.mode !== undefined && (!Number.isInteger(file.mode) || file.mode < 0 || file.mode > 0o777)) {
+            throw new Error("invalid file set entry");
+        }
         if (seen.has(file.path)) throw new Error("file set entry is duplicated");
         seen.add(file.path);
     }
 }
 
-/** 파일 집합을 새 디렉터리에 쓴다(0700/0600). 대상 디렉터리는 비어 있거나 없어야 한다. */
+/** 파일 집합을 새 디렉터리에 쓴다(디렉터리 0700, 파일은 원본 권한 보존·기본 0600). 대상 디렉터리는 비어 있거나 없어야 한다. */
 export async function writeFileSet(directory: string, set: FileSet): Promise<void> {
     validateFileSet(set);
     await mkdir(directory, {recursive: true, mode: 0o700});
     for (const file of set.files) {
         const target = path.join(directory, ...file.path.split("/"));
         await mkdir(path.dirname(target), {recursive: true, mode: 0o700});
-        await writeFile(target, Buffer.from(file.data, "base64"), {mode: 0o600});
+        // 원본 권한을 보존하되 소유자 읽기/쓰기는 보장하고 그룹/기타 쓰기 비트는 제거한다.
+        const mode = file.mode === undefined ? 0o600 : (file.mode | 0o600) & 0o755;
+        await writeFile(target, Buffer.from(file.data, "base64"), {mode});
+        await chmod(target, mode);
     }
 }
 

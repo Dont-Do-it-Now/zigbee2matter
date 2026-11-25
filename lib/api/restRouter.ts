@@ -3,6 +3,7 @@ import {createHash, randomUUID} from "node:crypto";
 import type {IncomingMessage, ServerResponse} from "node:http";
 import {authorizeRequest, type ApiAuth, type Principal, type Scope, ApiError, redactSecrets, toApiError} from "./auth";
 import {AuthFailureRateLimiter} from "./rateLimit";
+import {BackupInputError} from "../storage/backup";
 
 export interface RestDevice {
     readonly id: string;
@@ -223,7 +224,7 @@ export class RestApiRouter {
                 if (restoring) await backup.restore(body.passphrase);
                 else await backup.create(body.passphrase);
             } catch (error) {
-                throw new ApiError("INVALID_ARGUMENT", error instanceof Error ? error.message : "backup operation failed");
+                throw backupApiError(error);
             }
             if (restoring) this.writeJson(res, 200, {restored: true, restartRequired: true});
             else this.writeJson(res, 201, {created: true});
@@ -377,4 +378,16 @@ function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
         req.on("aborted", () => fail(new ApiError("INVALID_ARGUMENT", "Request body was aborted")));
         req.on("error", () => fail(new ApiError("INVALID_ARGUMENT", "Request body could not be read")));
     });
+}
+
+/** 백업 오류를 C6 코드로 매핑한다. 잘못된 passphrase/손상은 INVALID_ARGUMENT, 그 외 내부 메시지(경로 등)는 노출하지 않는다. */
+function backupApiError(error: unknown): ApiError {
+    if (error instanceof ApiError) return error;
+    if (error instanceof BackupInputError) return new ApiError("INVALID_ARGUMENT", error.message);
+    const message = error instanceof Error ? error.message : "";
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") return new ApiError("NOT_FOUND", "Backup not found");
+    if (message === "backup or restore is already running") return new ApiError("CONFLICT", "Backup or restore is already running");
+    if (message === "backup: lock timeout") return new ApiError("BUSY", "Backup is busy");
+
+    return new ApiError("INTERNAL", "Backup operation failed");
 }
