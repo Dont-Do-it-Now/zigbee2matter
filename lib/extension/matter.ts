@@ -91,6 +91,18 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+/** Message plus nested `cause`/`errors` (matter.js aggregates per-behavior failures), e.g. "A (errors: B (cause: C))". */
+function errorChain(error: unknown, depth = 0): string {
+    const message = errorMessage(error);
+    if (!(error instanceof Error) || depth > 5) return message;
+    const nested: string[] = [];
+    if (error.cause !== undefined) nested.push(`cause: ${errorChain(error.cause, depth + 1)}`);
+    const errors = (error as {errors?: unknown}).errors;
+    if (Array.isArray(errors)) for (const e of errors) nested.push(`errors: ${errorChain(e, depth + 1)}`);
+
+    return nested.length > 0 ? `${message} (${nested.join("; ")})` : message;
+}
+
 function isUnmappable(error: unknown): boolean {
     return errorMessage(error).includes("no approved capability");
 }
@@ -432,7 +444,7 @@ export default class Matter extends Extension {
 
     private degrade(name: "matter" | "api" | "registry", error: unknown, message: string): void {
         this.degraded.set(name, errorMessage(error));
-        logger.error(`${message} (${errorMessage(error)})`);
+        logger.error(`${message} (${errorChain(error)})`);
     }
 
     /** T019: live extended PAN ID와 저장된 값을 비교한다. 불일치면 키 재사용을 막기 위해 Matter를 차단한다. */

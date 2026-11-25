@@ -240,7 +240,8 @@ export class MatterSdkRuntime {
                           productId: options.productId,
                           productName: options.productName ?? "Zigbee2Matter Bridge",
                           nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
-                          serialNumber: options.id,
+                          // Matter serialNumber max 32 chars; a dashed UUID is 36.
+                          serialNumber: options.id.replaceAll("-", "").slice(0, 32),
                       };
             const customCertification =
                 options.attestation?.useSdkGeneratedTestCertification === false

@@ -204,6 +204,17 @@ const DEVICE_EXPORTS: Readonly<Record<string, string>> = {
     "occupancy-sensor": "OccupancySensorDevice",
 };
 
+/** Matter char strings are limited in UTF-8 bytes (nodeLabel/productName 32, productLabel 64); longer friendly names fail endpoint validation. */
+function fitMatterString(value: string, maxBytes: number): string {
+    let out = "";
+    for (const char of value) {
+        if (Buffer.byteLength(out + char) > maxBytes) break;
+        out += char;
+    }
+
+    return out;
+}
+
 export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private readonly runtimes = new Map<string, EndpointRuntime>();
     private readonly stateUpdates = new Set<string>();
@@ -241,9 +252,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             ...occupancyInit,
             ...initialClusterState(plan.capabilities, plan.rootButton !== undefined),
             bridgedDeviceBasicInformation: {
-                nodeLabel: source.name,
-                productName: source.name,
-                productLabel: source.name,
+                nodeLabel: fitMatterString(source.name, 32),
+                productName: fitMatterString(source.name, 32),
+                productLabel: fitMatterString(source.name, 64),
                 serialNumber: entry.endpointId,
                 reachable: source.available,
             },
@@ -307,7 +318,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         if (runtime === undefined) return;
 
         runtime.source.name = name;
-        await runtime.instance.set({bridgedDeviceBasicInformation: {nodeLabel: name, productLabel: name}});
+        await runtime.instance.set({bridgedDeviceBasicInformation: {nodeLabel: fitMatterString(name, 32), productLabel: fitMatterString(name, 64)}});
     }
 
     /** True when the device's current exposes would produce a different Matter device type/clusters than the live endpoint. */
