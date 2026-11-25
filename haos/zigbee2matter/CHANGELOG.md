@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.26.3
+- Prevent an unobserved Matter state report from blocking the next command to the same Zigbee device until timeout.
+
 ## 2026.11.26.2
 - Automatically advertise the Matter bridge over IPv4 and IPv6 and hide the IPv4 toggle.
 - Expose temperature and humidity as separate Matter child endpoints for broader controller compatibility.
