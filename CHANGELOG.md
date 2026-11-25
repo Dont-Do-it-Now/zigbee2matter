@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Release the Matter device command queue after dispatch so an unobserved state report cannot delay the next command until timeout.
 * Advertise Matter mDNS over IPv4 and IPv6 whenever the Matter bridge is enabled, without a separate IPv4 option.
 * Expose temperature and humidity as separate Matter child endpoints for controller compatibility.
 * Log Matter command dispatch-to-state-observation latency for troubleshooting slow responses.

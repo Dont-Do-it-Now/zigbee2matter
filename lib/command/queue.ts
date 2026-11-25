@@ -92,6 +92,14 @@ export default class DeviceCommandQueue {
         }
     };
 
+    /** Releases a dispatched command's device key while its result observation remains pending. */
+    onDispatched = (requestId: string): void => {
+        if (!this.pendingIds.has(requestId) || !this.running.has(requestId)) return;
+
+        this.running.delete(requestId);
+        if (!this.stopped) this.pump();
+    };
+
     stop(): void {
         this.stopped = true;
         this.queues.clear();

@@ -125,6 +125,8 @@ export interface CommandHooks {
     /** T013: gate/serialize the actual injection. Default runs immediately. `run` must be called at most once. */
     /** Return false when the scheduler is saturated and the command must not be injected. */
     schedule?(command: Command, run: () => void): boolean | undefined;
+    /** Matter commands release their device serialization key after the bus accepts dispatch. */
+    onDispatched?(command: Command): void;
     /** Every status change (also non-terminal). */
     onResult?(result: CommandResult): void;
 }

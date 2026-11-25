@@ -404,6 +404,7 @@ export default class CommandRouter {
                         `Matter command dispatched: ${pending.name}${pending.endpoint ? `/${pending.endpoint}` : ""} fields=${Object.keys(command.value).join(",")}`,
                     );
                 this.deps.bridgeBus.onMessage(topic, JSON.stringify(command.value));
+                if (command.source === "matter") this.deps.hooks?.onDispatched?.(command);
             }
         } catch {
             this.settleNow(pending, "failed", {errorCode: "INTERNAL", errorMessage: "dispatch failed", terminal: true});

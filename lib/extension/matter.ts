@@ -327,6 +327,7 @@ export default class Matter extends Extension {
             hooks: {
                 admit: this.commandDeduplicator.admit,
                 schedule: this.commandQueue.schedule,
+                onDispatched: (command) => this.commandQueue.onDispatched(command.requestId),
                 onResult: (result) => this.onCommandResult(result),
             },
         });
