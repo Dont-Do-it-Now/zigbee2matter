@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.11.25.11
+- Show a clear "Matter bridge is not running" state on the Matter connections page.
+- Show errors next to the action, including inside the disconnect dialog.
+- Show the right Home Assistant action for each Matter Server state (install, open add-on page, connected).
+- Improve Korean line breaks, token sign-in with Enter, and the expired pairing code state.
+
 ## 2026.11.25.10
 - Show Zigbee2Matter instead of Zigbee2MQTT in the web UI (titles, tooltips, onboarding), logs and Home Assistant device names.
 - Open the Matter connections page when #/matter is entered in the address bar.
