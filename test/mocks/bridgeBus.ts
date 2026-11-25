@@ -24,7 +24,8 @@ vi.mock("../../lib/bridgeBus/inProcess", async (importOriginal) => {
             super(eventBus, baseTopic);
             hoisted.buses.push(this);
             eventBus.onBridgeBusMessagePublished(new MockBridgeBusRecorder(), (data) => {
-                void hoisted.publish(data.topic, data.payload, {retain: data.options.clientOptions.retain ?? false});
+                const retain = data.options.clientOptions.retain;
+                void hoisted.publish(data.topic, data.payload, retain ? {retain: true} : {});
             });
         }
     }

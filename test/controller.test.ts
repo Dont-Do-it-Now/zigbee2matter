@@ -393,7 +393,7 @@ describe("Controller", () => {
             expect(publishEntityStateSpy).toHaveBeenCalledTimes(0);
             expect(extensionStopSpy).toHaveBeenCalledTimes(1);
             expect(bridgeBusDisconnectSpy).toHaveBeenCalledTimes(1);
-            expect(bridgeBusPublishSpy).toHaveBeenCalledTimes(3);
+            expect(bridgeBusPublishSpy).toHaveBeenCalledTimes(2);
         });
 
         it("during entity state publish", async () => {
@@ -411,7 +411,7 @@ describe("Controller", () => {
             expect(publishEntityStateSpy).toHaveBeenCalledTimes(1);
             expect(extensionStopSpy).toHaveBeenCalledTimes(1);
             expect(bridgeBusDisconnectSpy).toHaveBeenCalledTimes(1);
-            expect(bridgeBusPublishSpy).toHaveBeenCalledTimes(13);
+            expect(bridgeBusPublishSpy).toHaveBeenCalledTimes(12);
         });
 
         it("without signal during state start", async () => {
@@ -727,8 +727,9 @@ describe("Controller", () => {
         const payload = {device, status: "successful"};
         await mockZHEvents.deviceInterview(payload);
         await flushPromises();
-        expect(mockBridgeBusPublish.mock.calls[1][0]).toStrictEqual("zigbee2matter/bridge/event");
-        const parsedMessage = JSON.parse(mockBridgeBusPublish.mock.calls[1][1]);
+        const eventCall = mockBridgeBusPublish.mock.calls.find(([topic]) => topic === "zigbee2matter/bridge/event");
+        expect(eventCall?.[0]).toStrictEqual("zigbee2matter/bridge/event");
+        const parsedMessage = JSON.parse(eventCall?.[1] ?? "{}");
         expect(parsedMessage.type).toStrictEqual("device_interview");
         expect(parsedMessage.data.friendly_name).toStrictEqual("bulb");
         expect(parsedMessage.data.status).toStrictEqual("successful");
@@ -739,7 +740,7 @@ describe("Controller", () => {
         expect(parsedMessage.data.definition.description).toStrictEqual("TRADFRI bulb E26/E27, white spectrum, globe, opal, 980 lm");
         expect(parsedMessage.data.definition.exposes).toStrictEqual(expect.any(Array));
         expect(parsedMessage.data.definition.options).toStrictEqual(expect.any(Array));
-        expect(mockBridgeBusPublish.mock.calls[1][2]).toStrictEqual({});
+        expect(eventCall?.[2]).toStrictEqual({});
     });
 
     it("On zigbee deviceInterview successful not supported", async () => {
@@ -749,8 +750,9 @@ describe("Controller", () => {
         const payload = {device, status: "successful"};
         await mockZHEvents.deviceInterview(payload);
         await flushPromises();
-        expect(mockBridgeBusPublish.mock.calls[1][0]).toStrictEqual("zigbee2matter/bridge/event");
-        const parsedMessage = JSON.parse(mockBridgeBusPublish.mock.calls[1][1]);
+        const eventCall = mockBridgeBusPublish.mock.calls.find(([topic]) => topic === "zigbee2matter/bridge/event");
+        expect(eventCall?.[0]).toStrictEqual("zigbee2matter/bridge/event");
+        const parsedMessage = JSON.parse(eventCall?.[1] ?? "{}");
         expect(parsedMessage.type).toStrictEqual("device_interview");
         expect(parsedMessage.data.friendly_name).toStrictEqual(device.ieeeAddr);
         expect(parsedMessage.data.status).toStrictEqual("successful");
@@ -761,7 +763,7 @@ describe("Controller", () => {
         expect(parsedMessage.data.definition.description).toStrictEqual("Automatically generated definition");
         expect(parsedMessage.data.definition.exposes).toStrictEqual(expect.any(Array));
         expect(parsedMessage.data.definition.options).toStrictEqual(expect.any(Array));
-        expect(mockBridgeBusPublish.mock.calls[1][2]).toStrictEqual({});
+        expect(eventCall?.[2]).toStrictEqual({});
     });
 
     it("On zigbee event device announce", async () => {
