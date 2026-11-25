@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import {mkdir, writeFile} from "node:fs/promises";
+import {createRequire} from "node:module";
+import {resolve} from "node:path";
 
 const require = createRequire(import.meta.url);
 const converterPackage = require("zigbee-herdsman-converters/package.json");
@@ -28,14 +28,14 @@ const devices = definitions
         whiteLabel: Array.isArray(definition.whiteLabel)
             ? definition.whiteLabel
                   .filter((label) => label && typeof label === "object")
-                  .map(({ vendor, model }) => ({ vendor: vendor ?? "", model: model ?? "" }))
+                  .map(({vendor, model}) => ({vendor: vendor ?? "", model: model ?? ""}))
             : [],
         exposes: getFeatureNames(definition.exposes),
     }))
     .sort((a, b) => a.vendor.localeCompare(b.vendor) || a.model.localeCompare(b.model));
 
 const outputDirectory = resolve("site/assets");
-await mkdir(outputDirectory, { recursive: true });
+await mkdir(outputDirectory, {recursive: true});
 await writeFile(
     resolve(outputDirectory, "devices.json"),
     `{

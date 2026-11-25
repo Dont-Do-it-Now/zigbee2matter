@@ -1,137 +1,125 @@
 {
-  "nav": {
-    "overview": "소개",
-    "guide": "설치 가이드",
-    "devices": "지원 장치",
-    "configuration": "설정",
-    "license": "라이선스",
-    "github": "GitHub"
-  },
-  "home": {
-    "eyebrow": "독립 Matter 브리지",
-    "title": "Zigbee를 Matter로 연결합니다.",
-    "lead": "MQTT 브로커 없이 Zigbee 장치를 Matter 생태계에 연결합니다.",
-    "intro": "Zigbee2MQTT의 장치·코디네이터·converter 생태계를 바탕으로 지원되는 기능을 Matter 브리지를 통해 노출합니다.",
-    "start": "설치 가이드 시작",
-    "cards": [
-      [
-        "처음 시작하기",
-        "설치 가이드",
-        "Home Assistant OS, Docker, 소스 설치 중 방식을 고르고 코디네이터와 첫 장치를 연결합니다."
-      ],
-      [
-        "호환성",
-        "지원 장치",
-        "Zigbee converter 목록을 검색하고 Matter 지원 범위를 확인합니다."
-      ],
-      [
-        "설정 참고",
-        "구성 안내",
-        "코디네이터, frontend, API, Zigbee 네트워크와 Matter 브리지를 설정합니다."
-      ]
-    ],
-    "architectureTitle": "Zigbee 상태를 Matter endpoint로",
-    "architecture": "Zigbee 네트워크가 장치 상태의 기준입니다. 지원되는 기능을 영속 Matter endpoint로 매핑하고 Home Assistant 및 REST/WebSocket 연결 경로를 제공합니다.",
-      "architectureAlt": "Zigbee 장치가 Zigbee2Matter를 통해 Matter, Home Assistant와 API 클라이언트에 연결되는 구조도",
-    "projectTitle": "독립 오픈소스 소프트웨어",
-    "project": "Zigbee2Matter는 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다. Zigbee converter 지원이 모든 기능의 Matter 매핑을 보장하지는 않습니다.",
-    "license": "GNU GPL v3.0으로 배포합니다. 재배포 시 원본 고지를 유지하세요. 의존성, 인증, vendor ID와 상표에는 별도 조건이 적용될 수 있습니다.",
-    "licenseLink": "GPL-3.0 전문 읽기",
-    "source": "소스 코드와 릴리스"
-  },
-  "guide": {
-    "title": "설치하고 첫 장치를 연결하세요",
-    "lead": "플랫폼을 선택해 설치하고 Zigbee 코디네이터를 설정한 뒤 장치를 페어링합니다.",
-    "sections": [
-      [
-        "requirements",
-        "설치 전 준비",
-        "<ul><li>USB 또는 TCP로 연결할 수 있는 지원 Zigbee 코디네이터</li><li>소스 설치 시 Linux, Node.js 22.13.x 또는 24.x, pnpm 11.26</li><li>Matter 사용 시 같은 로컬 네트워크의 IPv6와 mDNS multicast</li><li>설정, Zigbee 네트워크 데이터와 Matter fabric 키를 보존할 영속 저장 공간</li></ul><p class=\"note\">코디네이터를 USB 3 및 Wi-Fi 간섭원에서 떨어뜨리세요. 기존 네트워크 이관 전 별도 백업을 만드세요.</p>"
-      ],
-      [
-        "haos",
-        "Home Assistant OS",
-        "<ol><li>저장소 루트에서 Windows는 <code>haos/prepare-local.ps1</code>, Linux/macOS는 <code>haos/prepare-local.sh</code>를 실행합니다.</li><li>전체 <code>haos/zigbee2matter</code> 폴더를 Samba add-ons 공유 또는 SSH로 HAOS의 <code>/addons/zigbee2matter</code>에 복사합니다.</li><li>Home Assistant의 <strong>설정 → 애드온 → 애드온 스토어</strong>에서 새로고침한 뒤 로컬 Zigbee2Matter add-on을 설치합니다.</li><li>애드온 옵션에 serial port와 adapter를 지정하고 실행합니다.</li></ol><p>Matter mDNS와 UDP 5540을 위해 host networking을 사용합니다. 설정과 Zigbee 데이터는 <code>/data</code>에 저장되고 Home Assistant 백업에 포함됩니다.</p>"
-      ],
-      [
-        "docker",
-        "Linux Docker",
-        "<p>저장소 루트에서 코디네이터 환경 변수를 지정하고 Compose profile 하나를 실행합니다. 코디네이터와 Matter 탐색을 위해 host networking을 사용합니다.</p><pre><code># USB 코디네이터\nexport ZIGBEE2MATTER_USB_DEVICE=/dev/serial/by-id/your-coordinator\ndocker compose -f docker/compose.yaml --profile usb up -d --build\n\n# TCP 코디네이터\nexport ZIGBEE2MATTER_SERIAL_PORT=tcp://192.168.1.20:6638\nexport ZIGBEE2MATTER_SERIAL_ADAPTER=ember\ndocker compose -f docker/compose.yaml --profile tcp up -d --build</code></pre><p>Frontend는 8080 포트에서 대기합니다. 방화벽으로 접근을 제한하고 업데이트 시 <code>zigbee2matter-data</code> volume을 유지하세요.</p>"
-      ],
-      [
-        "source",
-        "소스에서 실행",
-        "<p>저장소 루트에서 Node.js 22.13.x 또는 24.x와 pnpm 11.26을 사용합니다.</p><pre><code>pnpm install --frozen-lockfile\npnpm run build\npnpm start</code></pre><p>기본 frontend 주소는 <code>http://localhost:8080</code>이며 runtime 파일은 설정된 data 디렉터리에 저장됩니다.</p>"
-      ],
-      [
-        "first-start",
-        "코디네이터 설정",
-        "<ol><li>Frontend를 열고 시작 로그에 코디네이터 오류가 없는지 확인합니다.</li><li>자동 탐색이 실패하면 runtime의 <code>configuration.yaml</code>에 <code>serial.port</code>와 <code>serial.adapter</code>를 지정합니다. 소스 실행은 <code>data/configuration.yaml</code>, HAOS는 <code>/data/configuration.yaml</code>, Docker Compose는 <code>/app/data/configuration.yaml</code>을 사용합니다.</li><li>USB는 안정적인 <code>/dev/serial/by-id/...</code> 경로, 네트워크 연결은 <code>tcp://host:port</code>를 사용합니다. 파일 편집 전 서비스를 중지하고 저장 후 다시 시작합니다.</li><li>Matter를 켜거나 자동화를 이관하기 전에 브리지가 온라인인지 확인합니다.</li></ol><p>일반적인 adapter 값은 <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code>, <code>zboss</code>입니다.</p>"
-      ],
-      [
-        "pair",
-        "Zigbee 장치 페어링",
-        "<ol><li>Frontend에서 permit-join을 잠시 켭니다.</li><li>제조사 안내에 따라 장치를 페어링 모드로 전환하고 코디네이터 가까이에 둡니다.</li><li>인터뷰가 끝나면 모델과 지원 상태를 확인합니다.</li><li>알아보기 쉬운 이름을 지정하고 frontend에서 제어를 시험합니다.</li><li>완료 후 permit-join을 끕니다.</li></ol><p>Zigbee에 참여할 수 있어도 제어 기능이나 Matter 매핑은 지원되지 않을 수 있습니다. 장치별 안내는 <a href=\"#devices\">장치 카탈로그</a>를 확인하세요.</p>"
-      ]
-    ]
-  },
-  "devices": {
-    "title": "지원 Zigbee 장치",
-    "lead": "현재 릴리스에 포함된 converter 정의를 검색합니다.",
-    "search": "모델, 브랜드, 장치 ID, 기능 검색",
-    "loading": "장치 목록을 불러오는 중…",
-    "failed": "장치 목록을 불러오지 못했습니다. 새로고침하거나 원본 목록을 확인하세요.",
-    "count": "검색 결과 {count}개 · {shown}개 표시",
-    "empty": "일치하는 장치가 없습니다. 모델명이나 브랜드로 다시 검색하세요.",
-    "limit": "검색 결과 {count}개 중 처음 {shown}개입니다. 검색어를 입력해 범위를 좁히세요.",
-    "note": "이 목록은 Zigbee converter 정의가 있다는 뜻입니다. Matter 노출이나 기능 일치를 보장하지 않으므로 페어링 후 frontend에서 확인하세요.",
-    "exposes": "Zigbee 기능",
-    "ids": "장치 ID",
-      "attribution": "장치 데이터: zigbee-herdsman-converters {version} · MIT 라이선스",
-    "upstream": "원본 장치 데이터베이스 열기"
-  },
-  "configuration": {
-    "title": "설정 참고",
-    "lead": "설정은 runtime data 디렉터리에서 읽습니다. 파일을 편집하기 전에 서비스를 중지하고 저장 후 다시 시작하세요.",
-    "sections": [
-      [
-        "coordinator",
-        "코디네이터",
-        "<p>자동 탐색이 실패하거나 연결 경로를 지정해야 할 때 설정합니다.</p><pre><code>serial:\n  port: /dev/serial/by-id/your-coordinator\n  adapter: ember</code></pre><p>네트워크 코디네이터는 <code>tcp://host:port</code>를 사용합니다. 일반적인 adapter는 <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code>, <code>zboss</code>입니다.</p>"
-      ],
-      [
-        "frontend",
-        "Frontend",
-        "<p>웹 frontend는 기본적으로 8080 포트에서 활성화됩니다.</p><pre><code>frontend:\n  enabled: true\n  port: 8080</code></pre><p>LAN에 연결할 때는 방화벽으로 신뢰하는 장치만 접근하도록 제한하세요.</p>"
-      ],
-      [
-        "api",
-        "관리 API",
-        "<p>API 기본 주소는 loopback의 <code>8090</code>입니다. localhost 바깥에 노출하기 전에 인증 token을 설정하세요.</p><pre><code>api:\n  enabled: true\n  host: 127.0.0.1\n  port: 8090\n  # auth_token: !secret zigbee2matter_api_token</code></pre>"
-      ],
-      [
-        "network",
-        "Zigbee 네트워크와 데이터",
-        "<p>data 디렉터리를 영속 저장하세요. Zigbee DB와 네트워크 identity가 들어 있습니다. 예제 설정은 최초 실행 때 network key와 ID를 생성합니다. 기존 네트워크를 복원할 때 값을 새로 만들지 마세요.</p><pre><code>advanced:\n  network_key: GENERATE\n  pan_id: GENERATE\n  ext_pan_id: GENERATE</code></pre>"
-      ],
-      [
-        "matter",
-        "Matter 브리지",
-        "<p>처음에는 Matter를 비활성화하세요. Commissioning 시 브리지를 켜고 두 commissioning 값을 함께 지정합니다. IPv6가 필요하며 브리지와 컨트롤러 사이에서 mDNS가 통과해야 합니다.</p><pre><code>matter:\n  enabled: true\n  passcode: 20202021\n  discriminator: 3840\n  attestation:\n    mode: development</code></pre><p>Development attestation은 개발용입니다. 제품 운영에는 소유한 인증 정보와 VID 권한이 필요합니다. passcode, 개인 키와 fabric 백업을 공유하지 마세요.</p>"
-      ],
-      [
-        "example",
-        "전체 예제",
-        "<p>저장소의 <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">전체 예제 설정 파일</a>을 확인하세요.</p>"
-      ]
-    ]
-  },
-  "license": {
-    "title": "라이선스와 저작자 표시",
-    "text": "Zigbee2Matter는 GNU GPL v3.0으로 배포합니다. 재배포 시 원본 고지를 유지하세요. 제3자 의존성은 각각의 라이선스를 따르며, 장치 카탈로그 데이터는 MIT 라이선스의 zigbee-herdsman-converters에서 가져옵니다.",
-    "project": "독립 프로젝트이며 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다.",
-    "full": "GPL-3.0 전문 읽기",
-    "upstream": "Converter 원본과 라이선스"
-  },
-  "footer": "Zigbee2Matter · 독립 오픈소스 프로젝트 · GPL-3.0"
+    "nav": {
+        "overview": "소개",
+        "guide": "설치 가이드",
+        "devices": "지원 장치",
+        "configuration": "설정",
+        "license": "라이선스",
+        "github": "GitHub"
+    },
+    "home": {
+        "eyebrow": "독립 Matter 브리지",
+        "title": "Zigbee를 Matter로 연결합니다.",
+        "lead": "MQTT 브로커 없이 Zigbee 장치를 Matter 생태계에 연결합니다.",
+        "intro": "Zigbee2MQTT의 장치·코디네이터·converter 생태계를 바탕으로 지원되는 기능을 Matter 브리지를 통해 노출합니다.",
+        "start": "설치 가이드 시작",
+        "cards": [
+            ["처음 시작하기", "설치 가이드", "Home Assistant OS, Docker, 소스 설치 중 방식을 고르고 코디네이터와 첫 장치를 연결합니다."],
+            ["호환성", "지원 장치", "Zigbee converter 목록을 검색하고 Matter 지원 범위를 확인합니다."],
+            ["설정 참고", "구성 안내", "코디네이터, frontend, API, Zigbee 네트워크와 Matter 브리지를 설정합니다."]
+        ],
+        "architectureTitle": "Zigbee 상태를 Matter endpoint로",
+        "architecture": "Zigbee 네트워크가 장치 상태의 기준입니다. 지원되는 기능을 영속 Matter endpoint로 매핑하고 Home Assistant 및 REST/WebSocket 연결 경로를 제공합니다.",
+        "architectureAlt": "Zigbee 장치가 Zigbee2Matter를 통해 Matter, Home Assistant와 API 클라이언트에 연결되는 구조도",
+        "projectTitle": "독립 오픈소스 소프트웨어",
+        "project": "Zigbee2Matter는 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다. Zigbee converter 지원이 모든 기능의 Matter 매핑을 보장하지는 않습니다.",
+        "license": "GNU GPL v3.0으로 배포합니다. 재배포 시 원본 고지를 유지하세요. 의존성, 인증, vendor ID와 상표에는 별도 조건이 적용될 수 있습니다.",
+        "licenseLink": "GPL-3.0 전문 읽기",
+        "source": "소스 코드와 릴리스"
+    },
+    "guide": {
+        "title": "설치하고 첫 장치를 연결하세요",
+        "lead": "플랫폼을 선택해 설치하고 Zigbee 코디네이터를 설정한 뒤 장치를 페어링합니다.",
+        "sections": [
+            [
+                "requirements",
+                "설치 전 준비",
+                "<ul><li>USB 또는 TCP로 연결할 수 있는 지원 Zigbee 코디네이터</li><li>소스 설치 시 Linux, Node.js 22.13.x 또는 24.x, pnpm 11.26</li><li>Matter 사용 시 같은 로컬 네트워크의 IPv6와 mDNS multicast</li><li>설정, Zigbee 네트워크 데이터와 Matter fabric 키를 보존할 영속 저장 공간</li></ul><p class=\"note\">코디네이터를 USB 3 및 Wi-Fi 간섭원에서 떨어뜨리세요. 기존 네트워크 이관 전 별도 백업을 만드세요.</p>"
+            ],
+            [
+                "haos",
+                "Home Assistant OS",
+                "<ol><li>저장소 루트에서 Windows는 <code>haos/prepare-local.ps1</code>, Linux/macOS는 <code>haos/prepare-local.sh</code>를 실행합니다.</li><li>전체 <code>haos/zigbee2matter</code> 폴더를 Samba add-ons 공유 또는 SSH로 HAOS의 <code>/addons/zigbee2matter</code>에 복사합니다.</li><li>Home Assistant의 <strong>설정 → 애드온 → 애드온 스토어</strong>에서 새로고침한 뒤 로컬 Zigbee2Matter add-on을 설치합니다.</li><li>애드온 옵션에 serial port와 adapter를 지정하고 실행합니다.</li></ol><p>Matter mDNS와 UDP 5540을 위해 host networking을 사용합니다. 설정과 Zigbee 데이터는 <code>/data</code>에 저장되고 Home Assistant 백업에 포함됩니다.</p>"
+            ],
+            [
+                "docker",
+                "Linux Docker",
+                "<p>저장소 루트에서 코디네이터 환경 변수를 지정하고 Compose profile 하나를 실행합니다. 코디네이터와 Matter 탐색을 위해 host networking을 사용합니다.</p><pre><code># USB 코디네이터\nexport ZIGBEE2MATTER_USB_DEVICE=/dev/serial/by-id/your-coordinator\ndocker compose -f docker/compose.yaml --profile usb up -d --build\n\n# TCP 코디네이터\nexport ZIGBEE2MATTER_SERIAL_PORT=tcp://192.168.1.20:6638\nexport ZIGBEE2MATTER_SERIAL_ADAPTER=ember\ndocker compose -f docker/compose.yaml --profile tcp up -d --build</code></pre><p>Frontend는 8080 포트에서 대기합니다. 방화벽으로 접근을 제한하고 업데이트 시 <code>zigbee2matter-data</code> volume을 유지하세요.</p>"
+            ],
+            [
+                "source",
+                "소스에서 실행",
+                "<p>저장소 루트에서 Node.js 22.13.x 또는 24.x와 pnpm 11.26을 사용합니다.</p><pre><code>pnpm install --frozen-lockfile\npnpm run build\npnpm start</code></pre><p>기본 frontend 주소는 <code>http://localhost:8080</code>이며 runtime 파일은 설정된 data 디렉터리에 저장됩니다.</p>"
+            ],
+            [
+                "first-start",
+                "코디네이터 설정",
+                "<ol><li>Frontend를 열고 시작 로그에 코디네이터 오류가 없는지 확인합니다.</li><li>자동 탐색이 실패하면 runtime의 <code>configuration.yaml</code>에 <code>serial.port</code>와 <code>serial.adapter</code>를 지정합니다. 소스 실행은 <code>data/configuration.yaml</code>, HAOS는 <code>/data/configuration.yaml</code>, Docker Compose는 <code>/app/data/configuration.yaml</code>을 사용합니다.</li><li>USB는 안정적인 <code>/dev/serial/by-id/...</code> 경로, 네트워크 연결은 <code>tcp://host:port</code>를 사용합니다. 파일 편집 전 서비스를 중지하고 저장 후 다시 시작합니다.</li><li>Matter를 켜거나 자동화를 이관하기 전에 브리지가 온라인인지 확인합니다.</li></ol><p>일반적인 adapter 값은 <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code>, <code>zboss</code>입니다.</p>"
+            ],
+            [
+                "pair",
+                "Zigbee 장치 페어링",
+                "<ol><li>Frontend에서 permit-join을 잠시 켭니다.</li><li>제조사 안내에 따라 장치를 페어링 모드로 전환하고 코디네이터 가까이에 둡니다.</li><li>인터뷰가 끝나면 모델과 지원 상태를 확인합니다.</li><li>알아보기 쉬운 이름을 지정하고 frontend에서 제어를 시험합니다.</li><li>완료 후 permit-join을 끕니다.</li></ol><p>Zigbee에 참여할 수 있어도 제어 기능이나 Matter 매핑은 지원되지 않을 수 있습니다. 장치별 안내는 <a href=\"#devices\">장치 카탈로그</a>를 확인하세요.</p>"
+            ]
+        ]
+    },
+    "devices": {
+        "title": "지원 Zigbee 장치",
+        "lead": "현재 릴리스에 포함된 converter 정의를 검색합니다.",
+        "search": "모델, 브랜드, 장치 ID, 기능 검색",
+        "loading": "장치 목록을 불러오는 중…",
+        "failed": "장치 목록을 불러오지 못했습니다. 새로고침하거나 원본 목록을 확인하세요.",
+        "count": "검색 결과 {count}개 · {shown}개 표시",
+        "empty": "일치하는 장치가 없습니다. 모델명이나 브랜드로 다시 검색하세요.",
+        "limit": "검색 결과 {count}개 중 처음 {shown}개입니다. 검색어를 입력해 범위를 좁히세요.",
+        "note": "이 목록은 Zigbee converter 정의가 있다는 뜻입니다. Matter 노출이나 기능 일치를 보장하지 않으므로 페어링 후 frontend에서 확인하세요.",
+        "exposes": "Zigbee 기능",
+        "ids": "장치 ID",
+        "attribution": "장치 데이터: zigbee-herdsman-converters {version} · MIT 라이선스",
+        "upstream": "원본 장치 데이터베이스 열기"
+    },
+    "configuration": {
+        "title": "설정 참고",
+        "lead": "설정은 runtime data 디렉터리에서 읽습니다. 파일을 편집하기 전에 서비스를 중지하고 저장 후 다시 시작하세요.",
+        "sections": [
+            [
+                "coordinator",
+                "코디네이터",
+                "<p>자동 탐색이 실패하거나 연결 경로를 지정해야 할 때 설정합니다.</p><pre><code>serial:\n  port: /dev/serial/by-id/your-coordinator\n  adapter: ember</code></pre><p>네트워크 코디네이터는 <code>tcp://host:port</code>를 사용합니다. 일반적인 adapter는 <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code>, <code>zboss</code>입니다.</p>"
+            ],
+            [
+                "frontend",
+                "Frontend",
+                "<p>웹 frontend는 기본적으로 8080 포트에서 활성화됩니다.</p><pre><code>frontend:\n  enabled: true\n  port: 8080</code></pre><p>LAN에 연결할 때는 방화벽으로 신뢰하는 장치만 접근하도록 제한하세요.</p>"
+            ],
+            [
+                "api",
+                "관리 API",
+                "<p>API 기본 주소는 loopback의 <code>8090</code>입니다. localhost 바깥에 노출하기 전에 인증 token을 설정하세요.</p><pre><code>api:\n  enabled: true\n  host: 127.0.0.1\n  port: 8090\n  # auth_token: !secret zigbee2matter_api_token</code></pre>"
+            ],
+            [
+                "network",
+                "Zigbee 네트워크와 데이터",
+                "<p>data 디렉터리를 영속 저장하세요. Zigbee DB와 네트워크 identity가 들어 있습니다. 예제 설정은 최초 실행 때 network key와 ID를 생성합니다. 기존 네트워크를 복원할 때 값을 새로 만들지 마세요.</p><pre><code>advanced:\n  network_key: GENERATE\n  pan_id: GENERATE\n  ext_pan_id: GENERATE</code></pre>"
+            ],
+            [
+                "matter",
+                "Matter 브리지",
+                "<p>처음에는 Matter를 비활성화하세요. Commissioning 시 브리지를 켜고 두 commissioning 값을 함께 지정합니다. IPv6가 필요하며 브리지와 컨트롤러 사이에서 mDNS가 통과해야 합니다.</p><pre><code>matter:\n  enabled: true\n  passcode: 20202021\n  discriminator: 3840\n  attestation:\n    mode: development</code></pre><p>Development attestation은 개발용입니다. 제품 운영에는 소유한 인증 정보와 VID 권한이 필요합니다. passcode, 개인 키와 fabric 백업을 공유하지 마세요.</p>"
+            ],
+            [
+                "example",
+                "전체 예제",
+                "<p>저장소의 <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">전체 예제 설정 파일</a>을 확인하세요.</p>"
+            ]
+        ]
+    },
+    "license": {
+        "title": "라이선스와 저작자 표시",
+        "text": "Zigbee2Matter는 GNU GPL v3.0으로 배포합니다. 재배포 시 원본 고지를 유지하세요. 제3자 의존성은 각각의 라이선스를 따르며, 장치 카탈로그 데이터는 MIT 라이선스의 zigbee-herdsman-converters에서 가져옵니다.",
+        "project": "독립 프로젝트이며 공식 Zigbee2MQTT 또는 Connectivity Standards Alliance 제품이 아닙니다.",
+        "full": "GPL-3.0 전문 읽기",
+        "upstream": "Converter 원본과 라이선스"
+    },
+    "footer": "Zigbee2Matter · 독립 오픈소스 프로젝트 · GPL-3.0"
 }

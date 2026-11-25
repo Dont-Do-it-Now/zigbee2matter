@@ -1,137 +1,129 @@
 {
-  "nav": {
-    "overview": "Overview",
-    "guide": "Guide",
-    "devices": "Devices",
-    "configuration": "Configuration",
-    "license": "License",
-    "github": "GitHub"
-  },
-  "home": {
-    "eyebrow": "Independent Matter bridge",
-    "title": "Zigbee, bridged to Matter.",
-    "lead": "Connect Zigbee devices to Matter ecosystems without an MQTT broker.",
-    "intro": "Built on Zigbee2MQTT’s device, coordinator and converter ecosystem, Zigbee2Matter exposes supported capabilities through a Matter bridge.",
-    "start": "Start with the guide",
-    "cards": [
-      [
-        "Start here",
-        "Installation guide",
-        "Choose Home Assistant OS, Docker or source installation, then connect your coordinator and first device."
-      ],
-      [
-        "Compatibility",
-        "Supported devices",
-        "Search the Zigbee converter catalogue and learn what device support means for Matter."
-      ],
-      [
-        "Reference",
-        "Configuration",
-        "Set up the coordinator, frontend, API, Zigbee network and Matter bridge."
-      ]
-    ],
-    "architectureTitle": "Zigbee state in, Matter endpoints out",
-    "architecture": "The Zigbee network remains the source of device state. Supported capabilities are mapped to persistent Matter endpoints, with optional Home Assistant and REST/WebSocket interfaces.",
-      "architectureAlt": "Diagram showing Zigbee devices connected through Zigbee2Matter to Matter, Home Assistant and API clients",
-    "projectTitle": "Independent open-source software",
-    "project": "Zigbee2Matter is not an official Zigbee2MQTT or Connectivity Standards Alliance product. Zigbee converter support does not guarantee that every feature maps to Matter.",
-    "license": "Distributed under GNU GPL v3.0. Preserve upstream notices when redistributing. Dependencies, certification, vendor IDs and trademarks may have separate terms.",
-    "licenseLink": "Read the full GPL-3.0 license",
-    "source": "Source code and releases"
-  },
-  "guide": {
-    "title": "Install and connect your first device",
-    "lead": "Choose a platform, configure the Zigbee coordinator, then pair and check a device.",
-    "sections": [
-      [
-        "requirements",
-        "Before you begin",
-        "<ul><li>A supported Zigbee coordinator connected by USB or TCP.</li><li>For source installs: Linux, Node.js 22.13.x or 24.x, and pnpm 11.26.</li><li>For Matter: IPv6 and mDNS multicast between the bridge and controller on the same local network.</li><li>Persistent storage for configuration, Zigbee network data and Matter fabric keys.</li></ul><p class=\"note\">Keep the coordinator away from USB 3 and Wi-Fi interference. Make a separate backup before migrating an existing network.</p>"
-      ],
-      [
-        "haos",
-        "Home Assistant OS",
-        "<ol><li>From the repository root, run <code>haos/prepare-local.ps1</code> on Windows or <code>haos/prepare-local.sh</code> on Linux/macOS.</li><li>Copy the full <code>haos/zigbee2matter</code> folder to HAOS at <code>/addons/zigbee2matter</code> using the Samba add-ons share or SSH.</li><li>In Home Assistant, open <strong>Settings → Add-ons → Add-on Store</strong>, refresh, and install the local Zigbee2Matter add-on.</li><li>Set the serial port and adapter in add-on options. Start the add-on and open its frontend.</li></ol><p>Host networking is enabled for Matter mDNS and UDP 5540. Configuration and Zigbee data are stored under <code>/data</code> and included in Home Assistant backups.</p>"
-      ],
-      [
-        "docker",
-        "Docker on Linux",
-        "<p>From the repository root, set the variables for your coordinator and start one Compose profile. Host networking is used for coordinator access and Matter discovery.</p><pre><code># USB coordinator\nexport ZIGBEE2MATTER_USB_DEVICE=/dev/serial/by-id/your-coordinator\ndocker compose -f docker/compose.yaml --profile usb up -d --build\n\n# TCP coordinator\nexport ZIGBEE2MATTER_SERIAL_PORT=tcp://192.168.1.20:6638\nexport ZIGBEE2MATTER_SERIAL_ADAPTER=ember\ndocker compose -f docker/compose.yaml --profile tcp up -d --build</code></pre><p>The frontend listens on port <code>8080</code>. Restrict access with your firewall. Keep the named <code>zigbee2matter-data</code> volume when updating the container.</p>"
-      ],
-      [
-        "source",
-        "Run from source",
-        "<p>Use Node.js 22.13.x or 24.x and pnpm 11.26 in the repository root.</p><pre><code>pnpm install --frozen-lockfile\npnpm run build\npnpm start</code></pre><p>The default frontend is <code>http://localhost:8080</code>. Runtime files are stored in the configured data directory.</p>"
-      ],
-      [
-        "first-start",
-        "Configure the coordinator",
-        "<ol><li>Open the frontend and check startup logs for coordinator errors.</li><li>If discovery fails, set <code>serial.port</code> and <code>serial.adapter</code> in <code>configuration.yaml</code>. The default source path is <code>data/configuration.yaml</code>; HAOS uses <code>/data/configuration.yaml</code>, and Docker Compose uses <code>/app/data/configuration.yaml</code>.</li><li>Use a stable <code>/dev/serial/by-id/...</code> USB path or <code>tcp://host:port</code>. Stop the service before editing configuration, then restart it.</li><li>Confirm the bridge is online before enabling Matter or migrating automations.</li></ol><p>Common adapter values include <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code> and <code>zboss</code>.</p>"
-      ],
-      [
-        "pair",
-        "Pair a Zigbee device",
-        "<ol><li>Temporarily enable permit-join in the frontend.</li><li>Put the device into pairing mode using its manufacturer instructions, near the coordinator.</li><li>Wait for the interview to finish and confirm the model and support status.</li><li>Assign a friendly name and try its controls in the frontend.</li><li>Disable permit-join when finished.</li></ol><p>A device may join Zigbee even when its controls or Matter mapping are unsupported. Search the <a href=\"#devices\">device catalogue</a> for pairing notes.</p>"
-      ]
-    ]
-  },
-  "devices": {
-    "title": "Supported Zigbee devices",
-    "lead": "Search the converter definitions bundled with this release.",
-    "search": "Search model, brand, device ID or feature",
-    "loading": "Loading device catalogue…",
-    "failed": "Could not load the catalogue. Reload the page or browse the upstream list.",
-    "count": "{count} matches · showing {shown}",
-    "empty": "No matching devices. Try a model number or brand name.",
-    "limit": "Showing the first {shown} of {count}. Search to narrow the list.",
-    "note": "This list means a Zigbee converter definition exists. It does not guarantee Matter exposure or feature parity; check the device in the frontend after pairing.",
-    "exposes": "Zigbee features",
-    "ids": "Device IDs",
-      "attribution": "Catalogue data: zigbee-herdsman-converters {version} · MIT license",
-    "upstream": "Open the upstream device database"
-  },
-  "configuration": {
-    "title": "Configuration reference",
-    "lead": "Configuration is read from the runtime data directory. Stop the service before editing the file, then restart to apply changes.",
-    "sections": [
-      [
-        "coordinator",
-        "Coordinator",
-        "<p>Set these only when automatic discovery does not find the adapter or when the connection needs an explicit path.</p><pre><code>serial:\n  port: /dev/serial/by-id/your-coordinator\n  adapter: ember</code></pre><p>For a network coordinator, use <code>tcp://host:port</code>. Common adapter values are <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code> and <code>zboss</code>.</p>"
-      ],
-      [
-        "frontend",
-        "Frontend",
-        "<p>The web frontend is enabled by default on port <code>8080</code>.</p><pre><code>frontend:\n  enabled: true\n  port: 8080</code></pre><p>When binding it to a LAN address, limit access to trusted devices with a firewall.</p>"
-      ],
-      [
-        "api",
-        "Management API",
-        "<p>The API defaults to loopback on port <code>8090</code>. Configure an authentication token before exposing it beyond localhost.</p><pre><code>api:\n  enabled: true\n  host: 127.0.0.1\n  port: 8090\n  # auth_token: !secret zigbee2matter_api_token</code></pre>"
-      ],
-      [
-        "network",
-        "Zigbee network and storage",
-        "<p>Keep the data directory persistent. It contains the Zigbee database and network identity. The example configuration generates network keys and IDs on first start; do not replace these values when restoring an existing network.</p><pre><code>advanced:\n  network_key: GENERATE\n  pan_id: GENERATE\n  ext_pan_id: GENERATE</code></pre>"
-      ],
-      [
-        "matter",
-        "Matter bridge",
-        "<p>Start with Matter disabled. For commissioning, enable the bridge and set both commissioning values together. IPv6 is required; mDNS must pass between the bridge and controller on the same local network.</p><pre><code>matter:\n  enabled: true\n  passcode: 20202021\n  discriminator: 3840\n  attestation:\n    mode: development</code></pre><p>Development attestation is for development use. Production use needs owner-provided credentials and VID authorization. Never share passcodes, private keys or fabric backups.</p>"
-      ],
-      [
-        "example",
-        "Full example",
-        "<p>See the <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">complete example configuration</a> in the source repository.</p>"
-      ]
-    ]
-  },
-  "license": {
-    "title": "License and attribution",
-    "text": "Zigbee2Matter is distributed under GNU GPL v3.0. Preserve upstream notices when redistributing. Third-party dependencies keep their own licenses; the device catalogue comes from zigbee-herdsman-converters under MIT.",
-    "project": "Independent project; not an official Zigbee2MQTT or Connectivity Standards Alliance product.",
-    "full": "Read the GPL-3.0 license",
-    "upstream": "Converter source and license"
-  },
-  "footer": "Zigbee2Matter · Independent open-source project · GPL-3.0"
+    "nav": {
+        "overview": "Overview",
+        "guide": "Guide",
+        "devices": "Devices",
+        "configuration": "Configuration",
+        "license": "License",
+        "github": "GitHub"
+    },
+    "home": {
+        "eyebrow": "Independent Matter bridge",
+        "title": "Zigbee, bridged to Matter.",
+        "lead": "Connect Zigbee devices to Matter ecosystems without an MQTT broker.",
+        "intro": "Built on Zigbee2MQTT’s device, coordinator and converter ecosystem, Zigbee2Matter exposes supported capabilities through a Matter bridge.",
+        "start": "Start with the guide",
+        "cards": [
+            [
+                "Start here",
+                "Installation guide",
+                "Choose Home Assistant OS, Docker or source installation, then connect your coordinator and first device."
+            ],
+            ["Compatibility", "Supported devices", "Search the Zigbee converter catalogue and learn what device support means for Matter."],
+            ["Reference", "Configuration", "Set up the coordinator, frontend, API, Zigbee network and Matter bridge."]
+        ],
+        "architectureTitle": "Zigbee state in, Matter endpoints out",
+        "architecture": "The Zigbee network remains the source of device state. Supported capabilities are mapped to persistent Matter endpoints, with optional Home Assistant and REST/WebSocket interfaces.",
+        "architectureAlt": "Diagram showing Zigbee devices connected through Zigbee2Matter to Matter, Home Assistant and API clients",
+        "projectTitle": "Independent open-source software",
+        "project": "Zigbee2Matter is not an official Zigbee2MQTT or Connectivity Standards Alliance product. Zigbee converter support does not guarantee that every feature maps to Matter.",
+        "license": "Distributed under GNU GPL v3.0. Preserve upstream notices when redistributing. Dependencies, certification, vendor IDs and trademarks may have separate terms.",
+        "licenseLink": "Read the full GPL-3.0 license",
+        "source": "Source code and releases"
+    },
+    "guide": {
+        "title": "Install and connect your first device",
+        "lead": "Choose a platform, configure the Zigbee coordinator, then pair and check a device.",
+        "sections": [
+            [
+                "requirements",
+                "Before you begin",
+                "<ul><li>A supported Zigbee coordinator connected by USB or TCP.</li><li>For source installs: Linux, Node.js 22.13.x or 24.x, and pnpm 11.26.</li><li>For Matter: IPv6 and mDNS multicast between the bridge and controller on the same local network.</li><li>Persistent storage for configuration, Zigbee network data and Matter fabric keys.</li></ul><p class=\"note\">Keep the coordinator away from USB 3 and Wi-Fi interference. Make a separate backup before migrating an existing network.</p>"
+            ],
+            [
+                "haos",
+                "Home Assistant OS",
+                "<ol><li>From the repository root, run <code>haos/prepare-local.ps1</code> on Windows or <code>haos/prepare-local.sh</code> on Linux/macOS.</li><li>Copy the full <code>haos/zigbee2matter</code> folder to HAOS at <code>/addons/zigbee2matter</code> using the Samba add-ons share or SSH.</li><li>In Home Assistant, open <strong>Settings → Add-ons → Add-on Store</strong>, refresh, and install the local Zigbee2Matter add-on.</li><li>Set the serial port and adapter in add-on options. Start the add-on and open its frontend.</li></ol><p>Host networking is enabled for Matter mDNS and UDP 5540. Configuration and Zigbee data are stored under <code>/data</code> and included in Home Assistant backups.</p>"
+            ],
+            [
+                "docker",
+                "Docker on Linux",
+                "<p>From the repository root, set the variables for your coordinator and start one Compose profile. Host networking is used for coordinator access and Matter discovery.</p><pre><code># USB coordinator\nexport ZIGBEE2MATTER_USB_DEVICE=/dev/serial/by-id/your-coordinator\ndocker compose -f docker/compose.yaml --profile usb up -d --build\n\n# TCP coordinator\nexport ZIGBEE2MATTER_SERIAL_PORT=tcp://192.168.1.20:6638\nexport ZIGBEE2MATTER_SERIAL_ADAPTER=ember\ndocker compose -f docker/compose.yaml --profile tcp up -d --build</code></pre><p>The frontend listens on port <code>8080</code>. Restrict access with your firewall. Keep the named <code>zigbee2matter-data</code> volume when updating the container.</p>"
+            ],
+            [
+                "source",
+                "Run from source",
+                "<p>Use Node.js 22.13.x or 24.x and pnpm 11.26 in the repository root.</p><pre><code>pnpm install --frozen-lockfile\npnpm run build\npnpm start</code></pre><p>The default frontend is <code>http://localhost:8080</code>. Runtime files are stored in the configured data directory.</p>"
+            ],
+            [
+                "first-start",
+                "Configure the coordinator",
+                "<ol><li>Open the frontend and check startup logs for coordinator errors.</li><li>If discovery fails, set <code>serial.port</code> and <code>serial.adapter</code> in <code>configuration.yaml</code>. The default source path is <code>data/configuration.yaml</code>; HAOS uses <code>/data/configuration.yaml</code>, and Docker Compose uses <code>/app/data/configuration.yaml</code>.</li><li>Use a stable <code>/dev/serial/by-id/...</code> USB path or <code>tcp://host:port</code>. Stop the service before editing configuration, then restart it.</li><li>Confirm the bridge is online before enabling Matter or migrating automations.</li></ol><p>Common adapter values include <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code> and <code>zboss</code>.</p>"
+            ],
+            [
+                "pair",
+                "Pair a Zigbee device",
+                "<ol><li>Temporarily enable permit-join in the frontend.</li><li>Put the device into pairing mode using its manufacturer instructions, near the coordinator.</li><li>Wait for the interview to finish and confirm the model and support status.</li><li>Assign a friendly name and try its controls in the frontend.</li><li>Disable permit-join when finished.</li></ol><p>A device may join Zigbee even when its controls or Matter mapping are unsupported. Search the <a href=\"#devices\">device catalogue</a> for pairing notes.</p>"
+            ]
+        ]
+    },
+    "devices": {
+        "title": "Supported Zigbee devices",
+        "lead": "Search the converter definitions bundled with this release.",
+        "search": "Search model, brand, device ID or feature",
+        "loading": "Loading device catalogue…",
+        "failed": "Could not load the catalogue. Reload the page or browse the upstream list.",
+        "count": "{count} matches · showing {shown}",
+        "empty": "No matching devices. Try a model number or brand name.",
+        "limit": "Showing the first {shown} of {count}. Search to narrow the list.",
+        "note": "This list means a Zigbee converter definition exists. It does not guarantee Matter exposure or feature parity; check the device in the frontend after pairing.",
+        "exposes": "Zigbee features",
+        "ids": "Device IDs",
+        "attribution": "Catalogue data: zigbee-herdsman-converters {version} · MIT license",
+        "upstream": "Open the upstream device database"
+    },
+    "configuration": {
+        "title": "Configuration reference",
+        "lead": "Configuration is read from the runtime data directory. Stop the service before editing the file, then restart to apply changes.",
+        "sections": [
+            [
+                "coordinator",
+                "Coordinator",
+                "<p>Set these only when automatic discovery does not find the adapter or when the connection needs an explicit path.</p><pre><code>serial:\n  port: /dev/serial/by-id/your-coordinator\n  adapter: ember</code></pre><p>For a network coordinator, use <code>tcp://host:port</code>. Common adapter values are <code>zstack</code>, <code>ember</code>, <code>deconz</code>, <code>zigate</code> and <code>zboss</code>.</p>"
+            ],
+            [
+                "frontend",
+                "Frontend",
+                "<p>The web frontend is enabled by default on port <code>8080</code>.</p><pre><code>frontend:\n  enabled: true\n  port: 8080</code></pre><p>When binding it to a LAN address, limit access to trusted devices with a firewall.</p>"
+            ],
+            [
+                "api",
+                "Management API",
+                "<p>The API defaults to loopback on port <code>8090</code>. Configure an authentication token before exposing it beyond localhost.</p><pre><code>api:\n  enabled: true\n  host: 127.0.0.1\n  port: 8090\n  # auth_token: !secret zigbee2matter_api_token</code></pre>"
+            ],
+            [
+                "network",
+                "Zigbee network and storage",
+                "<p>Keep the data directory persistent. It contains the Zigbee database and network identity. The example configuration generates network keys and IDs on first start; do not replace these values when restoring an existing network.</p><pre><code>advanced:\n  network_key: GENERATE\n  pan_id: GENERATE\n  ext_pan_id: GENERATE</code></pre>"
+            ],
+            [
+                "matter",
+                "Matter bridge",
+                "<p>Start with Matter disabled. For commissioning, enable the bridge and set both commissioning values together. IPv6 is required; mDNS must pass between the bridge and controller on the same local network.</p><pre><code>matter:\n  enabled: true\n  passcode: 20202021\n  discriminator: 3840\n  attestation:\n    mode: development</code></pre><p>Development attestation is for development use. Production use needs owner-provided credentials and VID authorization. Never share passcodes, private keys or fabric backups.</p>"
+            ],
+            [
+                "example",
+                "Full example",
+                "<p>See the <a href=\"https://github.com/Dont-Do-it-Now/zigbee2matter/blob/main/data/configuration.example.yaml\">complete example configuration</a> in the source repository.</p>"
+            ]
+        ]
+    },
+    "license": {
+        "title": "License and attribution",
+        "text": "Zigbee2Matter is distributed under GNU GPL v3.0. Preserve upstream notices when redistributing. Third-party dependencies keep their own licenses; the device catalogue comes from zigbee-herdsman-converters under MIT.",
+        "project": "Independent project; not an official Zigbee2MQTT or Connectivity Standards Alliance product.",
+        "full": "Read the GPL-3.0 license",
+        "upstream": "Converter source and license"
+    },
+    "footer": "Zigbee2Matter · Independent open-source project · GPL-3.0"
 }
