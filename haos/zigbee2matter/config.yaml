@@ -1,6 +1,6 @@
 name: Zigbee2Matter
 slug: zigbee2matter
-version: "2.14.4"
+version: "2.14.12"
 description: Zigbee to Matter bridge without MQTT broker
 url: https://github.com/Dont-Do-it-Now/zigbee2matter
 image: ghcr.io/dont-do-it-now/zigbee2matter-addon
