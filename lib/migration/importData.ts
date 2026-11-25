@@ -212,7 +212,8 @@ export function planImportData(input: ImportDataInput): ImportDataPlan {
                       sourceSha256: configurationFile.sha256,
                       sourcePath: joinPath(sourceDir, configurationFile.relativePath),
                       targetPath: joinPath(targetDir, configurationFile.relativePath),
-                      excludedTopLevelKeys: Object.hasOwn(input.configuration, "mqtt") ? (["mqtt"] as const) : ([] as const),
+                      excludedTopLevelKeys:
+                          input.configuration != null && Object.hasOwn(input.configuration, "mqtt") ? (["mqtt"] as const) : ([] as const),
                       configuration,
                   }
                 : undefined,
