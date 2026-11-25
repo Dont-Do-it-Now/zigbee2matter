@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.25.16
+- Show only committed Matter platforms and hide fabrics from canceled commissioning attempts.
+- Block opening another commissioning window while a Matter commissioning attempt is still in progress.
+
 ## 2026.11.25.15
 - Fix Matter multi-admin pairing with fresh commissioning codes for additional platforms.
 - Remove the Home Assistant Matter Server node before deleting its local fabric.

@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Show Matter fabrics only after the commissioning fail-safe ends, and prevent retries from treating a pending fabric as an existing platform.
 * Remove the Home Assistant Matter Server node before deleting its local fabric.
 * Open an enhanced commissioning window with fresh pairing codes when adding another Matter platform.
 * Initialize Matter contact sensor state and map Zigbee presence sensors to Matter occupancy.

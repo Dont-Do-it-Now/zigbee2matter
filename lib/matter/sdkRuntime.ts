@@ -194,6 +194,7 @@ export class MatterSdkRuntime {
     private endpointContainer?: MatterEndpointContainer;
     private nodeId?: string;
     private started = false;
+    private readonly confirmedFabricIndexes = new Set<number>();
     private appliedEnvironment?: MatterEnvironment;
     private appliedEnvironmentNames: string[] = [];
     private vendorId?: number;
@@ -345,6 +346,7 @@ export class MatterSdkRuntime {
         if (!this.node) throw new Error("Matter node has not been created");
         if (this.started) return;
         await this.node.start();
+        this.syncConfirmedFabrics();
         this.started = true;
     }
 
@@ -359,6 +361,7 @@ export class MatterSdkRuntime {
             this.productId = undefined;
             this.endpointContainer = undefined;
             this.started = false;
+            this.confirmedFabricIndexes.clear();
             this.clearAppliedEnvironment();
         }
     }
@@ -427,15 +430,18 @@ export class MatterSdkRuntime {
     /**
      * T033/T034: 등록 창과 fabric 상태를 SDK에 위임하는 backend. 호출 시점의 현재 node를 사용한다.
      * 창 열기 = DeviceCommissioner.allowBasicCommissioning, 닫기 = endCommissioning,
-     * fabric 목록 = node.state.commissioning.fabrics, 제거 = FabricManager fabric.delete(),
-     * 이벤트 = node.events.commissioning.fabricsChanged.
+     * fabric 목록은 fail-safe가 끝나 SDK 변경 이벤트가 발생한 뒤 확정한다. 제거는 FabricManager가 담당한다.
      */
     commissioningBackend(): CommissioningBackend {
         return {
             openWindow: async (durationMs) => {
                 const sdk = this.module;
                 if (!sdk?.Millis) throw new Error("Matter SDK does not expose Millis");
-                if (this.listSdkFabrics().length > 0) return await this.openEnhancedCommissioningWindow(durationMs);
+                const fabrics = this.listSdkFabrics();
+                if (fabrics.some((fabric) => !this.confirmedFabricIndexes.has(fabric.fabricIndex))) {
+                    throw new Error("Matter commissioning is still in progress");
+                }
+                if (this.confirmedFabricIndexes.size > 0) return await this.openEnhancedCommissioningWindow(durationMs);
                 await this.commissioner().allowBasicCommissioning({timeout: sdk.Millis(durationMs)});
 
                 return this.getCommissioningCode();
@@ -453,8 +459,9 @@ export class MatterSdkRuntime {
 
                 return this.commissioner().windowStatus !== WINDOW_NOT_OPEN;
             },
-            listFabrics: () => this.listSdkFabrics(),
+            listFabrics: () => this.listSdkFabrics().filter((fabric) => this.confirmedFabricIndexes.has(fabric.fabricIndex)),
             removeFabric: async (fabricIndex) => {
+                if (!this.confirmedFabricIndexes.has(fabricIndex)) return false;
                 const fabric = this.fabricManager().maybeFor({fabricIndex});
                 if (!fabric) return false;
                 await fabric.delete();
@@ -464,11 +471,21 @@ export class MatterSdkRuntime {
             onFabricsChanged: (listener) => {
                 const observable = this.node?.events?.commissioning?.fabricsChanged;
                 if (!observable) return () => {};
-                observable.on(listener);
+                const onChanged = (fabricIndex: number, action: FabricChangeAction) => {
+                    this.syncConfirmedFabrics();
+                    listener(fabricIndex, action);
+                };
+                observable.on(onChanged);
 
-                return () => observable.off(listener);
+                return () => observable.off(onChanged);
             },
         };
+    }
+
+    /** SDK emits fabricsChanged after its fail-safe ends; only then can committed fabrics be distinguished from rollback. */
+    private syncConfirmedFabrics(): void {
+        this.confirmedFabricIndexes.clear();
+        for (const fabric of this.listSdkFabrics()) this.confirmedFabricIndexes.add(fabric.fabricIndex);
     }
 
     private listSdkFabrics(): FabricRecord[] {
