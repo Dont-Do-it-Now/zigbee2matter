@@ -158,15 +158,15 @@ function prepareFrontendIndex(index: string): string {
 const MATTER_PAGE = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zigbee2Matter</title>
 <style>
-:root{font-family:Inter,"Pretendard",system-ui,sans-serif;color:#17212b;background:#f7f8fa;font-synthesis:none}*{box-sizing:border-box}body{margin:0}.wrap{max-width:920px;margin:0 auto;padding:32px 24px 64px}a{color:#176b87}h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:19px;margin:0 0 12px}.lead,.muted{color:#62717d;line-height:1.5}.card{background:#fff;border:1px solid #dce2e7;border-radius:12px;padding:24px;margin-top:24px}.row{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.qr{width:224px;height:224px;object-fit:contain;border:1px solid #e2e7eb;border-radius:8px}.code{font:600 21px ui-monospace,monospace;letter-spacing:.08em;margin:4px 0 8px}.input{width:min(100%,520px);padding:16px;border:1px solid #cbd4dc;border-radius:8px;font:inherit}.button{border:0;border-radius:8px;background:#087e9c;color:#fff;padding:8px 16px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block;margin:4px 8px 4px 0}.button.secondary{background:#e8f1f4;color:#14586c}.button.danger{background:#b73345}.button:disabled{opacity:.45;cursor:not-allowed}.fabric{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e5e9ed;padding:16px 0}.fabric:first-child{border-top:0}.guide{padding-left:22px;line-height:1.65}.status{padding:12px 16px;background:#eef5f7;border-radius:8px}.error{color:#a32739}.ok{color:#1d7a46}.hidden{display:none!important}.back{display:inline-block;margin:0 0 24px;text-decoration:none}dialog{max-width:520px;border:1px solid #dce2e7;border-radius:12px;color:inherit}dialog::backdrop{background:rgba(18,28,38,.35)}
+:root{font-family:Inter,"Pretendard",system-ui,sans-serif;color:#17212b;background:#f7f8fa;font-synthesis:none}*{box-sizing:border-box}body{margin:0;word-break:keep-all;overflow-wrap:anywhere}.wrap{max-width:920px;margin:0 auto;padding:32px 24px 64px}a{color:#176b87}h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:19px;margin:0 0 12px}.lead,.muted{color:#62717d;line-height:1.5}.card{background:#fff;border:1px solid #dce2e7;border-radius:12px;padding:24px;margin-top:24px}.row{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.qr{width:224px;height:224px;object-fit:contain;border:1px solid #e2e7eb;border-radius:8px}.code{font:600 21px ui-monospace,monospace;letter-spacing:.08em;margin:4px 0 8px}.input{width:min(100%,520px);padding:16px;border:1px solid #cbd4dc;border-radius:8px;font:inherit}.button{border:0;border-radius:8px;background:#087e9c;color:#fff;padding:8px 16px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block;margin:4px 8px 4px 0;white-space:nowrap}.button.secondary{background:#e8f1f4;color:#14586c}.button.danger{background:#b73345}.button:disabled{opacity:.45;cursor:not-allowed}.fabric{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e5e9ed;padding:16px 0}.fabric:first-child{border-top:0}.fabric span{min-width:0;flex:1}.expired{opacity:.4}.field{display:block;margin:0 0 8px;font-weight:600}.guide{padding-left:22px;line-height:1.65}.status{padding:12px 16px;background:#eef5f7;border-radius:8px}.error{color:#a32739}.ok{color:#1d7a46}.hidden{display:none!important}.back{display:inline-block;margin:0 0 24px;text-decoration:none}dialog{max-width:520px;border:1px solid #dce2e7;border-radius:12px;color:inherit}dialog::backdrop{background:rgba(18,28,38,.35)}
 </style></head><body><main class="wrap"><a class="back" href="/">&larr; Zigbee2Matter</a><h1 data-i18n="title"></h1><p class="lead" data-i18n="lead"></p>
-<section id="auth" class="card hidden"><h2 data-i18n="authTitle"></h2><p class="muted" data-i18n="authHelp"></p><input id="token-input" class="input" type="password" autocomplete="current-password" data-i18n-label="authLabel"><button id="save-token" class="button" data-i18n="authButton"></button></section>
-<div id="status" class="status"></div>
-<section id="ha" class="card hidden"><h2 data-i18n="haTitle"></h2><p id="ha-state" class="muted"></p><button id="ha-connect" class="button"></button><a id="ha-install" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haInstallLink"></a><a id="ha-integration" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haIntegrationLink"></a><p id="ha-result" class="muted"></p></section>
+<section id="auth" class="card hidden"><h2 data-i18n="authTitle"></h2><p class="muted" data-i18n="authHelp"></p><form id="auth-form"><label class="field" for="token-input" data-i18n="authLabel"></label><input id="token-input" class="input" type="password" autocomplete="current-password"><br><button id="save-token" type="submit" class="button" data-i18n="authButton"></button></form></section>
+<div id="status" class="status"></div><p id="error" class="error" role="alert"></p>
+<section id="ha" class="card hidden"><h2 data-i18n="haTitle"></h2><p id="ha-state" class="muted"></p><button id="ha-connect" class="button"></button><a id="ha-install" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haInstallLink"></a><a id="ha-addon" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haAddonLink"></a><a id="ha-integration" class="button secondary hidden" target="_blank" rel="noopener noreferrer" data-i18n="haIntegrationLink"></a><p id="ha-result" class="muted"></p></section>
 <section id="pair" class="card hidden"><h2 id="pair-title"></h2><p class="muted" data-i18n="pairHelp"></p><div id="pairing" class="row"></div><p id="expires" class="muted"></p><button id="open" class="button"></button><button id="close" class="button secondary hidden" data-i18n="closeWindow"></button></section>
 <section id="fabrics" class="card"><h2 data-i18n="platforms"></h2><div id="fabric-list" class="muted"></div></section>
-<section class="card"><h2 data-i18n="guideTitle"></h2><ol class="guide"><li data-i18n="guide1"></li><li data-i18n="guide2"></li><li data-i18n="guide3"></li></ol></section>
-<p id="error" class="error"></p></main><script>
+<section id="guide" class="card hidden"><h2 data-i18n="guideTitle"></h2><ol class="guide"><li data-i18n="guide1"></li><li data-i18n="guide2"></li><li data-i18n="guide3"></li></ol></section>
+</main><script>
 var I18N = {
   en: {
     title: "Matter connections",
@@ -210,8 +210,12 @@ var I18N = {
     haStopped: "The Matter Server add-on is installed but not running. Start it from its add-on page, then reload this page.",
     haReady: "Matter Server is running. One click connects this bridge to Home Assistant.",
     haConnect: "Connect to Home Assistant",
-    haConnecting: "Connecting... this can take up to 2 minutes.",
+    haConnecting: "Connecting...",
+    haConnectingNote: "This can take up to 2 minutes.",
+    haReconnect: "Reconnect",
+    haAddonLink: "Open add-on page",
     haConnected: "Connected to Home Assistant. Open the Matter integration to see the devices.",
+    haAlreadyConnected: "Connected to Home Assistant.",
     haInstallLink: "Install Matter Server",
     haIntegrationLink: "Open Matter integration",
     "err.CROSS_SITE": "Requests started from another site are not allowed.",
@@ -230,14 +234,13 @@ var I18N = {
     "err.BUSY": "A Home Assistant connection is already in progress.",
     "err.MATTER_SERVER_NOT_INSTALLED": "The Matter Server add-on is not installed.",
     "err.MATTER_SERVER_STOPPED": "The Matter Server add-on is not running. Start it from its add-on page.",
-    "err.CONNECT_FAILED": "Could not connect to the Matter Server add-on.",
     "err.START_FAILED": "Could not start the Matter Server add-on.",
     "err.CONNECT_FAILED": "Could not reach the Matter Server.",
     "err.COMMISSION_FAILED": "Matter Server could not add this bridge.",
     "err.COMMISSION_TIMEOUT": "Matter Server did not finish in time.",
     "err.UNKNOWN": "The request failed.",
     guideTitle: "Adding another platform",
-    guide1: "Press Add another platform here. A new pairing window opens.",
+    guide1: "Press Add another platform above. A new pairing window opens.",
     guide2: "In the other app choose Add device > Matter and scan the QR code or enter the manual code.",
     guide3: "When pairing finishes the platform appears in the list above. Existing platforms stay connected."
   },
@@ -283,8 +286,12 @@ var I18N = {
     haStopped: "Matter Server 애드온이 설치되어 있지만 실행 중이 아닙니다. 애드온 페이지에서 시작한 뒤 이 페이지를 새로고침하세요.",
     haReady: "Matter Server가 실행 중입니다. 버튼 한 번으로 Home Assistant에 연결합니다.",
     haConnect: "Home Assistant에 연결",
-    haConnecting: "연결 중... 최대 2분 걸릴 수 있습니다.",
+    haConnecting: "연결 중...",
+    haConnectingNote: "최대 2분 걸릴 수 있습니다.",
+    haReconnect: "다시 연결",
+    haAddonLink: "애드온 페이지 열기",
     haConnected: "Home Assistant에 연결되었습니다. Matter 통합에서 기기를 확인하세요.",
+    haAlreadyConnected: "Home Assistant에 연결되어 있습니다.",
     haInstallLink: "Matter Server 설치",
     haIntegrationLink: "Matter 통합 열기",
     "err.CROSS_SITE": "다른 사이트에서 시작한 요청은 허용되지 않습니다.",
@@ -303,14 +310,13 @@ var I18N = {
     "err.BUSY": "Home Assistant 연결이 이미 진행 중입니다.",
     "err.MATTER_SERVER_NOT_INSTALLED": "Matter Server 애드온이 설치되어 있지 않습니다.",
     "err.MATTER_SERVER_STOPPED": "Matter Server 애드온이 실행 중이 아닙니다. 애드온 페이지에서 시작하세요.",
-    "err.CONNECT_FAILED": "Matter Server 애드온에 연결할 수 없습니다.",
     "err.START_FAILED": "Matter Server 애드온을 시작하지 못했습니다.",
     "err.CONNECT_FAILED": "Matter Server에 연결할 수 없습니다.",
     "err.COMMISSION_FAILED": "Matter Server가 이 브리지를 추가하지 못했습니다.",
     "err.COMMISSION_TIMEOUT": "Matter Server가 제시간에 완료하지 못했습니다.",
     "err.UNKNOWN": "요청에 실패했습니다.",
     guideTitle: "다른 플랫폼 추가 방법",
-    guide1: "여기서 다른 플랫폼 추가를 누르면 새 연결 창이 열립니다.",
+    guide1: "위에서 다른 플랫폼 추가를 누르면 새 연결 창이 열립니다.",
     guide2: "다른 앱에서 기기 추가 > Matter를 선택하고 QR을 스캔하거나 수동 코드를 입력합니다.",
     guide3: "연결이 끝나면 위 목록에 플랫폼이 나타납니다. 기존 플랫폼 연결은 유지됩니다."
   }
@@ -339,7 +345,6 @@ var CONFIRM_PHRASE = "REMOVE";
 var VENDORS = {4937: "Apple Home", 24582: "Google Home", 4362: "Samsung SmartThings", 4631: "Amazon Alexa", 65521: "Home Assistant"};
 var el = function (id) { return document.getElementById(id); };
 document.querySelectorAll("[data-i18n]").forEach(function (node) { node.textContent = t(node.dataset.i18n); });
-document.querySelectorAll("[data-i18n-label]").forEach(function (node) { node.setAttribute("aria-label", t(node.dataset.i18nLabel)); });
 document.title = "Zigbee2Matter - " + t("title");
 document.querySelector(".back").href = new URL("./", location.href).pathname;
 var apiBase = new URL("matter-api/", location.href);
@@ -356,6 +361,7 @@ if (token) headers.Authorization = "Bearer " + token;
 var windowDeadline = 0;
 var windowOpen = false;
 var haConnecting = false;
+var haHasFabric = false;
 var pollTimer;
 
 function errorText(e) { var key = "err." + (e.code || "UNKNOWN"); return I18N[LANG][key] ? t(key) : (e.message || t("err.UNKNOWN")); }
@@ -394,6 +400,8 @@ async function copyText(text, button) {
 function renderCountdown() {
   if (!windowOpen) { el("expires").textContent = ""; return; }
   var left = Math.max(0, Math.ceil((windowDeadline - Date.now()) / 1000));
+  el("pairing").classList.toggle("expired", left === 0);
+  el("pairing").querySelectorAll("button").forEach(function (b) { b.disabled = left === 0; });
   if (left === 0) { el("expires").textContent = t("expired"); return; }
   el("expires").textContent = t("expiresIn", {time: Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0")});
 }
@@ -429,11 +437,15 @@ function renderHa(ha) {
   if (!ha.haos) return;
   var running = ha.installed && ha.state === "started";
   el("ha-state").textContent = t(!ha.installed ? "haNotInstalled" : running ? "haReady" : "haStopped");
+  if (running && haHasFabric && !haConnecting) el("ha-state").textContent = t("haAlreadyConnected");
   el("ha-connect").classList.toggle("hidden", !running);
-  el("ha-connect").textContent = haConnecting ? t("haConnecting") : t("haConnect");
+  el("ha-connect").textContent = haConnecting ? t("haConnecting") : t(haHasFabric ? "haReconnect" : "haConnect");
+  el("ha-connect").classList.toggle("secondary", haHasFabric);
   el("ha-connect").disabled = haConnecting;
   el("ha-install").href = ha.links.install;
-  el("ha-install").classList.toggle("hidden", running);
+  el("ha-install").classList.toggle("hidden", Boolean(ha.installed));
+  el("ha-addon").href = ha.links.install;
+  el("ha-addon").classList.toggle("hidden", !ha.installed || running);
   el("ha-integration").href = ha.links.integration;
   el("ha-integration").classList.toggle("hidden", !running);
 }
@@ -441,6 +453,7 @@ function setLocked(message) {
   el("status").textContent = message;
   el("pair").classList.add("hidden");
   el("ha").classList.add("hidden");
+  el("guide").classList.add("hidden");
   windowOpen = false;
 }
 async function refresh() {
@@ -449,6 +462,7 @@ async function refresh() {
     el("error").textContent = "";
     var data = await call("state");
     el("auth").classList.add("hidden");
+    el("fabrics").classList.remove("hidden");
     if (!data.matterRunning) {
       setLocked(t("notRunning"));
       el("fabric-list").textContent = t("platformsUnavailable");
@@ -456,6 +470,9 @@ async function refresh() {
     }
     el("status").textContent = t("running");
     el("pair").classList.remove("hidden");
+    el("guide").classList.toggle("hidden", !data.fabrics.length);
+    haHasFabric = data.fabrics.some(function (fabric) { return fabric.rootVendorId === 65521; });
+    if (!haConnecting) { el("ha-result").textContent = ""; el("ha-result").className = "muted"; }
     var list = el("fabric-list");
     list.replaceChildren();
     if (!data.fabrics.length) list.textContent = t("noPlatforms");
@@ -477,10 +494,13 @@ async function refresh() {
     renderWindow(data.window, data.fabrics.length > 0);
     if (!haConnecting) renderHa(await call("ha/status"));
   } catch (e) {
-    setLocked(t(e.status === 401 || e.status === 403 ? "needAuth" : "statusFailed"));
-    el("fabric-list").textContent = t("platformsFailed");
-    if (e.status === 401 || e.status === 403) el("auth").classList.remove("hidden");
-    showError(e);
+    var auth = e.status === 401 || e.status === 403;
+    var notRunning = e.code === "MATTER_NOT_RUNNING" || e.code === "NODE_NOT_STARTED" || e.code === "MATTER_UNAVAILABLE";
+    setLocked(t(auth ? "needAuth" : notRunning ? "notRunning" : "statusFailed"));
+    el("fabric-list").textContent = t(notRunning ? "platformsUnavailable" : "platformsFailed");
+    el("fabrics").classList.toggle("hidden", auth);
+    if (auth) el("auth").classList.remove("hidden");
+    if (!notRunning) showError(e);
   } finally {
     // Poll faster while a pairing window is open so a successful pairing shows up quickly.
     pollTimer = setTimeout(refresh, windowOpen ? 3000 : 10000);
@@ -498,6 +518,9 @@ function removeFabric(fabric, name) {
   var input = document.createElement("input");
   input.className = "input";
   input.autocomplete = "off";
+  var dialogError = document.createElement("p");
+  dialogError.className = "error";
+  dialogError.setAttribute("role", "alert");
   var actions = document.createElement("div");
   actions.className = "row";
   actions.style.marginTop = "16px";
@@ -511,46 +534,53 @@ function removeFabric(fabric, name) {
   input.addEventListener("input", function () { submit.disabled = input.value !== CONFIRM_PHRASE; });
   cancel.addEventListener("click", function () { dialog.close(); });
   submit.addEventListener("click", async function () {
+    dialogError.textContent = "";
     try {
       await call("fabrics/" + fabric.fabricIndex, {method: "DELETE", body: JSON.stringify({confirmation: input.value})});
       dialog.close();
       await refresh();
-    } catch (e) { showError(e); }
+    } catch (e) { dialogError.textContent = errorText(e); }
   });
   actions.append(cancel, submit);
-  dialog.append(title, description, label, input, actions);
+  dialog.append(title, description, label, input, dialogError, actions);
   dialog.addEventListener("close", function () { dialog.remove(); }, {once: true});
   document.body.append(dialog);
   dialog.showModal();
 }
-el("save-token").addEventListener("click", async function () {
+el("auth-form").addEventListener("submit", async function (event) {
+  event.preventDefault();
+  el("error").textContent = "";
   token = el("token-input").value.trim();
   if (!token) { showError({code: "TOKEN_REQUIRED"}); return; }
   headers.Authorization = "Bearer " + token;
   await refresh();
 });
 el("open").addEventListener("click", async function () {
+  el("error").textContent = "";
   try { await call("commissioning", {method: "POST", body: JSON.stringify({})}); await refresh(); } catch (e) { showError(e); }
 });
 el("close").addEventListener("click", async function () {
+  el("error").textContent = "";
   try { await call("commissioning", {method: "DELETE"}); await refresh(); } catch (e) { showError(e); }
 });
 el("ha-connect").addEventListener("click", async function () {
   haConnecting = true;
   el("ha-connect").disabled = true;
   el("ha-connect").textContent = t("haConnecting");
-  el("ha-result").textContent = "";
+  el("error").textContent = "";
+  el("ha-result").textContent = t("haConnectingNote");
   el("ha-result").className = "muted";
+  var result = {text: "", className: ""};
   try {
     await call("ha/connect", {method: "POST", body: "{}"});
-    el("ha-result").textContent = t("haConnected");
-    el("ha-result").className = "ok";
+    result = {text: t("haConnected"), className: "ok"};
   } catch (e) {
-    el("ha-result").textContent = errorText(e);
-    el("ha-result").className = "error";
+    result = {text: errorText(e), className: "error"};
   }
   haConnecting = false;
   await refresh();
+  el("ha-result").textContent = result.text;
+  el("ha-result").className = result.className;
 });
 el("status").textContent = t("loading");
 el("fabric-list").textContent = t("loading");
