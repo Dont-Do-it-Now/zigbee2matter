@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.26.1
+- Log the effective Matter mDNS interfaces and advertised IP addresses to diagnose post-NOC commissioning failures.
+
 ## 2026.11.25.20
 - Log Matter commissioning window lifecycle, finalized fabric changes, and operational CASE session transitions without exposing pairing codes or certificate payloads.
 

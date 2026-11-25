@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Log the effective Matter mDNS interfaces and advertised IP addresses to diagnose post-NOC commissioning failures.
 * Log Matter commissioning windows, finalized fabric changes, and operational CASE session transitions.
 * Automatically select the sole non-virtual IPv6 interface for Matter mDNS and keep the interface selector hidden.
 * Keep the Matter platform list visible when a status request fails, and isolate Home Assistant status errors.

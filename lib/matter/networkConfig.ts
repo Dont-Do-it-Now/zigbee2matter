@@ -103,6 +103,21 @@ export function diagnoseMatterNetwork(config: MatterNetworkConfig, env: NetworkC
     const names = Object.keys(ifaces);
     const candidates = names.filter((n) => ifaces[n]?.[0]?.internal === false);
 
+    const mdnsInterfaces = config.mdnsInterface ? [config.mdnsInterface] : candidates;
+    const advertisedAddresses = mdnsInterfaces
+        .map((name) => {
+            const infos = ifaces[name] ?? [];
+            const ipv6 = infos.filter((info) => info.family === "IPv6" && !info.internal).map((info) => info.address);
+            const ipv4 = config.ipv4 === false ? [] : infos.filter((info) => info.family === "IPv4" && !info.internal).map((info) => info.address);
+            return `${name} (IPv6: ${ipv6.join(", ") || "none"}; IPv4: ${ipv4.join(", ") || "disabled"})`;
+        })
+        .join("; ");
+    add(
+        "info",
+        "MDNS_ADVERTISEMENT",
+        `mDNS advertisement addresses: ${advertisedAddresses || "none"}; interface binding: ${config.mdnsInterface ?? "all non-internal interfaces"}`,
+    );
+
     // Matter는 IPv6 UDP가 필수 (SDK: IPv6 없으면 NoAddressAvailableError로 기동 실패).
     const withIpv6 = candidates.filter((n) => externalIpv6(ifaces[n]).length > 0);
     if (withIpv6.length === 0) {
