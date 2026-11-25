@@ -2,8 +2,8 @@ import {existsSync, mkdirSync, writeFileSync} from "node:fs";
 import {createServer} from "node:http";
 import path from "node:path";
 import {type Unzipped, unzip} from "fflate";
-import {discoverCoordinators} from "../coordinatorDiscovery"; // z2m-fork: T024
 import {findAllDevices} from "zigbee-herdsman/dist/adapter/adapterDiscovery";
+import {discoverCoordinators} from "../coordinatorDiscovery"; // z2m-fork: T024
 import type {OnboardData, OnboardFailureData, OnboardSubmitResponse, Zigbee2MQTTSettings} from "../types/api";
 import {stringify} from "../util/stringify";
 import data from "./data";
@@ -64,13 +64,14 @@ async function startOnboardingServer(): Promise<boolean> {
             const pathname = new URL(/* v8 ignore next */ req.url ?? "/", serverUrl).pathname;
 
             if (req.method === "GET" && pathname === "/data") {
+                const devices = await findAllDevices();
                 const payload: OnboardData = {
                     page: "form",
                     settings: currentSettings,
                     settingsSchema: settings.schemaJson,
-                    devices: await findAllDevices(),
+                    devices,
                     // z2m-fork: T024
-                    coordinatorDiscovery: await discoverCoordinators(findAllDevices, {
+                    coordinatorDiscovery: await discoverCoordinators(() => Promise.resolve(devices), {
                         configured: currentSettings.serial?.port
                             ? {path: currentSettings.serial.port, adapter: currentSettings.serial.adapter ?? undefined}
                             : undefined,
