@@ -1,4 +1,0 @@
-# CI(저장소 루트 컨텍스트) 빌드용. HA base 이미지(Alpine, s6-overlay). nodejs 는 Dockerfile 에서 apk 로 설치(^22.13 필요).
-build_from:
-  amd64: ghcr.io/home-assistant/amd64-base:3.22
-  aarch64: ghcr.io/home-assistant/aarch64-base:3.22
