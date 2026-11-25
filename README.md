@@ -5,7 +5,7 @@
   <p><a href="README.ko.md">한국어 README</a> · <a href="LICENSE">License</a></p>
 </div>
 
-Project documentation: [Zigbee2Matter GitHub Pages](https://reizeo.github.io/zigbee2matter/) · [Korean documentation](https://reizeo.github.io/zigbee2matter/ko/)
+Project documentation: [Zigbee2Matter GitHub Pages](https://dont-do-it-now.github.io/zigbee2matter/) · [한국어 문서](https://dont-do-it-now.github.io/zigbee2matter/?lang=ko)
 
 Zigbee2Matter connects a Zigbee network to Matter ecosystems while keeping the proven Zigbee device, converter, coordinator, and interview paths from Zigbee2MQTT. It replaces the broker-dependent runtime boundary with an in-process bridge bus and adds Matter, REST, and WebSocket adapters.
 

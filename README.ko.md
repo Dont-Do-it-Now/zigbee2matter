@@ -5,7 +5,7 @@
   <p><a href="README.md">English README</a> · <a href="LICENSE">라이선스</a></p>
 </div>
 
-프로젝트 문서: [Zigbee2Matter GitHub Pages](https://reizeo.github.io/zigbee2matter/) · [한국어 상세 문서](https://reizeo.github.io/zigbee2matter/ko/)
+프로젝트 문서: [Zigbee2Matter 문서](https://dont-do-it-now.github.io/zigbee2matter/) · [한국어 문서](https://dont-do-it-now.github.io/zigbee2matter/?lang=ko)
 
 Zigbee2Matter는 Zigbee2MQTT의 검증된 Zigbee 장치·converter·코디네이터·인터뷰 경로를 유지하면서 Zigbee 네트워크를 Matter 생태계에 연결합니다. 브로커에 의존하는 실행 경계를 in-process bridge bus로 교체하고 Matter, REST, WebSocket adapter를 추가합니다.
 
