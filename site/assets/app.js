@@ -52,17 +52,7 @@ async function setupDeviceSearch(t) {
     const exposesSearch = document.querySelector("#exposes-search");
     const vendorSelection = document.querySelector("#vendor-selection");
     const exposesSelection = document.querySelector("#exposes-selection");
-    if (
-        !input ||
-        !output ||
-        !status ||
-        !vendorOptions ||
-        !exposesOptions ||
-        !vendorSearch ||
-        !exposesSearch ||
-        !vendorSelection ||
-        !exposesSelection
-    )
+    if (!input || !output || !status || !vendorOptions || !exposesOptions || !vendorSearch || !exposesSearch || !vendorSelection || !exposesSelection)
         return;
     let devices;
     try {
