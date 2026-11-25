@@ -80,6 +80,7 @@
         "exposes": "Zigbee features",
         "ids": "Device IDs",
         "attribution": "Catalogue data: zigbee-herdsman-converters {version} · MIT license",
+        "images": "Device photos from Zigbee2MQTT",
         "upstream": "Open the upstream device database"
     },
     "configuration": {

@@ -367,6 +367,22 @@ select:focus-visible {
     font-size: 1.15rem;
     overflow-wrap: anywhere;
 }
+.device-image-frame {
+    display: flex;
+    height: 180px;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0 12px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--soft);
+}
+.device-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
 .device-card p {
     margin: 8px 0;
     color: var(--muted);

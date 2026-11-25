@@ -76,6 +76,7 @@
         "exposes": "Zigbee 기능",
         "ids": "장치 ID",
         "attribution": "장치 데이터: zigbee-herdsman-converters {version} · MIT 라이선스",
+        "images": "기기 이미지: Zigbee2MQTT",
         "upstream": "원본 장치 데이터베이스 열기"
     },
     "configuration": {

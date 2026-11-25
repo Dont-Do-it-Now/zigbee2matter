@@ -26,7 +26,15 @@ function renderDocs(t, page) {
 }
 
 function renderDevices(t) {
-    return `<div class="docs-heading"><div class="eyebrow">${t.nav.devices}</div><h1>${t.devices.title}</h1><p class="lead">${t.devices.lead}</p></div><p class="note">${t.devices.note}</p><label class="search-label" for="device-search">${t.devices.search}</label><input id="device-search" type="search" autocomplete="off" placeholder="${t.devices.search}"><p id="device-status" class="muted" role="status">${t.devices.loading}</p><div id="device-results" class="device-grid"></div><p id="device-attribution" class="attribution">${t.devices.attribution.replace("{version}", "")} · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.upstream}</a></p>`;
+    return `<div class="docs-heading"><div class="eyebrow">${t.nav.devices}</div><h1>${t.devices.title}</h1><p class="lead">${t.devices.lead}</p></div><p class="note">${t.devices.note}</p><label class="search-label" for="device-search">${t.devices.search}</label><input id="device-search" type="search" autocomplete="off" placeholder="${t.devices.search}"><p id="device-status" class="muted" role="status">${t.devices.loading}</p><div id="device-results" class="device-grid"></div><p id="device-attribution" class="attribution">${t.devices.attribution.replace("{version}", "")} · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.images}</a> · <a href="https://www.zigbee2mqtt.io/supported-devices/">${t.devices.upstream}</a></p>`;
+}
+
+function deviceImageUrls(device) {
+    const models = [device.model, ...(device.whiteLabel || []).map((label) => label.model)].filter(Boolean);
+    return [...new Set(models)].flatMap((model) => {
+        const base = `https://raw.githubusercontent.com/Koenkk/zigbee2mqtt.io/master/public/images/devices/${encodeURIComponent(model)}`;
+        return [`${base}.png`, `${base}.jpg`];
+    });
 }
 
 function renderLicense(t) {
@@ -67,10 +75,23 @@ async function setupDeviceSearch(t) {
         }
         output.innerHTML = visible
             .map(
-                (device) =>
-                    `<article class="device-card"><h2>${escapeHTML(device.model)}</h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`,
+                (device) => {
+                    const [imageUrl, ...fallbacks] = deviceImageUrls(device);
+                    return `<article class="device-card"><h2>${escapeHTML(device.model)}</h2><p class="device-vendor">${escapeHTML(device.vendor || "")}</p><div class="device-image-frame"><img class="device-image" src="${escapeHTML(imageUrl)}" data-fallbacks="${escapeHTML(JSON.stringify(fallbacks))}" alt="${escapeHTML(`${device.vendor} ${device.model}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>${device.description ? `<p>${escapeHTML(device.description)}</p>` : ""}${device.whiteLabel?.length ? `<p class="device-meta">${escapeHTML(device.whiteLabel.map((alias) => `${alias.vendor} ${alias.model}`).join(", "))}</p>` : ""}<p class="device-meta"><strong>${t.devices.ids}:</strong> ${escapeHTML((device.zigbeeModel || []).join(", ") || "—")}</p>${device.exposes?.length ? `<p class="device-meta"><strong>${t.devices.exposes}:</strong> ${escapeHTML(device.exposes.slice(0, 12).join(", "))}</p>` : ""}</article>`;
+                },
             )
             .join("");
+        output.querySelectorAll(".device-image").forEach((image) => {
+            image.addEventListener("error", () => {
+                const [next, ...remaining] = JSON.parse(image.dataset.fallbacks || "[]");
+                if (next) {
+                    image.dataset.fallbacks = JSON.stringify(remaining);
+                    image.src = next;
+                } else {
+                    image.closest(".device-image-frame")?.remove();
+                }
+            });
+        });
     };
     input.addEventListener("input", showResults);
     showResults();
