@@ -46,7 +46,7 @@ Only one app or integration can use a serial coordinator at a time. If the coord
 For local development, run `haos/prepare-local.sh` (Windows: `haos/prepare-local.ps1`), then copy `haos/zigbee2matter` to `/addons/zigbee2matter` on Home Assistant OS and install it as a local app.
 
 ## Release images
-The app version is defined by `version` in `config.yaml`. When the version is updated, GitHub Actions publishes amd64 and aarch64 images to GHCR.
+To release, bump only `version` in the root `package.json`. GitHub Actions builds and publishes amd64 and aarch64 images to GHCR, then writes that version to `config.yaml` (do not edit it by hand) so Home Assistant sees it only after the image exists.
 
 ## Status
 Installation, update, restart, Home Assistant Core stop, backup restore, and amd64/aarch64 runtime acceptance have not been verified.

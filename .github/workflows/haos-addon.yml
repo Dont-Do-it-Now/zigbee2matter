@@ -1,3 +1,6 @@
+# Release flow: bump package.json "version" only. This workflow builds and pushes the
+# image for that version, then publish-version writes it to haos/zigbee2matter/config.yaml
+# (the version Home Assistant advertises) so the store never points at a missing image tag.
 name: Build Home Assistant app
 
 on:
@@ -19,6 +22,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: haos-addon-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   prepare:
@@ -42,10 +49,9 @@ jobs:
         id: normalize
         env:
           IMAGE: ${{ steps.info.outputs.image }}
-          VERSION: ${{ steps.info.outputs.version }}
         run: |
           IMAGE=${IMAGE//\"/}
-          VERSION=${VERSION//\"/}
+          VERSION=$(node -p "require('./package.json').version")
           echo "image_name=${IMAGE##*/}" >> "$GITHUB_OUTPUT"
           echo "registry_prefix=${IMAGE%/*}" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -105,3 +111,33 @@ jobs:
             ${{ needs.prepare.outputs.version }}
             latest
           registry-prefix: ${{ needs.prepare.outputs.registry_prefix }}
+
+  publish-version:
+    # Advertise the new version only after its image manifest exists.
+    if: github.ref == 'refs/heads/main'
+    needs: [prepare, manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+      - name: Publish version to config.yaml
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            sed -i -E "s/^version: .*/version: \"${VERSION}\"/" haos/zigbee2matter/config.yaml
+            if git diff --quiet; then
+              echo "config.yaml already at ${VERSION}"
+              exit 0
+            fi
+            git commit -am "chore(haos): publish ${VERSION}"
+            git push origin HEAD:main && exit 0
+            git reset --hard HEAD~1
+            git pull --rebase origin main
+          done
+          exit 1
