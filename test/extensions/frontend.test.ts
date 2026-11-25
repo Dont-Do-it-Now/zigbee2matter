@@ -258,11 +258,7 @@ describe("Extension: Frontend", () => {
         mockWSClientEvents.message(stringify({topic: "bulb_color/set", payload: {state: "ON"}}), false);
         await flushPromises();
         expect(mockBridgeBusPublish).toHaveBeenCalledTimes(1);
-        expect(mockBridgeBusPublish).toHaveBeenCalledWith(
-            "zigbee2matter/bulb_color",
-            stringify({state: "ON", linkquality: 20}),
-            {retain: false},
-        );
+        expect(mockBridgeBusPublish).toHaveBeenCalledWith("zigbee2matter/bulb_color", stringify({state: "ON", linkquality: 20}), {retain: false});
         mockWSClientEvents.message(undefined, false);
         mockWSClientEvents.message("", false);
         mockWSClientEvents.message(null, false);
