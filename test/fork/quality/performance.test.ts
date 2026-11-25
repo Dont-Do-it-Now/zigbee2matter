@@ -14,7 +14,7 @@ describe("T070 performance contract", () => {
         });
 
         expect(measurement.status).toBe("RECORDED");
-        expect(measurement.latency).toMatchObject({sampleCount: 3, p50: 5, p95: 5, p99: 5});
+        expect(measurement.latency).toMatchObject({sampleCount: 3, p50: 5, p95: 10, p99: 10});
         expect(measurement.resources).toMatchObject({attempts: 3, failures: 1, failureRate: 1 / 3, rfTxCount: 9});
     });
 

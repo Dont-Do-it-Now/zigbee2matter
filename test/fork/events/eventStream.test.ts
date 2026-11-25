@@ -4,6 +4,8 @@ vi.mock("../../../lib/util/logger", () => ({default: {error: vi.fn(), debug: vi.
 
 import EventBus from "../../../lib/eventBus";
 import {EventStream} from "../../../lib/events";
+import StateReconciler from "../../../lib/state/reconciliation";
+import StateSnapshotCoordinator from "../../../lib/state/snapshot";
 
 const device = {isDevice: () => true, ieeeAddr: "0x01", ID: "0x01"} as unknown as Device;
 
@@ -16,17 +18,23 @@ function setup(capacity?: number) {
 }
 
 describe("EventStream", () => {
-    it("normalizes one stateChange once for multiple consumers", () => {
-        const {bus, stream} = setup();
+    it("publishes one state delta to multiple consumers", () => {
+        const {stream} = setup();
+        const snapshots = new StateSnapshotCoordinator(new StateReconciler({now: () => 1}), stream);
         const a = vi.fn();
         const b = vi.fn();
         stream.subscribe(a);
         stream.subscribe(b);
-        bus.emitStateChange({entity: device, from: {}, to: {state: "ON"}, update: {state: "ON"}});
+        snapshots.observe("device/0x01", {state: "ON"}, 1);
 
         expect(stream.stats.published).toBe(1);
         expect(a).toHaveBeenCalledTimes(1);
-        expect(a.mock.calls[0][0]).toMatchObject({type: "delta", key: "device/0x01", sequence: 1, payload: {update: {state: "ON"}}});
+        expect(a.mock.calls[0][0]).toMatchObject({
+            type: "delta",
+            key: "device/0x01",
+            sequence: 1,
+            payload: {key: "device/0x01", observedValue: {state: "ON"}, quality: "confirmed", revision: 1, observedAt: 1},
+        });
         expect(b.mock.calls[0][0]).toBe(a.mock.calls[0][0]);
     });
 
