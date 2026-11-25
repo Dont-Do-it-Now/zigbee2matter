@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.25.8
+- Fix the frontend freezing right after it starts loading.
+
 ## 2026.11.25.7
 - Fix the Matter bridge failing to start in the add-on because the Matter Node.js platform package was not installed.
 
