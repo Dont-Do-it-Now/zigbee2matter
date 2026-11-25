@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.25.12
+- Fix the Matter bridge failing to start ("Behaviors have errors") because the bridge serial number exceeded the Matter length limit.
+- Shorten long device names to the Matter label limits instead of failing.
+- Log the detailed cause when the Matter bridge fails to start.
+
 ## 2026.11.25.11
 - Show a clear "Matter bridge is not running" state on the Matter connections page.
 - Show errors next to the action, including inside the disconnect dialog.
