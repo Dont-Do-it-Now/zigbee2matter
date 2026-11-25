@@ -15,6 +15,9 @@ host_network: true
 ingress: true
 ingress_port: 8080
 ingress_stream: true
+# Supervisor API: read the Matter Server add-on state for the one-click Home Assistant connection.
+# Default role may read /addons/core_matter_server/info (no control of other add-ons).
+hassio_api: true
 panel_icon: mdi:zigbee
 panel_title: Zigbee2Matter
 # host_network 에서는 포트 매핑이 아니라 선언/watchdog 용이다. 실제 listen 포트는 options 가 결정한다.
