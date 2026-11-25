@@ -283,17 +283,31 @@ export class MatterSdkRuntime {
                 options.passcode === undefined || options.discriminator === undefined
                     ? undefined
                     : {passcode: options.passcode, discriminator: options.discriminator};
-            const basicInformation =
-                options.vendorId === undefined || options.productId === undefined
-                    ? undefined
-                    : {
-                          vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId,
-                          productId: options.productId,
-                          productName: options.productName ?? "Zigbee2Matter Bridge",
-                          nodeLabel: options.productName ?? "Zigbee2Matter Bridge",
-                          // Matter serialNumber max 32 chars; a dashed UUID is 36.
-                          serialNumber: options.id.replaceAll("-", "").slice(0, 32),
-                      };
+            const {version} = (await import("../../package.json", {with: {type: "json"}})).default;
+            const versionParts = version.split(".").map(Number);
+            const softwareVersion = Number(version.replaceAll(".", ""));
+            if (
+                versionParts.length !== 4 ||
+                versionParts.some((part) => !Number.isInteger(part)) ||
+                !Number.isSafeInteger(softwareVersion) ||
+                softwareVersion > 0xffffffff
+            ) {
+                throw new Error(`Matter software version is invalid: ${version}`);
+            }
+            const productName = options.productName ?? "Zigbee2Matter Bridge";
+            const basicInformation = {
+                vendorName: "Zigbee2Matter",
+                ...(options.vendorId !== undefined
+                    ? {vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId}
+                    : {}),
+                ...(options.productId !== undefined ? {productId: options.productId} : {}),
+                productName,
+                nodeLabel: productName,
+                softwareVersion,
+                softwareVersionString: version,
+                // Matter serialNumber max 32 chars; a dashed UUID is 36.
+                serialNumber: options.id.replaceAll("-", "").slice(0, 32),
+            };
             const customCertification =
                 options.attestation?.useSdkGeneratedTestCertification === false
                     ? {
@@ -317,7 +331,7 @@ export class MatterSdkRuntime {
                 id: options.id,
                 ...(options.network ? {network: toServerNodeNetworkState(options.network)} : {}),
                 ...(commissioning ? {commissioning} : {}),
-                ...(basicInformation ? {basicInformation} : {}),
+                basicInformation,
                 ...(customCertification ? {operationalCredentials: customCertification} : {}),
             });
             try {

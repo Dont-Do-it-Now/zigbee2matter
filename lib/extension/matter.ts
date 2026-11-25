@@ -750,8 +750,13 @@ export default class Matter extends Extension {
                 slot.pending = undefined;
                 try {
                     await this.updateMatter(matterKey, next, part);
+                    if (typeof next.humidity === "number") {
+                        logger.info(`Matter humidity update applied for ${eventKey}: ${next.humidity}%`);
+                    }
                 } catch (error) {
-                    logger.warning(`Matter state update failed for ${eventKey}: ${errorMessage(error)}`);
+                    logger.warning(
+                        `Matter state update failed for ${eventKey} (fields=${Object.keys(next).join(",")}): ${errorMessage(error)}`,
+                    );
                 }
                 next = slot.pending;
             }

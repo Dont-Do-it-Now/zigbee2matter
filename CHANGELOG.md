@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+* Publish the Zigbee2Matter vendor name and software version through Matter Basic Information.
+* Log applied humidity reports and include affected state fields in Matter endpoint update failures.
 * Release the Matter device command queue after dispatch so an unobserved state report cannot delay the next command until timeout.
 * Advertise Matter mDNS over IPv4 and IPv6 whenever the Matter bridge is enabled, without a separate IPv4 option.
 * Expose temperature and humidity as separate Matter child endpoints for controller compatibility.

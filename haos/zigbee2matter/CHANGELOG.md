@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.26.4
+- Publish the Zigbee2Matter vendor name and current software version through Matter Basic Information.
+- Log applied humidity reports and include affected state fields in Matter endpoint update failures.
+
 ## 2026.11.26.3
 - Prevent an unobserved Matter state report from blocking the next command to the same Zigbee device until timeout.
 
