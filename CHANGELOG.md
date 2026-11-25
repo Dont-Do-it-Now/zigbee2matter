@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+
+* Remove the Home Assistant Matter Server node before deleting its local fabric.
+* Open an enhanced commissioning window with fresh pairing codes when adding another Matter platform.
+* Initialize Matter contact sensor state and map Zigbee presence sensors to Matter occupancy.
+* Avoid exposing battery voltage as electrical power and explain the SmartThings Matter hub requirement.
+
 ## [2.14.3](https://github.com/Koenkk/zigbee2mqtt/compare/2.14.2...2.14.3) (2026-10-31)
 
 
