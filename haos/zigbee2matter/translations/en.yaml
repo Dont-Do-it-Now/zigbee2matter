@@ -13,7 +13,7 @@ configuration:
     description: Expose Zigbee devices to a Matter network. On by default.
   matter_mdns_interface:
     name: Matter mDNS interface
-    description: Restrict Matter mDNS to this network interface (e.g. enp0s3). Empty uses all external interfaces.
+    description: Restrict Matter mDNS to this interface (e.g. enp0s3). When empty, the only non-virtual IPv6 interface is selected automatically; otherwise all external interfaces are used.
   matter_ipv4:
     name: Matter IPv4 advertisement
     description: Also advertise Matter mDNS over IPv4. Turning this off disables only IPv4; IPv6 mDNS remains enabled.

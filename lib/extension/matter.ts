@@ -46,7 +46,7 @@ import type {DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
 import type {EndpointRegistryDocument, EndpointRegistryEntry, RegistryKey} from "../matter/endpointRegistry";
 import {FileMatterFabricStore} from "../matter/fabricStore";
 import {type MappingExpose, planEndpointMapping} from "../matter/mappingRegistry";
-import {diagnoseMatterNetwork} from "../matter/networkConfig";
+import {diagnoseMatterNetwork, selectMatterMdnsInterface} from "../matter/networkConfig";
 import {type MatterEndpointFactory, type MatterFabricStore, MatterSdkBridgeNodeRuntimeFactory} from "../matter/sdkRuntime";
 import {ZigbeeMatterEndpointFactory} from "../matter/zigbeeEndpointFactory";
 import {type MigrationOperationsInput, runMigrationOperations} from "../migration/operations";
@@ -471,7 +471,12 @@ export default class Matter extends Extension {
 
     private async startMatter(): Promise<void> {
         const matterSettings = settings.get().matter;
-        const networkDiagnostics = diagnoseMatterNetwork(matterSettings.network ?? {});
+        const requestedNetwork = matterSettings.network ?? {};
+        const network = selectMatterMdnsInterface(requestedNetwork);
+        if (!requestedNetwork.mdnsInterface && network.mdnsInterface) {
+            logger.info(`Matter mDNS automatically selected network interface: ${network.mdnsInterface}`);
+        }
+        const networkDiagnostics = diagnoseMatterNetwork(network);
         for (const diagnostic of networkDiagnostics) {
             const message = `Matter network [${diagnostic.code}]: ${diagnostic.message}`;
             if (diagnostic.level === "error") logger.error(message);
@@ -492,7 +497,7 @@ export default class Matter extends Extension {
             attestation,
             vendorId: attestation.vendorId,
             productId: attestation.productId,
-            ...(matterSettings.network ? {network: matterSettings.network} : {}),
+            ...(Object.keys(network).length > 0 ? {network} : {}),
             ...(matterSettings.passcode !== undefined ? {passcode: matterSettings.passcode} : {}),
             ...(matterSettings.discriminator !== undefined ? {discriminator: matterSettings.discriminator} : {}),
         });

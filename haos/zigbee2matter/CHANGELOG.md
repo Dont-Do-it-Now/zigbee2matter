@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.25.17
+- Select the only non-virtual IPv6 network interface for Matter mDNS when no interface is configured, avoiding advertisements on Docker and Home Assistant bridges.
+- Update the interface setting description to document automatic selection and fallback behavior.
+
 ## 2026.11.25.16
 - Show only committed Matter platforms and hide fabrics from canceled commissioning attempts.
 - Block opening another commissioning window while a Matter commissioning attempt is still in progress.
