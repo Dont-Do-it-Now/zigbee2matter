@@ -100,9 +100,8 @@ describe("ZigbeeMatterEndpointFactory", () => {
     });
 
     it("rejects devices without an approved capability and lists the unsupported exposes", async () => {
-        const f = factory([e.linkquality()]);
-        await expect(f.create(entry())).rejects.toThrow(/unsupported/);
-        expect(f.unsupportedFor("ep-1")).toEqual([]);
+        const f = factory([{type: "numeric", name: "linkquality"}]);
+        await expect(f.create(entry())).rejects.toThrow("Matter mapping is unsupported: no approved capability (unsupported: numeric:linkquality)");
     });
 
     it("fails when the source is unavailable or the SDK lacks Endpoint", async () => {
