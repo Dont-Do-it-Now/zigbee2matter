@@ -370,14 +370,15 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
 
     async afterAdd(entry: EndpointRegistryEntry): Promise<void> {
         const runtime = this.runtimes.get(entry.endpointId);
-        if (!runtime?.bridgedDeviceTypes?.length) return;
+        const bridgedDeviceTypes = runtime?.bridgedDeviceTypes;
+        if (!runtime || !bridgedDeviceTypes?.length) return;
 
         const {DescriptorServer} = await import("@matter/main/behaviors/descriptor");
         if (runtime.instance.act === undefined) throw new Error("Matter endpoint cannot publish bridged device types");
         await runtime.instance.act((agent) => {
             const descriptor = agent.get(DescriptorServer);
             if (descriptor.addDeviceTypes === undefined) throw new Error("Matter Descriptor server cannot publish bridged device types");
-            descriptor.addDeviceTypes(...runtime.bridgedDeviceTypes);
+            descriptor.addDeviceTypes(...bridgedDeviceTypes);
         });
     }
 
