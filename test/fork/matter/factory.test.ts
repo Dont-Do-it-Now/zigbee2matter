@@ -28,13 +28,15 @@ class FakeEndpoint {
         this.sets.push(values);
     }
 
-    act<R>(actor: (agent: {
-        context: unknown;
-        get: (_type: unknown) => {
-            events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>;
-            addDeviceTypes(...deviceTypes: string[]): void;
-        };
-    }) => R): Promise<R> {
+    act<R>(
+        actor: (agent: {
+            context: unknown;
+            get: (_type: unknown) => {
+                events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>;
+                addDeviceTypes(...deviceTypes: string[]): void;
+            };
+        }) => R,
+    ): Promise<R> {
         return Promise.resolve(
             actor({
                 context: {},
