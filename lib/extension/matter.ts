@@ -1046,9 +1046,7 @@ export default class Matter extends Extension {
             available: this.state.get(device).available !== false,
             exposes: this.endpointExposes(device, endpoint),
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
-            switchDeviceType: MATTER_LIGHT_SWITCH_MODELS.has(device.zh.modelID ?? "")
-                ? "OnOffLight"
-                : "OnOffPlugInUnit",
+            switchDeviceType: MATTER_LIGHT_SWITCH_MODELS.has(device.zh.modelID ?? "") ? "OnOffLight" : "OnOffPlugInUnit",
             invertCover: (device.options as KeyValue).invert_cover === true,
             lockCommandsAllowed: true,
             // Matter 명령도 공통 CommandRouter 경로(권한/검증/큐/중복/결과 이벤트)를 거친다(T012).
