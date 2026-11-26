@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.26.6
+- Restore composed Matter endpoints after initialization so persisted multi-gang devices are not skipped at startup.
+
 ## 2026.11.26.5
 - Include bridged device types on the Matter root endpoint so SmartThings can select the correct combined sensor profile.
 - Map TS0013 wall light switch relays to Matter lights by Zigbee model ID while keeping generic switches as outlets.
