@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Add a setting to wait for the first friendly-name change before exposing new devices to Matter, enabled by default.
 * Delay Matter endpoint creation for newly joined devices until their default IEEE name is changed.
 * Report desired Matter state immediately after a command so SmartThings dashboards do not remain in a pending state.
 * Fix action delivery after routing multi-gang relays as independent Matter devices.

@@ -11,6 +11,7 @@ homeassistant:
 # Enable the Matter bridge node (requires the configured Matter SDK runtime)
 matter:
     enabled: false
+    # expose_devices_after_name_change: true
     # passcode: 20202021
     # discriminator: 3840
     # attestation:

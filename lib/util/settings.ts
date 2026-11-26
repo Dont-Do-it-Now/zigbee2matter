@@ -35,6 +35,7 @@ export const defaults = {
     },
     matter: {
         enabled: false,
+        expose_devices_after_name_change: true,
     },
     availability: {
         enabled: false,

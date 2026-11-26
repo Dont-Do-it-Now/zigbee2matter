@@ -58,6 +58,13 @@
                     "default": false,
                     "requiresRestart": true
                 },
+                "expose_devices_after_name_change": {
+                    "type": "boolean",
+                    "title": "Add Matter devices after naming",
+                    "description": "When enabled, wait until a device's default IEEE name is changed before adding it to Matter. Disable to add devices immediately after interview.",
+                    "default": true,
+                    "requiresRestart": true
+                },
                 "passcode": {
                     "type": "integer",
                     "title": "Commissioning passcode",

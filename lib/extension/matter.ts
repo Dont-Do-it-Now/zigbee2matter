@@ -859,7 +859,7 @@ export default class Matter extends Extension {
     }
 
     private shouldExposeMatterDevice(device: Device): boolean {
-        return device.name !== device.ieeeAddr;
+        return settings.get().matter.expose_devices_after_name_change !== true || device.name !== device.ieeeAddr;
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
@@ -935,7 +935,7 @@ export default class Matter extends Extension {
                 try {
                     // The factory resolves the source lazily, so labels always come from the current friendly name.
                     const restored = await runtime.restore(key);
-                    if (restored === undefined) await runtime.create(key, true);
+                    if (restored === undefined && this.shouldExposeMatterDevice(device)) await runtime.create(key, true);
                     else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) await runtime.rebuild(key);
                 } catch (error) {
                     if (isUnmappable(error)) continue;

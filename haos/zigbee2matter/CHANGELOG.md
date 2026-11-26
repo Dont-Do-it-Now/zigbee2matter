@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.3
+- Add a setting to wait for the first friendly-name change before exposing new devices to Matter, enabled by default.
+
 ## 2026.11.27.2
 - Delay Matter endpoint creation for newly joined devices until their default IEEE name is changed.
 
