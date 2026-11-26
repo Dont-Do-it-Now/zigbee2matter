@@ -161,6 +161,7 @@ interface EndpointRuntime {
     /** 합성(composed) root일 때만: Zigbee endpoint ID -> gang runtime. */
     parts?: Map<string, EndpointRuntime>;
     stateFields?: readonly string[];
+    bridgedDeviceTypes?: readonly string[];
 }
 
 interface FactoryOptions {
@@ -351,14 +352,6 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             bridgedDeviceBasicInformation: bridgedBasicInformation(source, entry.endpointId),
         });
         const bridgedDeviceTypes = [...new Set([...parts.values()].flatMap((part) => part.plan.deviceTypes))];
-        if (bridgedDeviceTypes.length > 0) {
-            if (endpoint.act === undefined) throw new Error("Matter endpoint cannot publish bridged device types");
-            await endpoint.act((agent) => {
-                const descriptor = agent.get(DescriptorServer);
-                if (descriptor.addDeviceTypes === undefined) throw new Error("Matter Descriptor server cannot publish bridged device types");
-                descriptor.addDeviceTypes(...bridgedDeviceTypes);
-            });
-        }
         this.runtimes.set(entry.endpointId, {
             instance: endpoint,
             buttons: new Map(),
@@ -369,9 +362,23 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             colorValues: {},
             signature: JSON.stringify(signatures),
             parts,
+            bridgedDeviceTypes,
         });
 
         return {endpoint, unsupported};
+    }
+
+    async afterAdd(entry: EndpointRegistryEntry): Promise<void> {
+        const runtime = this.runtimes.get(entry.endpointId);
+        if (!runtime?.bridgedDeviceTypes?.length) return;
+
+        const {DescriptorServer} = await import("@matter/main/behaviors/descriptor");
+        if (runtime.instance.act === undefined) throw new Error("Matter endpoint cannot publish bridged device types");
+        await runtime.instance.act((agent) => {
+            const descriptor = agent.get(DescriptorServer);
+            if (descriptor.addDeviceTypes === undefined) throw new Error("Matter Descriptor server cannot publish bridged device types");
+            descriptor.addDeviceTypes(...runtime.bridgedDeviceTypes);
+        });
     }
 
     /** plan으로 endpoint(+버튼 part)를 만든다. root/gang 공통. */

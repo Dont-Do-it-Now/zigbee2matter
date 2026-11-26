@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Apply composed Matter device types after endpoint initialization so persisted multi-gang devices restore correctly.
 * Include bridged device types on the Matter root endpoint so SmartThings can select the correct combined sensor profile.
 * Map TS0013 wall light switch relays to Matter lights by Zigbee model ID while keeping generic switches as outlets.
 * Publish the Zigbee2Matter vendor name and software version through Matter Basic Information.

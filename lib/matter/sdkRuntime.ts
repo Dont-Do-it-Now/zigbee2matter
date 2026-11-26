@@ -141,6 +141,8 @@ export interface UnsupportedFeatureProvider {
 
 export interface MatterEndpointFactory {
     create(entry: EndpointRegistryEntry): Promise<{endpoint: unknown; unsupported?: readonly FeatureDecision[]}>;
+    /** Runs after the SDK has initialized the endpoint in its parent. */
+    afterAdd?(entry: EndpointRegistryEntry): Promise<void>;
     readAssignedNumber(entry: EndpointRegistryEntry, endpoint: unknown, added: unknown): number;
     remove(entry: EndpointRegistryEntry): Promise<undefined | {permanent: boolean}>;
     /** `part`: composed(multi-gang) device에서 상태를 반영할 gang(Zigbee endpoint ID). */
@@ -171,6 +173,7 @@ export class MatterSdkEndpointAdapter implements DynamicEndpointAdapter, Unsuppo
         const created = await this.factory.create(entry);
         try {
             const added = await this.runtime.addEndpoint(created.endpoint);
+            await this.factory.afterAdd?.(entry);
             this.unsupported.set(entry.endpointId, created.unsupported ?? []);
 
             return {number: this.factory.readAssignedNumber(entry, created.endpoint, added)};
