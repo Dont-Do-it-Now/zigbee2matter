@@ -690,7 +690,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             "MomentarySwitchMultiPress",
         );
         const switchDefinition = GenericSwitchDevice.with(switchBehavior) as EndpointDefinition;
-        if (primary !== undefined) return {...primary, deviceTypes: planDeviceTypes(primary, {definition: switchDefinition}), switchBehavior, switchDefinition};
+        if (primary !== undefined)
+            return {...primary, deviceTypes: planDeviceTypes(primary, {definition: switchDefinition}), switchBehavior, switchDefinition};
 
         return {
             ...base,
