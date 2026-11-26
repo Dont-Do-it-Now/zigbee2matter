@@ -14,6 +14,7 @@ class FakeEndpoint {
     deleted = false;
     closed = false;
     sets: Record<string, unknown>[] = [];
+    deviceTypes: string[] = [];
 
     constructor(
         readonly definition: unknown,
@@ -25,6 +26,24 @@ class FakeEndpoint {
     // biome-ignore lint/suspicious/useAwait: test stub implements async interface without await
     async set(values: Record<string, unknown>): Promise<void> {
         this.sets.push(values);
+    }
+
+    act<R>(actor: (agent: {
+        context: unknown;
+        get: (_type: unknown) => {
+            events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>;
+            addDeviceTypes(...deviceTypes: string[]): void;
+        };
+    }) => R): Promise<R> {
+        return Promise.resolve(
+            actor({
+                context: {},
+                get: () => ({
+                    events: {},
+                    addDeviceTypes: (...deviceTypes) => this.deviceTypes.push(...deviceTypes),
+                }),
+            }),
+        );
     }
 
     // biome-ignore lint/suspicious/useAwait: test stub implements async interface without await
