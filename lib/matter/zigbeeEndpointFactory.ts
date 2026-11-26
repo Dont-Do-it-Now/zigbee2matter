@@ -35,6 +35,7 @@ import {celsiusToMatter, humidityPercentToMatter, occupancyToMatter} from "./sen
 import type {FeatureDecision} from "./unsupportedFeatures";
 
 interface EndpointDefinition {
+    name?: string;
     with(...behaviors: unknown[]): unknown;
 }
 
@@ -62,7 +63,10 @@ interface EndpointEvents {
 
 interface EventAgent {
     context: unknown;
-    get(type: unknown): {events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>};
+    get(type: unknown): {
+        events: Record<string, {emit(payload: unknown, context?: unknown): void} | undefined>;
+        addDeviceTypes(...deviceTypes: string[]): void;
+    };
 }
 
 interface MatterEndpointInstance {
@@ -87,6 +91,8 @@ interface ZigbeeMatterEndpointSource {
     invertCover?: boolean;
     /** Matter 쪽 lock/unlock 명령 허용 정책. 기본 true(Matter ACL이 이미 인가). */
     lockCommandsAllowed?: boolean;
+    /** Zigbee expose 'switch' defaults to an outlet; converter metadata can identify a light switch instead. */
+    switchDeviceType?: "OnOffLight" | "OnOffPlugInUnit";
     /** 기기의 대표(가장 작은 Zigbee endpoint ID) endpoint면 true(기본 true). 컨트롤러가 채운다. */
     isPrimaryEndpoint?: boolean;
     /**
@@ -114,6 +120,7 @@ type CommandBuilder = () => Record<string, unknown> | undefined;
 
 interface EndpointDefinitionPlan {
     definition: EndpointDefinition;
+    deviceTypes: readonly string[];
     capabilities: Capabilities;
     unsupported: readonly FeatureDecision[];
     lightKind?: "light" | "colorTemperature" | "color";
@@ -187,6 +194,7 @@ function buttonPartId(button: string): string {
 /** Stable description of the Matter device type/clusters derived from a plan. */
 function planSignature(plan: EndpointDefinitionPlan): string {
     return JSON.stringify([
+        plan.deviceTypes,
         Object.keys(plan.capabilities).sort(),
         plan.lightKind,
         plan.supportsTilt,
@@ -195,6 +203,10 @@ function planSignature(plan: EndpointDefinitionPlan): string {
         plan.supportedModes,
         plan.setpointRanges,
     ]);
+}
+
+function planDeviceTypes(...definitions: {definition: EndpointDefinition}[]): string[] {
+    return [...new Set(definitions.map(({definition}) => definition.name).filter((name): name is string => typeof name === "string"))];
 }
 
 function unsupportedError(unsupported: readonly FeatureDecision[]): Error {
@@ -239,6 +251,7 @@ function fitMatterString(value: string, maxBytes: number): string {
 
 function bridgedBasicInformation(source: ZigbeeMatterEndpointSource, serialNumber: string): Record<string, unknown> {
     return {
+        vendorName: "Zigbee2Matter",
         nodeLabel: fitMatterString(source.name, 32),
         productName: fitMatterString(source.name, 32),
         productLabel: fitMatterString(source.name, 64),
@@ -324,6 +337,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         }
         const plan: EndpointDefinitionPlan = {
             definition: BridgedNodeEndpoint as unknown as EndpointDefinition,
+            deviceTypes: [],
             capabilities: {},
             unsupported,
             supportsTilt: false,
@@ -336,6 +350,15 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             parts: [...parts.values()].map((gang) => gang.instance),
             bridgedDeviceBasicInformation: bridgedBasicInformation(source, entry.endpointId),
         });
+        const bridgedDeviceTypes = [...new Set([...parts.values()].flatMap((part) => part.plan.deviceTypes))];
+        if (bridgedDeviceTypes.length > 0) {
+            if (endpoint.act === undefined) throw new Error("Matter endpoint cannot publish bridged device types");
+            await endpoint.act((agent) => {
+                const descriptor = agent.get(DescriptorServer);
+                if (descriptor.addDeviceTypes === undefined) throw new Error("Matter Descriptor server cannot publish bridged device types");
+                descriptor.addDeviceTypes(...bridgedDeviceTypes);
+            });
+        }
         this.runtimes.set(entry.endpointId, {
             instance: endpoint,
             buttons: new Map(),
@@ -640,6 +663,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const mapping = planEndpointMapping(source.exposes, {isPrimaryEndpoint: source.isPrimaryEndpoint});
         const caps = mapping.capabilities;
         const base: PlanBase = {
+            deviceTypes: [],
             capabilities: caps,
             unsupported: mapping.unsupported,
             supportsTilt: false,
@@ -650,7 +674,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const primary = await this.primaryDefinition(base, source, report);
         if (caps.button === undefined) {
             if (primary === undefined) throw unsupportedError(mapping.unsupported);
-            return primary;
+            return {...primary, deviceTypes: planDeviceTypes(primary)};
         }
 
         // 버튼은 항상 자체 GenericSwitch endpoint에서만 이벤트를 낸다. 다른 primary가 있으면 모든 버튼이 child part,
@@ -666,9 +690,16 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             "MomentarySwitchMultiPress",
         );
         const switchDefinition = GenericSwitchDevice.with(switchBehavior) as EndpointDefinition;
-        if (primary !== undefined) return {...primary, switchBehavior, switchDefinition};
+        if (primary !== undefined) return {...primary, deviceTypes: planDeviceTypes(primary, switchDefinition), switchBehavior, switchDefinition};
 
-        return {...base, definition: switchDefinition, switchBehavior, switchDefinition, rootButton: base.buttons[0] ?? DEFAULT_BUTTON};
+        return {
+            ...base,
+            definition: switchDefinition,
+            deviceTypes: planDeviceTypes({definition: switchDefinition}),
+            switchBehavior,
+            switchDefinition,
+            rootButton: base.buttons[0] ?? DEFAULT_BUTTON,
+        };
     }
 
     /** button 이외의 primary device type. 없으면 undefined. */
@@ -681,7 +712,7 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
 
         if (caps.light) return lightDefinition(base, caps.light, await loadExtraBehaviors(caps));
         if (caps.switch) {
-            const device = await loadDevice("on-off-plug-in-unit");
+            const device = await loadDevice(source.switchDeviceType === "OnOffLight" ? "on-off-light" : "on-off-plug-in-unit");
             return {...base, definition: device.with(...(await loadExtraBehaviors(caps))) as EndpointDefinition};
         }
         if (caps.cover) return coverDefinition(base, caps.cover, source, await loadExtraBehaviors(caps), report);

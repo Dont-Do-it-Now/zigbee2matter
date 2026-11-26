@@ -75,6 +75,8 @@ export const COMMAND_QUEUE_MAX_CONCURRENT = 16;
 const ACTION_KEY = /^action(_|$)/;
 const MATTER_CONSUMER = "matter-endpoints";
 const HA_CONSUMER = "ha-matter";
+// TS0013 is a three-gang wall light switch. The converter exposes its relays as generic `switch` features.
+const MATTER_LIGHT_SWITCH_MODELS = new Set(["TS0013"]);
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
 const RETRY_SUFFIX = /:r\d+$/;
@@ -1046,6 +1048,7 @@ export default class Matter extends Extension {
             available: this.state.get(device).available !== false,
             exposes: this.endpointExposes(device, endpoint),
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
+            switchDeviceType: MATTER_LIGHT_SWITCH_MODELS.has(device.zh.modelID ?? "") ? "OnOffLight" : "OnOffPlugInUnit",
             invertCover: (device.options as KeyValue).invert_cover === true,
             lockCommandsAllowed: true,
             // Matter 명령도 공통 CommandRouter 경로(권한/검증/큐/중복/결과 이벤트)를 거친다(T012).

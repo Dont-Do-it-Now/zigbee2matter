@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.26.5
+- Include bridged device types on the Matter root endpoint so SmartThings can select the correct combined sensor profile.
+- Map TS0013 wall light switch relays to Matter lights by Zigbee model ID while keeping generic switches as outlets.
+
 ## 2026.11.26.4
 - Publish the Zigbee2Matter vendor name and current software version through Matter Basic Information.
 - Log applied humidity reports and include affected state fields in Matter endpoint update failures.

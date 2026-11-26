@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+* Include bridged device types on the Matter root endpoint so SmartThings can select the correct combined sensor profile.
+* Map TS0013 wall light switch relays to Matter lights by Zigbee model ID while keeping generic switches as outlets.
 * Publish the Zigbee2Matter vendor name and software version through Matter Basic Information.
 * Log applied humidity reports and include affected state fields in Matter endpoint update failures.
 * Release the Matter device command queue after dispatch so an unobserved state report cannot delay the next command until timeout.
