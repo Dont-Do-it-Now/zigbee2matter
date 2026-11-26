@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.26.7
+- Expose each relay of a multi-gang Zigbee device as an independent Matter accessory with consistent bridged device information.
+- Derive Matter light versus outlet type from Zigbee converter capabilities without model ID overrides.
+- Restore individually bridged relay endpoints after migrating from a composed Matter device.
+
 ## 2026.11.26.6
 - Restore composed Matter endpoints after initialization so persisted multi-gang devices are not skipped at startup.
 

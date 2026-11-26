@@ -75,8 +75,6 @@ export const COMMAND_QUEUE_MAX_CONCURRENT = 16;
 const ACTION_KEY = /^action(_|$)/;
 const MATTER_CONSUMER = "matter-endpoints";
 const HA_CONSUMER = "ha-matter";
-// TS0013 is a three-gang wall light switch. The converter exposes its relays as generic `switch` features.
-const MATTER_LIGHT_SWITCH_MODELS = new Set(["TS0013"]);
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
 const RETRY_SUFFIX = /:r\d+$/;
@@ -687,12 +685,12 @@ export default class Matter extends Extension {
         const ownKey = makeDeviceKey(key.networkId, key.ieee, key.endpoint, "matter");
         const matterKey = route?.key ?? ownKey;
         if (!ownKey || !matterKey) return;
-        // Slot per Zigbee endpoint (not per composed parent) so gangs keep writing concurrently.
-        void this.pushToMatter(formatDeviceKey(ownKey), matterKey, value, eventKey, route?.part);
+        // Slot per Zigbee endpoint so independent gangs keep writing concurrently.
+        void this.pushToMatter(formatDeviceKey(ownKey), matterKey, value, eventKey);
     }
 
-    /** Zigbee endpoint IDs of the on/off gangs exposed as ONE composed Matter device (ascending); empty unless the device has 2+ such endpoints. */
-    private composedGroup(device: Device): number[] {
+    /** Zigbee endpoint IDs exposed as independent Matter light devices (ascending). */
+    private independentLightEndpoints(device: Device): number[] {
         if (device.zh.endpoints.length < 2) return [];
         const minId = Math.min(...device.zh.endpoints.map((item) => item.ID));
         const gangs = device.zh.endpoints
@@ -707,13 +705,16 @@ export default class Matter extends Extension {
         return gangs.length >= 2 ? gangs : [];
     }
 
-    /** Registry (parent) key + gang id a Zigbee endpoint's Matter traffic goes through. Gangs share the first gang's key. */
-    private matterRoute(device: Device, endpointId: number): {key: NonNullable<ReturnType<typeof makeDeviceKey>>; part?: string} | undefined {
-        const group = this.composedGroup(device);
-        const gang = group.includes(endpointId);
-        const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, gang ? (group[0] as number) : endpointId, "matter");
+    private matterRoute(device: Device, endpointId: number): {key: NonNullable<ReturnType<typeof makeDeviceKey>>} | undefined {
+        const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, endpointId, "matter");
 
-        return key === undefined ? undefined : gang ? {key, part: String(endpointId)} : {key};
+        return key === undefined ? undefined : {key};
+    }
+
+    private matterDeviceName(device: Device, endpointId: number, baseName = device.name): string {
+        const index = this.independentLightEndpoints(device).indexOf(endpointId);
+
+        return index < 0 ? baseName : `${baseName} ${index + 1}`;
     }
 
     private async updateMatter(key: NonNullable<ReturnType<typeof makeDeviceKey>>, state: Record<string, unknown>, part?: string): Promise<void> {
@@ -832,10 +833,7 @@ export default class Matter extends Extension {
             const runtime = this.runtime.currentDynamicEndpointRuntime;
             if (!runtime) return;
 
-            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
-                // Gangs of a composed device live under the first gang's endpoint when creating; removal covers every endpoint (legacy entries too).
-                if (create && group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
@@ -846,26 +844,7 @@ export default class Matter extends Extension {
                     logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
-            if (create) await this.retireGangEntries(device, runtime, group);
         });
-    }
-
-    /**
-     * Migration: a multi-gang device used to get one Matter endpoint per Zigbee endpoint. Once it is composed, the old per-gang
-     * entries are tombstoned (their SDK endpoints are never recreated); the first gang's entry keeps its id and becomes the composed root.
-     */
-    private async retireGangEntries(device: Device, runtime: DynamicEndpointRuntime, group: readonly number[]): Promise<void> {
-        const registry = this.runtime.currentEndpointRegistry;
-        for (const id of group.slice(1)) {
-            const key = makeDeviceKey(this.networkIdentity.networkId, device.ieeeAddr, id, "matter");
-            if (!key || registry?.get(key) === undefined) continue;
-            try {
-                await this.removeWithRetry(runtime, key);
-                logger.info(`Matter endpoint of gang ${id} of ${device.name} merged into the composed device`);
-            } catch (error) {
-                logger.warning(`Matter gang endpoint cleanup failed for ${device.name}: ${errorMessage(error)}`);
-            }
-        }
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
@@ -891,9 +870,7 @@ export default class Matter extends Extension {
             const registry = this.runtime.currentEndpointRegistry;
             if (!runtime || !registry || device.zh.interviewState !== InterviewState.Successful) return;
 
-            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
-                if (group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
@@ -908,7 +885,6 @@ export default class Matter extends Extension {
                     logger.warning(`Matter endpoint rebuild failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
-            await this.retireGangEntries(device, runtime, group);
         });
     }
 
@@ -923,7 +899,7 @@ export default class Matter extends Extension {
                 const entry = key ? registry.get(key) : undefined;
                 if (!entry) continue;
                 try {
-                    await this.endpointFactory.updateLabel?.(entry, name);
+                    await this.endpointFactory.updateLabel?.(entry, this.matterDeviceName(device, endpoint.ID, name));
                 } catch (error) {
                     logger.warning(`Matter label update failed for ${name}: ${errorMessage(error)}`);
                 }
@@ -938,21 +914,19 @@ export default class Matter extends Extension {
         for (const device of this.zigbee.devicesIterator(utils.deviceNotCoordinator)) {
             if (device.zh.interviewState !== InterviewState.Successful) continue;
 
-            const group = this.composedGroup(device);
             for (const endpoint of device.zh.endpoints) {
-                if (group.includes(endpoint.ID) && endpoint.ID !== group[0]) continue;
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
                     // The factory resolves the source lazily, so labels always come from the current friendly name.
                     const restored = await runtime.restore(key);
                     if (restored === undefined) await runtime.create(key, true);
+                    else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) await runtime.rebuild(key);
                 } catch (error) {
                     if (isUnmappable(error)) continue;
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${errorMessage(error)}`);
                 }
             }
-            await this.retireGangEntries(device, runtime, group);
         }
 
         await this.sweepOrphanEndpoints(runtime);
@@ -1004,49 +978,28 @@ export default class Matter extends Extension {
         if (!endpoint) return undefined;
 
         const source = this.matterSourceFor(device, endpoint, entry);
-        const group = this.composedGroup(device);
-        if (group.length > 0 && group[0] !== key.endpoint) return source;
-
-        if (group.length === 0) {
-            const mapping = planEndpointMapping(source.exposes, {isPrimaryEndpoint: source.isPrimaryEndpoint});
-            if (mapping.capabilities.temperature && mapping.capabilities.humidity) {
-                const sensorPart = (id: "temperature" | "humidity", label: string) => ({
-                    id,
-                    label,
-                    stateFields: [id],
-                    source: {...source, exposes: source.exposes.filter((expose) => expose.type === "numeric" && expose.name === id)},
-                });
-                return {...source, composed: [sensorPart("temperature", "Temperature"), sensorPart("humidity", "Humidity")]};
-            }
+        const mapping = planEndpointMapping(source.exposes, {isPrimaryEndpoint: source.isPrimaryEndpoint});
+        if (mapping.capabilities.temperature && mapping.capabilities.humidity) {
+            const sensorPart = (id: "temperature" | "humidity", label: string) => ({
+                id,
+                label,
+                stateFields: [id],
+                source: {...source, exposes: source.exposes.filter((expose) => expose.type === "numeric" && expose.name === id)},
+            });
+            return {...source, composed: [sensorPart("temperature", "Temperature"), sensorPart("humidity", "Humidity")]};
         }
 
-        if (group.length === 0) return source;
-
-        // Composed device: this (first gang's) entry is the bridged root, every gang becomes a child part.
-        const composed = group.flatMap((id) => {
-            const gang = device.zh.getEndpoint(id);
-            if (!gang) return [];
-            const gangKey = formatDeviceKey({...key, endpoint: id});
-
-            return [
-                {
-                    id: String(id),
-                    label: device.endpointName(gang) ?? String(id),
-                    source: this.matterSourceFor(device, gang, {...entry, key: gangKey}),
-                },
-            ];
-        });
-
-        return {...source, composed};
+        return source;
     }
 
     private matterSourceFor(device: Device, endpoint: Device["zh"]["endpoints"][number], entry: EndpointRegistryEntry) {
-        const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" = MATTER_LIGHT_SWITCH_MODELS.has(device.zh.modelID ?? "")
-            ? "OnOffLight"
-            : "OnOffPlugInUnit";
+        const mapping = planEndpointMapping(this.endpointExposes(device, endpoint), {
+            isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
+        });
+        const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" = mapping.capabilities.light !== undefined ? "OnOffLight" : "OnOffPlugInUnit";
 
         return {
-            name: device.name,
+            name: this.matterDeviceName(device, endpoint.ID),
             available: this.state.get(device).available !== false,
             exposes: this.endpointExposes(device, endpoint),
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),

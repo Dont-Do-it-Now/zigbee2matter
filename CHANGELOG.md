@@ -4,9 +4,11 @@
 
 ### Bug Fixes
 
+* Expose each relay of a multi-gang Zigbee light as an independent Matter light with consistent bridged device information.
+* Migrate persisted composed multi-gang endpoints to individual Matter light endpoints during restore.
 * Apply composed Matter device types after endpoint initialization so persisted multi-gang devices restore correctly.
 * Include bridged device types on the Matter root endpoint so SmartThings can select the correct combined sensor profile.
-* Map TS0013 wall light switch relays to Matter lights by Zigbee model ID while keeping generic switches as outlets.
+* Derive Matter light versus outlet type from Zigbee converter capabilities without model ID overrides.
 * Publish the Zigbee2Matter vendor name and software version through Matter Basic Information.
 * Log applied humidity reports and include affected state fields in Matter endpoint update failures.
 * Release the Matter device command queue after dispatch so an unobserved state report cannot delay the next command until timeout.
