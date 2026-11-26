@@ -40,7 +40,7 @@ import {
     parseEntityKey,
     toHerdsmanIeee,
 } from "../identity";
-import {resolveAttestation} from "../matter/attestation";
+import {DEFAULT_VENDOR_ID, resolveAttestation} from "../matter/attestation";
 import type {CommissioningManager, FabricChangeAction} from "../matter/commissioning";
 import type {DynamicEndpointRuntime} from "../matter/dynamicEndpoints";
 import type {EndpointRegistryDocument, EndpointRegistryEntry, RegistryKey} from "../matter/endpointRegistry";
@@ -148,6 +148,7 @@ export default class Matter extends Extension {
     /** 생성 시점에는 I/O 없는 임시 값이며, start()에서 저장소의 실제 값으로 교체된다. 교체 실패 시 임시 값 유지 + Matter 차단. */
     public networkIdentity: NetworkIdentity = {networkId: generateNetworkId()};
     public bridgeIdentity: BridgeId = generateBridgeId();
+    private matterVendorId = DEFAULT_VENDOR_ID;
     /** 시작에 실패했거나 정책으로 차단된 서비스. Zigbee는 계속 동작한다(T022). */
     public readonly degraded = new Map<"matter" | "api" | "registry", string>();
     private readonly networkIdentityStore = new FileNetworkIdentityStore();
@@ -489,6 +490,7 @@ export default class Matter extends Extension {
         if (networkError) throw new Error(`Matter network preflight failed: ${networkError.message}`);
 
         const attestation = resolveAttestation(matterSettings.attestation, data.joinPath("matter"));
+        this.matterVendorId = attestation.vendorId;
         for (const warning of attestation.warnings) logger.warning(warning);
 
         if (await this.fileFabricStore?.applyPendingRestore()) {
@@ -1001,6 +1003,7 @@ export default class Matter extends Extension {
         return {
             name: this.matterDeviceName(device, endpoint.ID),
             available: this.state.get(device).available !== false,
+            vendorId: this.matterVendorId,
             exposes: this.endpointExposes(device, endpoint),
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
             switchDeviceType,

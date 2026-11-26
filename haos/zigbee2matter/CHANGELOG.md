@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.26.8
+- Apply the configured Matter Vendor ID to bridged Zigbee device Basic Information as well as the bridge node.
+
 ## 2026.11.26.7
 - Expose each relay of a multi-gang Zigbee device as an independent Matter accessory with consistent bridged device information.
 - Derive Matter light versus outlet type from Zigbee converter capabilities without model ID overrides.

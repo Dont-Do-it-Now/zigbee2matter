@@ -85,6 +85,7 @@ interface MatterEndpointConstructor {
 interface ZigbeeMatterEndpointSource {
     name: string;
     available: boolean;
+    vendorId?: number;
     exposes: readonly MappingExpose[];
     send: (payload: Record<string, unknown>) => Promise<void>;
     /** z2m invert_cover 옵션이 켜진 장치면 true. 컨트롤러(통합 단계)가 채운다. */
@@ -253,6 +254,7 @@ function fitMatterString(value: string, maxBytes: number): string {
 function bridgedBasicInformation(source: ZigbeeMatterEndpointSource, serialNumber: string): Record<string, unknown> {
     return {
         vendorName: "Zigbee2Matter",
+        ...(source.vendorId !== undefined ? {vendorId: source.vendorId} : {}),
         nodeLabel: fitMatterString(source.name, 32),
         productName: fitMatterString(source.name, 32),
         productLabel: fitMatterString(source.name, 64),
