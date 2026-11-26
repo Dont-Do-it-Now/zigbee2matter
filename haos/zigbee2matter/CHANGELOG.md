@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.2
+- Delay Matter endpoint creation for newly joined devices until their default IEEE name is changed.
+
 ## 2026.11.27.1
 - Report the desired Matter state immediately after a command so SmartThings dashboards do not remain in a pending state.
 

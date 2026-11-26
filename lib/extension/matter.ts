@@ -339,7 +339,9 @@ export default class Matter extends Extension {
         this.eventBus.onDeviceInterview(this, (interview) => {
             if (interview.status === "successful" && this.identityReady) {
                 this.syncHaDevice(interview.device);
-                void this.syncMatterEndpoints(interview.device, true).then(() => this.syncHaDevice(interview.device));
+                if (this.shouldExposeMatterDevice(interview.device)) {
+                    void this.syncMatterEndpoints(interview.device, true).then(() => this.syncHaDevice(interview.device));
+                }
             }
         });
         this.eventBus.onExposesChanged(this, (changed) => {
@@ -349,7 +351,11 @@ export default class Matter extends Extension {
         this.eventBus.onEntityRenamed(this, (renamed) => {
             if (!this.identityReady || !renamed.entity.isDevice()) return;
             this.syncHaDevice(renamed.entity);
-            void this.relabelMatterEndpoints(renamed.entity, renamed.to);
+            const firstFriendlyName = renamed.from === renamed.entity.ieeeAddr;
+            const updateMatter = firstFriendlyName
+                ? this.syncMatterEndpoints(renamed.entity, true).then(() => this.relabelMatterEndpoints(renamed.entity, renamed.to))
+                : this.relabelMatterEndpoints(renamed.entity, renamed.to);
+            void updateMatter;
         });
         this.eventBus.onEntityRemoved(this, (removed) => {
             if (!this.identityReady) return;
@@ -850,6 +856,10 @@ export default class Matter extends Extension {
                 }
             }
         });
+    }
+
+    private shouldExposeMatterDevice(device: Device): boolean {
+        return device.name !== device.ieeeAddr;
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
