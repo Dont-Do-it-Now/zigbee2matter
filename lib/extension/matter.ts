@@ -678,7 +678,10 @@ export default class Matter extends Extension {
         if (type === "availability") {
             if (typeof payload.availability === "boolean") value = {available: payload.availability};
         } else if (isRecord(payload.observedValue)) {
-            value = payload.observedValue;
+            value = {
+                ...payload.observedValue,
+                ...(isRecord(payload.desiredValue) ? payload.desiredValue : {}),
+            };
         }
         if (value === undefined) return;
 

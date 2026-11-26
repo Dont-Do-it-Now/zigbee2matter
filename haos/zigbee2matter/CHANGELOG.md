@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.1
+- Report the desired Matter state immediately after a command so SmartThings dashboards do not remain in a pending state.
+
 ## 2026.11.26.9
 - Fix action delivery after routing multi-gang relays as independent Matter devices.
 

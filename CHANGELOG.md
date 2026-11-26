@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Report desired Matter state immediately after a command so SmartThings dashboards do not remain in a pending state.
 * Fix action delivery after routing multi-gang relays as independent Matter devices.
 * Apply the configured Matter Vendor ID to every bridged Zigbee device as well as the bridge node.
 * Expose each relay of a multi-gang Zigbee light as an independent Matter light with consistent bridged device information.
