@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Fix action delivery after routing multi-gang relays as independent Matter devices.
 * Apply the configured Matter Vendor ID to every bridged Zigbee device as well as the bridge node.
 * Expose each relay of a multi-gang Zigbee light as an independent Matter light with consistent bridged device information.
 * Migrate persisted composed multi-gang endpoints to individual Matter light endpoints during restore.

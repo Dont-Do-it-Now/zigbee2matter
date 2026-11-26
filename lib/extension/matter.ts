@@ -607,7 +607,7 @@ export default class Matter extends Extension {
             const route = this.matterRoute(device, endpoint.ID);
             if (!route) continue;
             try {
-                await this.updateMatter(route.key, actions, route.part);
+                await this.updateMatter(route.key, actions);
             } catch (error) {
                 logger.warning(`Matter action delivery failed for ${device.name}: ${errorMessage(error)}`);
             }

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.26.9
+- Fix action delivery after routing multi-gang relays as independent Matter devices.
+
 ## 2026.11.26.8
 - Apply the configured Matter Vendor ID to bridged Zigbee device Basic Information as well as the bridge node.
 
