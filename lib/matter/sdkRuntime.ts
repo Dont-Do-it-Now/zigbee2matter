@@ -297,9 +297,7 @@ export class MatterSdkRuntime {
             const productName = options.productName ?? "Zigbee2Matter Bridge";
             const basicInformation = {
                 vendorName: "Zigbee2Matter",
-                ...(options.vendorId !== undefined
-                    ? {vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId}
-                    : {}),
+                ...(options.vendorId !== undefined ? {vendorId: sdk.VendorId ? sdk.VendorId(options.vendorId) : options.vendorId} : {}),
                 ...(options.productId !== undefined ? {productId: options.productId} : {}),
                 productName,
                 nodeLabel: productName,
