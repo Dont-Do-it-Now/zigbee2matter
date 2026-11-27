@@ -161,6 +161,9 @@ interface EndpointRuntime {
     signature: string;
     /** 합성(composed) root일 때만: Zigbee endpoint ID -> gang runtime. */
     parts?: Map<string, EndpointRuntime>;
+    suppressCommand?: Record<string, unknown>;
+    pendingCommand?: Record<string, unknown>;
+    pendingCommandTimer?: ReturnType<typeof setTimeout>;
     stateFields?: readonly string[];
     bridgedDeviceTypes?: readonly string[];
 }
@@ -553,6 +556,8 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const patch = this.buildPatch(runtime, state, report);
         if (Object.keys(patch).length === 0) return;
 
+        const suppressCommand = state.state === "ON" || state.state === "OFF" ? {state: state.state} : undefined;
+        runtime.suppressCommand = suppressCommand;
         this.stateUpdates.add(guardKey);
         try {
             try {
@@ -574,8 +579,24 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 }
             }
         } finally {
+            if (runtime.suppressCommand === suppressCommand) runtime.suppressCommand = undefined;
             this.stateUpdates.delete(guardKey);
+            this.flushPendingCommand(runtime, guardKey, report);
         }
+    }
+
+    private flushPendingCommand(runtime: EndpointRuntime, endpointId: string, report: (error: unknown) => void): void {
+        if (runtime.pendingCommandTimer !== undefined || runtime.pendingCommand === undefined) return;
+        runtime.pendingCommandTimer = setTimeout(() => {
+            runtime.pendingCommandTimer = undefined;
+            if (this.stateUpdates.has(endpointId)) {
+                this.flushPendingCommand(runtime, endpointId, report);
+                return;
+            }
+            const payload = runtime.pendingCommand;
+            runtime.pendingCommand = undefined;
+            if (payload !== undefined) void runtime.source.send(payload).catch(report);
+        }, 0);
     }
 
     /** 필드(그룹)별로 격리한다: 하나가 throw 해도 나머지 patch와 버튼 이벤트는 유지된다. */
@@ -784,10 +805,16 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
     private bindCommands(endpoint: MatterEndpointInstance, endpointId: string, send: SendFn, runtime: EndpointRuntime): void {
         const {plan} = runtime;
         const command = (build: CommandBuilder): void => {
-            if (this.stateUpdates.has(endpointId)) return;
             try {
                 const payload = build();
-                if (payload !== undefined) void send(payload).catch((error) => this.options.onCommandError?.(endpointId, error));
+                if (payload === undefined) return;
+                if (this.stateUpdates.has(endpointId)) {
+                    if (sameCommand(payload, runtime.suppressCommand)) return;
+                    runtime.pendingCommand = payload;
+                    this.flushPendingCommand(runtime, endpointId, (error) => this.options.onCommandError?.(endpointId, error));
+                    return;
+                }
+                void send(payload).catch((error) => this.options.onCommandError?.(endpointId, error));
             } catch (error) {
                 this.options.onCommandError?.(endpointId, error);
             }
@@ -824,6 +851,13 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
             );
         }
     }
+}
+
+function sameCommand(left: Record<string, unknown>, right: Record<string, unknown> | undefined): boolean {
+    if (right === undefined) return false;
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    return leftKeys.length === rightKeys.length && leftKeys.every((key) => left[key] === right[key]);
 }
 
 async function loadDevice(path: string): Promise<EndpointDefinition> {

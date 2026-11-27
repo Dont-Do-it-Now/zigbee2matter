@@ -65,6 +65,15 @@
                     "default": true,
                     "requiresRestart": true
                 },
+                "excluded_endpoints": {
+                    "type": "array",
+                    "title": "Excluded Matter endpoints",
+                    "description": "Canonical Matter endpoint keys that must not be recreated",
+                    "items": {"type": "string", "minLength": 1},
+                    "uniqueItems": true,
+                    "default": [],
+                    "requiresRestart": true
+                },
                 "passcode": {
                     "type": "integer",
                     "title": "Commissioning passcode",

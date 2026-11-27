@@ -111,6 +111,7 @@ export type Zigbee2MQTTSettings = {
     matter: {
         enabled: boolean;
         expose_devices_after_name_change: boolean;
+        excluded_endpoints: string[];
         passcode?: number;
         discriminator?: number;
         attestation?: AttestationSettings;

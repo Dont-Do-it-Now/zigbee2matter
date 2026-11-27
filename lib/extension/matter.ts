@@ -849,6 +849,10 @@ export default class Matter extends Extension {
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
+                    if (this.isMatterEndpointExcluded(key)) {
+                        if (this.runtime.currentEndpointRegistry?.get(key)) await this.removeWithRetry(runtime, key);
+                        continue;
+                    }
                     if (create) await runtime.create(key, true);
                     else await this.removeWithRetry(runtime, key);
                 } catch (error) {
@@ -861,6 +865,12 @@ export default class Matter extends Extension {
 
     private shouldExposeMatterDevice(device: Device): boolean {
         return settings.get().matter.expose_devices_after_name_change !== true || device.name !== device.ieeeAddr;
+    }
+
+    private isMatterEndpointExcluded(key: RegistryKey): boolean {
+        const canonical = typeof key === "string" ? key : "groupId" in key ? formatGroupKey(key) : formatDeviceKey(key);
+
+        return settings.get().matter.excluded_endpoints.includes(canonical);
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
@@ -890,6 +900,10 @@ export default class Matter extends Extension {
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
+                    if (this.isMatterEndpointExcluded(key)) {
+                        if (registry.get(key)) await this.removeWithRetry(runtime, key);
+                        continue;
+                    }
                     const entry = registry.get(key);
                     if (entry === undefined) await runtime.create(key, true);
                     else if (await this.endpointFactory.hasPlanChanged?.(entry)) {
@@ -934,6 +948,10 @@ export default class Matter extends Extension {
                 const key = deviceKeyOf(this.networkIdentity.networkId, device.zh, endpoint, "matter");
                 if (!key) continue;
                 try {
+                    if (this.isMatterEndpointExcluded(key)) {
+                        if (this.runtime.currentEndpointRegistry?.get(key)) await this.removeWithRetry(runtime, key);
+                        continue;
+                    }
                     // The factory resolves the source lazily, so labels always come from the current friendly name.
                     const restored = await runtime.restore(key);
                     if (restored === undefined) {
