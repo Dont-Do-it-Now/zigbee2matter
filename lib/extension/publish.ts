@@ -30,11 +30,20 @@ export default class Publish extends Extension {
     private readonly commandQueues = new Map<string, Promise<void>>();
     /** Queued (not yet started) `set` commands per queue key; a newer command touching the same keys supersedes them. */
     private readonly queuedSets = new Map<string, {keys: string[]; superseded: boolean}[]>();
+    /** The running `set` per queue key, released early once the device reports the requested values. */
+    private readonly inFlight = new Map<string, {ID: string | number; release: () => void; matches: (update: KeyValue) => boolean}>();
 
     // biome-ignore lint/suspicious/useAwait: API
     override async start(): Promise<void> {
         loadTopicGetSetRegex();
         this.eventBus.onBridgeBusMessage(this, this.onBridgeBusMessage);
+        this.eventBus.onStateChange(this, this.onStateChange);
+    }
+
+    @bind private onStateChange(data: eventdata.StateChange): void {
+        // Optimistic/cached values are not device reports.
+        if (data.reason === "commandOptimistic" || data.reason === "groupOptimistic" || data.reason === "publishCached") return;
+        for (const flight of this.inFlight.values()) if (flight.ID === data.entity.ID && flight.matches(data.update)) flight.release();
     }
 
     parseTopic(topic: string): ParsedTopic | undefined {
@@ -104,7 +113,8 @@ export default class Publish extends Extension {
         const queueKey = `${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"}`;
         const previous = this.commandQueues.get(queueKey) ?? Promise.resolve();
         // Latest command wins: a queued, not yet started `set` whose keys are all re-set by this command is dropped.
-        const queued = {keys: Object.keys(this.parseMessage(parsedTopic, data) ?? {}), superseded: false};
+        const message = this.parseMessage(parsedTopic, data) ?? {};
+        const queued = {keys: Object.keys(message), superseded: false};
         const track = parsedTopic.type === "set" && queued.keys.length > 0;
         if (track) {
             const waiting = this.queuedSets.get(queueKey) ?? [];
@@ -126,7 +136,37 @@ export default class Publish extends Extension {
                     return undefined;
                 }
 
-                return this.processBridgeBusMessage(data, parsedTopic);
+                // `parsedTopic.ID` is the topic token (friendly name), state changes carry the entity's own ID (ieeeAddr / group id).
+                const entityID = track ? this.zigbee.resolveEntity(parsedTopic.ID)?.ID : undefined;
+                if (entityID === undefined) return this.processBridgeBusMessage(data, parsedTopic);
+
+                // The ZCL call may wait for a Default Response (e.g. 10s timeout on a sleepy end device) although the device already
+                // reported the requested state: release the queue slot as soon as that report arrives. The call itself continues.
+                let released = false;
+                let release = (): void => {};
+                const observed = new Promise<void>((resolve) => {
+                    release = () => {
+                        released = true;
+                        resolve();
+                    };
+                });
+                const names = (key: string): string[] => (parsedTopic.endpoint ? [key, `${key}_${parsedTopic.endpoint}`] : [key]);
+                const flight = {
+                    ID: entityID,
+                    release,
+                    matches: (update: KeyValue): boolean =>
+                        Object.entries(message).every(([key, value]) =>
+                            names(key).some(
+                                (name) =>
+                                    name in update && typeof value !== "object" && String(update[name]).toLowerCase() === String(value).toLowerCase(),
+                            ),
+                        ),
+                };
+                this.inFlight.set(queueKey, flight);
+
+                return Promise.race([this.processBridgeBusMessage(data, parsedTopic, () => released), observed]).finally(() => {
+                    if (this.inFlight.get(queueKey) === flight) this.inFlight.delete(queueKey);
+                });
             });
         this.commandQueues.set(queueKey, current);
         try {
@@ -136,7 +176,11 @@ export default class Publish extends Extension {
         }
     }
 
-    private async processBridgeBusMessage(data: eventdata.BridgeBusMessage, parsedTopic: ParsedTopic): Promise<void> {
+    private async processBridgeBusMessage(
+        data: eventdata.BridgeBusMessage,
+        parsedTopic: ParsedTopic,
+        isReleased: () => boolean = () => false,
+    ): Promise<void> {
         const re = this.zigbee.resolveEntity(parsedTopic.ID);
 
         if (!re) {
@@ -346,7 +390,8 @@ export default class Publish extends Extension {
         }
 
         for (const [ID, payload] of Object.entries(toPublish)) {
-            if (!utils.objectIsEmpty(payload)) {
+            // Released early: the device already reported its real state, a later optimistic value could overwrite a newer command.
+            if (!isReleased() && !utils.objectIsEmpty(payload)) {
                 await this.publishEntityState(toPublishEntity[ID], payload, "commandOptimistic"); // z2m-fork: T020 낙관값은 confirmed 관측이 아니다
             }
         }
