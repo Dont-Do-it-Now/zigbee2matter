@@ -63,6 +63,7 @@ export type OnboardSubmitResponse = {success: true; frontendUrl: string | null} 
 
 export type Zigbee2MQTTDeviceOptions = {
     disabled?: boolean;
+    matter_device_type?: "light" | "outlet";
     availability?:
         | boolean
         | {

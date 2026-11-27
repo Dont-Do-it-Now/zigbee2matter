@@ -77,6 +77,8 @@ const MATTER_CONSUMER = "matter-endpoints";
 const HA_CONSUMER = "ha-matter";
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
+/** Converter descriptions of wall light switches (relay driving a lamp), which Matter controllers should list as lights, not outlets. */
+const LIGHT_SWITCH_DESCRIPTION = /(light|wall) switch/i;
 const RETRY_SUFFIX = /:r\d+$/;
 /** Backoff before each retry of a failed Matter endpoint removal (bounded: attempts = length + 1). */
 const REMOVE_RETRY_DELAYS_MS = [500, 2000, 5000];
@@ -347,6 +349,11 @@ export default class Matter extends Extension {
         this.eventBus.onExposesChanged(this, (changed) => {
             this.syncHaDevice(changed.device);
             if (this.identityReady) void this.rebuildMatterEndpoints(changed.device).then(() => this.syncHaDevice(changed.device));
+        });
+        this.eventBus.onEntityOptionsChanged(this, (changed) => {
+            const {entity} = changed;
+            if (!this.identityReady || !entity.isDevice() || changed.from.matter_device_type === changed.to.matter_device_type) return;
+            void this.rebuildMatterEndpoints(entity);
         });
         this.eventBus.onEntityRenamed(this, (renamed) => {
             const device = renamed.entity;
@@ -970,6 +977,7 @@ export default class Matter extends Extension {
                     } else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) {
                         // restored.entry carries the persisted signature of the previous build, so a device type change rebuilds (new endpoint number).
                         await runtime.rebuild(key);
+                        logger.info(`Matter endpoint rebuilt for ${device.name} after device type changed`);
                     }
                     await this.recordPlanSignature(key);
                 } catch (error) {
@@ -1046,11 +1054,16 @@ export default class Matter extends Extension {
         const mapping = planEndpointMapping(this.endpointExposes(device, endpoint), {
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
         });
-        // Plain on/off `switch` exposes are outlets; light exposes are lights.
+        // Precedence: device option `matter_device_type` > light capability > wall light switch description > outlet.
+        const override = (device.options as KeyValue).matter_device_type;
         const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" =
-            mapping.capabilities.light !== undefined
-                ? "OnOffLight"
-                : "OnOffPlugInUnit";
+            override === "light" || override === "outlet"
+                ? override === "light"
+                    ? "OnOffLight"
+                    : "OnOffPlugInUnit"
+                : mapping.capabilities.light !== undefined || LIGHT_SWITCH_DESCRIPTION.test(device.definition?.description ?? "")
+                  ? "OnOffLight"
+                  : "OnOffPlugInUnit";
 
         return {
             name: this.matterDeviceName(device, endpoint.ID),

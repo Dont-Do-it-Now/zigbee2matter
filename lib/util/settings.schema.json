@@ -914,6 +914,12 @@
                     "description": "Disables the device (excludes device from network scans, availability and group state updates)",
                     "requiresRestart": true
                 },
+                "matter_device_type": {
+                    "type": "string",
+                    "title": "Matter device type",
+                    "description": "Matter device type of on/off switch endpoints of this device. By default wall light switches are lights and other switches are outlets",
+                    "enum": ["light", "outlet"]
+                },
                 "throttle": {
                     "type": "number",
                     "title": "Throttle",
