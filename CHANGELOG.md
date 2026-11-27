@@ -6,6 +6,7 @@
 
 * Latest-wins command queue: a queued Matter on/off command is dropped when a newer command re-sets the same keys, so fast ON to OFF no longer leaves the light on.
 * Device reports always override a failed or timed-out command's desired state. Stale Matter "light" tiles answering UnsupportedEndpoint must be removed and re-paired in the Matter controller.
+* Normalize command queue formatting and imports so the release check passes.
 * Serialize rapid Matter on/off commands per Zigbee endpoint and preserve on/off state when a Matter light level changes.
 * Add correlated Matter-to-Zigbee command logs for diagnosing command dispatch and converter completion.
 * Add a setting to wait for the first friendly-name change before exposing new devices to Matter, enabled by default.

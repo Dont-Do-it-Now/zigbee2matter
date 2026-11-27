@@ -114,9 +114,15 @@ export default class Publish extends Extension {
         const current = previous
             .catch(() => undefined)
             .then(() => {
-                if (track) this.queuedSets.set(queueKey, (this.queuedSets.get(queueKey) ?? []).filter((item) => item !== queued));
+                if (track)
+                    this.queuedSets.set(
+                        queueKey,
+                        (this.queuedSets.get(queueKey) ?? []).filter((item) => item !== queued),
+                    );
                 if (queued.superseded) {
-                    logger.info(`Zigbee command superseded by a newer command: ${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"} keys=${queued.keys.join(",")}`);
+                    logger.info(
+                        `Zigbee command superseded by a newer command: ${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"} keys=${queued.keys.join(",")}`,
+                    );
                     return undefined;
                 }
 
@@ -131,7 +137,6 @@ export default class Publish extends Extension {
     }
 
     private async processBridgeBusMessage(data: eventdata.BridgeBusMessage, parsedTopic: ParsedTopic): Promise<void> {
-
         const re = this.zigbee.resolveEntity(parsedTopic.ID);
 
         if (!re) {

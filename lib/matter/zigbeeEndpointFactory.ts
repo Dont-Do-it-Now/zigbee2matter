@@ -10,10 +10,10 @@ import {matterPercent100thsToZigbee, zigbeeToMatterPercent100ths} from "./coverM
 import type {EndpointRegistryEntry} from "./endpointRegistry";
 import {toMatterElectrical} from "./energyMapping";
 import {
+    MATTER_LEVEL_MIN,
     matterColorToZigbee,
     matterColorXyToZigbee,
     matterLevelToZigbee,
-    MATTER_LEVEL_MIN,
     validateColorTemperatureMireds,
     zigbeeBrightnessToMatter,
     zigbeeColorToMatter,
