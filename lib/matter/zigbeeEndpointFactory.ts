@@ -13,6 +13,7 @@ import {
     matterColorToZigbee,
     matterColorXyToZigbee,
     matterLevelToZigbee,
+    MATTER_LEVEL_MIN,
     validateColorTemperatureMireds,
     zigbeeBrightnessToMatter,
     zigbeeColorToMatter,
@@ -824,7 +825,9 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         const events = endpoint.events;
 
         events?.onOff?.onOff$Changed?.on((value) => command(() => ({state: value ? "ON" : "OFF"})));
-        events?.levelControl?.currentLevel$Changed?.on((value) => command(() => ({brightness: matterLevelToZigbee(value)})));
+        events?.levelControl?.currentLevel$Changed?.on((value) =>
+            command(() => ({brightness: matterLevelToZigbee(value), state: value > MATTER_LEVEL_MIN ? "ON" : "OFF"})),
+        );
         events?.colorControl?.colorTemperatureMireds$Changed?.on((value) => command(() => ({color_temp: validateColorTemperatureMireds(value)})));
         events?.colorControl?.currentHue$Changed?.on((hue) =>
             color({hue}, (c) => (c.saturation === undefined ? undefined : {color: matterColorToZigbee(hue, c.saturation)})),

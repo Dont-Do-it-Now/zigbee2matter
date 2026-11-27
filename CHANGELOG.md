@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* Serialize rapid Matter on/off commands per Zigbee endpoint and preserve on/off state when a Matter light level changes.
 * Add correlated Matter-to-Zigbee command logs for diagnosing command dispatch and converter completion.
 * Add a setting to wait for the first friendly-name change before exposing new devices to Matter, enabled by default.
 * Delay Matter endpoint creation for newly joined devices until their default IEEE name is changed.

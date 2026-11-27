@@ -27,6 +27,8 @@ interface ParsedTopic {
 }
 
 export default class Publish extends Extension {
+    private readonly commandQueues = new Map<string, Promise<void>>();
+
     // biome-ignore lint/suspicious/useAwait: API
     override async start(): Promise<void> {
         loadTopicGetSetRegex();
@@ -96,6 +98,19 @@ export default class Publish extends Extension {
         if (!parsedTopic) {
             return;
         }
+
+        const queueKey = `${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"}`;
+        const previous = this.commandQueues.get(queueKey) ?? Promise.resolve();
+        const current = previous.catch(() => undefined).then(() => this.processBridgeBusMessage(data, parsedTopic));
+        this.commandQueues.set(queueKey, current);
+        try {
+            await current;
+        } finally {
+            if (this.commandQueues.get(queueKey) === current) this.commandQueues.delete(queueKey);
+        }
+    }
+
+    private async processBridgeBusMessage(data: eventdata.BridgeBusMessage, parsedTopic: ParsedTopic): Promise<void> {
 
         const re = this.zigbee.resolveEntity(parsedTopic.ID);
 

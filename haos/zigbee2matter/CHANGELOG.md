@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.6
+- Serialize rapid Matter on/off commands per Zigbee endpoint and preserve on/off state when a Matter light level changes.
+
 ## 2026.11.27.5
 - Add correlated Matter-to-Zigbee command logs for diagnosing command dispatch and converter completion.
 
