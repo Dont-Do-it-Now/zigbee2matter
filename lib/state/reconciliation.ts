@@ -80,6 +80,17 @@ export default class StateReconciler {
         return this.commit(record);
     }
 
+    /** Drops an unreached intent (failed/timed-out command) so consumers fall back to the last observed value. */
+    clearDesired(key: string): StateRecord | undefined {
+        const existing = this.records.get(key);
+        if (existing?.desiredValue === undefined) return undefined;
+        const record = {...existing};
+        delete record.desiredValue;
+        record.quality = record.observedValue === undefined ? "unknown" : record.availability === false ? "stale" : "confirmed";
+
+        return this.commit(record);
+    }
+
     markUnavailable(key: string): StateRecord {
         const record = this.getOrCreate(key);
         record.availability = false;

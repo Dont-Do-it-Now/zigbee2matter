@@ -1292,12 +1292,13 @@ export default class Matter extends Extension {
                 intent.desired = true;
                 for (const target of intent.targets) this.runtime.stateSnapshots.desire(target.key, target.value);
             }
-        } else if (
-            result.terminal &&
-            result.dispatched &&
-            (result.status === "failed" || result.status === "timeout" || result.status === "unknown")
-        ) {
-            for (const target of intent.targets) this.runtime.stateSnapshots.markUnknown(target.key);
+        } else if (result.terminal && (result.status === "failed" || result.status === "timeout" || result.status === "unknown")) {
+            // The device never reached the desired state: drop the intent so Matter is pushed back to the last observed state.
+            if (intent.desired) {
+                intent.desired = false;
+                for (const target of intent.targets) this.runtime.stateSnapshots.clearDesired(target.key);
+            }
+            if (result.dispatched) for (const target of intent.targets) this.runtime.stateSnapshots.markUnknown(target.key);
         }
     }
 

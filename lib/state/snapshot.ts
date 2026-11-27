@@ -28,6 +28,12 @@ export default class StateSnapshotCoordinator {
         return this.publishDelta(this.state.desire(key, value));
     }
 
+    clearDesired(key: string): StateRecord | undefined {
+        const record = this.state.clearDesired(key);
+
+        return record === undefined ? undefined : this.publishDelta(record);
+    }
+
     markUnavailable(key: string): StateRecord {
         return this.publishAvailability(this.state.markUnavailable(key));
     }
