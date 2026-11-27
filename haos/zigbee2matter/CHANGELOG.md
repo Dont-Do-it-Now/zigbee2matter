@@ -3,6 +3,7 @@
 ## 2026.11.27.8
 - Wall light switches (e.g. TS0013) now appear as lights instead of outlets in Matter controllers. After updating, these endpoints are rebuilt once with new endpoint numbers; in SmartThings the old outlet tiles may stay offline and can be deleted.
 - Matter on/off commands could be silently dropped (tile toggled, device unchanged) when a Matter state write hung; writes are now bounded to 5s and a warning is logged.
+- Remove description-based light type forcing and control-character regex input.
 
 ## 2026.11.27.7
 - Apply latest-wins ordering to rapid Matter on/off commands so a queued command is dropped when a newer one re-sets the same keys, fixing fast ON to OFF leaving the light on. Device reports now always override a failed or timed-out command's desired state. Stale Matter "light" tiles that answer UnsupportedEndpoint must be removed and re-paired in the Matter controller.

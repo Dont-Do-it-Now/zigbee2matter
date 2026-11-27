@@ -77,8 +77,6 @@ const MATTER_CONSUMER = "matter-endpoints";
 const HA_CONSUMER = "ha-matter";
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
-/** Converter descriptions of wall light switches (relay driving a lamp), which Matter controllers should list as lights, not outlets. */
-const LIGHT_SWITCH_DESCRIPTION = /(light|wall) switch/i;
 const RETRY_SUFFIX = /:r\d+$/;
 /** Backoff before each retry of a failed Matter endpoint removal (bounded: attempts = length + 1). */
 const REMOVE_RETRY_DELAYS_MS = [500, 2000, 5000];
@@ -1048,9 +1046,11 @@ export default class Matter extends Extension {
         const mapping = planEndpointMapping(this.endpointExposes(device, endpoint), {
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
         });
-        // Plain on/off `switch` exposes are outlets unless the converter describes a wall light switch (e.g. TS0013 "Smart light switch - 3 gang").
+        // Plain on/off `switch` exposes are outlets; light exposes are lights.
         const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" =
-            mapping.capabilities.light !== undefined || LIGHT_SWITCH_DESCRIPTION.test(device.definition?.description ?? "") ? "OnOffLight" : "OnOffPlugInUnit";
+            mapping.capabilities.light !== undefined
+                ? "OnOffLight"
+                : "OnOffPlugInUnit";
 
         return {
             name: this.matterDeviceName(device, endpoint.ID),
