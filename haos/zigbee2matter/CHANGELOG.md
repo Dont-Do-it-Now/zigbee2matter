@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.27.9
+- Wall light switches (e.g. TS0013) are exposed as lights again; the 2026.11.27.8 image shipped without the detection. Endpoints whose type changes are rebuilt once with new endpoint numbers; delete the old offline outlet tiles in SmartThings.
+- New per-device option `matter_device_type` (`light` | `outlet`) to force the Matter type of on/off switch endpoints.
+- When a Zigbee command fails, times out, or the state is not observed, the Matter state is reverted to the last device-reported state instead of staying at the requested value.
+
 ## 2026.11.27.8
 - Wall light switches (e.g. TS0013) now appear as lights instead of outlets in Matter controllers. After updating, these endpoints are rebuilt once with new endpoint numbers; in SmartThings the old outlet tiles may stay offline and can be deleted.
 - Matter on/off commands could be silently dropped (tile toggled, device unchanged) when a Matter state write hung; writes are now bounded to 5s and a warning is logged.
