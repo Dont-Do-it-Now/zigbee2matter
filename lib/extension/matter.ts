@@ -1157,6 +1157,9 @@ export default class Matter extends Extension {
                 if (!device?.isDevice()) return {ok: false, errorCode: "NOT_FOUND", message: "target key not found"};
                 entityName = device.name;
                 endpoint = String(key.endpoint);
+                const resolvedEndpoint = device.endpoint(endpoint);
+                const endpointName = resolvedEndpoint ? device.endpointName(resolvedEndpoint) : undefined;
+                if (endpointName !== undefined) endpoint = endpointName;
                 endpointFromKey = true;
             } else {
                 const group = this.zigbee.groupByID(key.groupId);
