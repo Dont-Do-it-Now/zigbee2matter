@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.10
+- Quick ON→OFF on sleepy end devices (e.g. TS0013): the next command is sent as soon as the device reports the previous one, instead of waiting up to 10s for its ZCL response, so the light follows the tile.
+
 ## 2026.11.27.9
 - Wall light switches (e.g. TS0013) are exposed as lights again; the 2026.11.27.8 image shipped without the detection. Endpoints whose type changes are rebuilt once with new endpoint numbers; delete the old offline outlet tiles in SmartThings.
 - New per-device option `matter_device_type` (`light` | `outlet`) to force the Matter type of on/off switch endpoints.
