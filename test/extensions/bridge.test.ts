@@ -143,7 +143,7 @@ describe("Extension: Bridge", () => {
                         enable_external_js: true,
                     },
                     api: {enabled: true, host: "127.0.0.1", port: 8090},
-                    matter: {enabled: false},
+                    matter: {enabled: false, expose_devices_after_name_change: true},
                     blocklist: [],
                     device_options: {},
                     devices: {
