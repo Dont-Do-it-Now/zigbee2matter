@@ -28,6 +28,8 @@ interface ParsedTopic {
 
 export default class Publish extends Extension {
     private readonly commandQueues = new Map<string, Promise<void>>();
+    /** Queued (not yet started) `set` commands per queue key; a newer command touching the same keys supersedes them. */
+    private readonly queuedSets = new Map<string, {keys: string[]; superseded: boolean}[]>();
 
     // biome-ignore lint/suspicious/useAwait: API
     override async start(): Promise<void> {
@@ -101,7 +103,25 @@ export default class Publish extends Extension {
 
         const queueKey = `${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"}`;
         const previous = this.commandQueues.get(queueKey) ?? Promise.resolve();
-        const current = previous.catch(() => undefined).then(() => this.processBridgeBusMessage(data, parsedTopic));
+        // Latest command wins: a queued, not yet started `set` whose keys are all re-set by this command is dropped.
+        const queued = {keys: Object.keys(this.parseMessage(parsedTopic, data) ?? {}), superseded: false};
+        const track = parsedTopic.type === "set" && queued.keys.length > 0;
+        if (track) {
+            const waiting = this.queuedSets.get(queueKey) ?? [];
+            for (const older of waiting) if (older.keys.every((key) => queued.keys.includes(key))) older.superseded = true;
+            this.queuedSets.set(queueKey, [...waiting.filter((item) => !item.superseded), queued]);
+        }
+        const current = previous
+            .catch(() => undefined)
+            .then(() => {
+                if (track) this.queuedSets.set(queueKey, (this.queuedSets.get(queueKey) ?? []).filter((item) => item !== queued));
+                if (queued.superseded) {
+                    logger.info(`Zigbee command superseded by a newer command: ${parsedTopic.ID}/${parsedTopic.endpoint ?? "default"} keys=${queued.keys.join(",")}`);
+                    return undefined;
+                }
+
+                return this.processBridgeBusMessage(data, parsedTopic);
+            });
         this.commandQueues.set(queueKey, current);
         try {
             await current;
