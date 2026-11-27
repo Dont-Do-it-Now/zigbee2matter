@@ -77,6 +77,8 @@ const MATTER_CONSUMER = "matter-endpoints";
 const HA_CONSUMER = "ha-matter";
 /** 백업에 포함하는 Zigbee 필수 데이터(네트워크 키는 configuration.yaml/secret.yaml/coordinator_backup.json에 있다). */
 const ZIGBEE_BACKUP_FILES = ["database.db", "coordinator_backup.json", "configuration.yaml", "secret.yaml", "state.json"];
+/** Converter descriptions of wall light switches (relay driving a lamp), which Matter controllers should list as lights, not outlets. */
+const LIGHT_SWITCH_DESCRIPTION = /(light|wall) switch/i;
 const RETRY_SUFFIX = /:r\d+$/;
 /** Backoff before each retry of a failed Matter endpoint removal (bounded: attempts = length + 1). */
 const REMOVE_RETRY_DELAYS_MS = [500, 2000, 5000];
@@ -853,8 +855,10 @@ export default class Matter extends Extension {
                         if (this.runtime.currentEndpointRegistry?.get(key)) await this.removeWithRetry(runtime, key);
                         continue;
                     }
-                    if (create) await runtime.create(key, true);
-                    else await this.removeWithRetry(runtime, key);
+                    if (create) {
+                        await runtime.create(key, true);
+                        await this.recordPlanSignature(key);
+                    } else await this.removeWithRetry(runtime, key);
                 } catch (error) {
                     if (isUnmappable(error)) continue; // 대표가 아닌 endpoint 등 매핑할 capability가 없는 정상 상황
                     logger.warning(`Matter endpoint ${create ? "create" : "remove"} failed for ${device.name}: ${errorMessage(error)}`);
@@ -871,6 +875,14 @@ export default class Matter extends Extension {
         const canonical = typeof key === "string" ? key : "groupId" in key ? formatGroupKey(key) : formatDeviceKey(key);
 
         return settings.get().matter.excluded_endpoints.includes(canonical);
+    }
+
+    /** Persists the built plan signature so a device type change is detected on the next restart. */
+    private async recordPlanSignature(key: RegistryKey): Promise<void> {
+        const registry = this.runtime.currentEndpointRegistry;
+        const entry = registry?.get(key);
+        const signature = entry === undefined ? undefined : this.endpointFactory.planSignatureOf?.(entry);
+        if (signature !== undefined) await registry?.recordPlanSignature(key, signature);
     }
 
     /** Bounded retry; the registry tombstone is written only after the SDK delete succeeds, and startup sweeps any leftover active entry. */
@@ -908,6 +920,7 @@ export default class Matter extends Extension {
                     if (entry === undefined) await runtime.create(key, true);
                     else if (await this.endpointFactory.hasPlanChanged?.(entry)) {
                         await runtime.rebuild(key);
+                        await this.recordPlanSignature(key);
                         logger.info(`Matter endpoint rebuilt for ${device.name} after exposes changed`);
                     }
                 } catch (error) {
@@ -957,8 +970,10 @@ export default class Matter extends Extension {
                     if (restored === undefined) {
                         if (this.shouldExposeMatterDevice(device)) await runtime.create(key, true);
                     } else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) {
+                        // restored.entry carries the persisted signature of the previous build, so a device type change rebuilds (new endpoint number).
                         await runtime.rebuild(key);
                     }
+                    await this.recordPlanSignature(key);
                 } catch (error) {
                     if (isUnmappable(error)) continue;
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${errorMessage(error)}`);
@@ -1033,7 +1048,9 @@ export default class Matter extends Extension {
         const mapping = planEndpointMapping(this.endpointExposes(device, endpoint), {
             isPrimaryEndpoint: endpoint.ID === Math.min(...device.zh.endpoints.map((item) => item.ID)),
         });
-        const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" = mapping.capabilities.light !== undefined ? "OnOffLight" : "OnOffPlugInUnit";
+        // Plain on/off `switch` exposes are outlets unless the converter describes a wall light switch (e.g. TS0013 "Smart light switch - 3 gang").
+        const switchDeviceType: "OnOffLight" | "OnOffPlugInUnit" =
+            mapping.capabilities.light !== undefined || LIGHT_SWITCH_DESCRIPTION.test(device.definition?.description ?? "") ? "OnOffLight" : "OnOffPlugInUnit";
 
         return {
             name: this.matterDeviceName(device, endpoint.ID),

@@ -29,6 +29,8 @@ export interface EndpointRegistryEntry {
     state: EndpointEntryState;
     /** SDK 가 마지막으로 할당한 것으로 관측된 endpoint number (선택, 진단용). */
     number?: number;
+    /** 이 endpoint가 마지막으로 빌드된 Matter device type/cluster 서명. 재시작 시 type 변경(재빌드 필요) 감지에 쓴다. */
+    planSignature?: string;
 }
 
 /** 직렬화 포맷 v1. */
@@ -187,7 +189,8 @@ export function parseEndpointRegistryDocument(raw: unknown, expectedBridgeId?: B
         }
 
         ids.add(endpointId);
-        entries.push(number === undefined ? {key, endpointId, state} : {key, endpointId, state, number});
+        const planSignature = typeof item.planSignature === "string" && state === "active" ? item.planSignature : undefined;
+        entries.push({key, endpointId, state, ...(number === undefined ? {} : {number}), ...(planSignature === undefined ? {} : {planSignature})});
     }
 
     return {version: ENDPOINT_REGISTRY_VERSION, bridgeId, nextSeq, entries};
@@ -343,6 +346,16 @@ export class EndpointRegistry {
             entry.number = number;
 
             return previous === undefined ? {changed: false} : {changed: previous !== number, previous};
+        });
+    }
+
+    /** 현재 빌드된 plan 서명을 기록한다(없는 active 는 무시). */
+    async recordPlanSignature(key: RegistryKey, planSignature: string): Promise<void> {
+        const keyStr = keyString(key);
+
+        await this.#mutate(() => {
+            const entry = this.#active.get(keyStr);
+            if (entry !== undefined) entry.planSignature = planSignature;
         });
     }
 

@@ -151,6 +151,8 @@ export interface MatterEndpointFactory {
     updateLabel?(entry: EndpointRegistryEntry, name: string): Promise<void>;
     /** True when the live endpoint no longer matches the Matter device type/clusters derived from current exposes. */
     hasPlanChanged?(entry: EndpointRegistryEntry): Promise<boolean>;
+    /** Plan signature of the live endpoint, persisted in the registry so a device type change is detected after a restart. */
+    planSignatureOf?(entry: EndpointRegistryEntry): string | undefined;
     /** Forget the in-memory runtime of an endpoint that failed to be added to the node. */
     discard?(entry: EndpointRegistryEntry): void;
 }

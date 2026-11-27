@@ -486,6 +486,11 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         await runtime.instance.set({bridgedDeviceBasicInformation: {nodeLabel: fitMatterString(name, 32), productLabel: fitMatterString(name, 64)}});
     }
 
+    /** Signature of the plan the live endpoint was built from (persisted by the caller to detect device type changes across restarts). */
+    planSignatureOf(entry: EndpointRegistryEntry): string | undefined {
+        return this.runtimes.get(entry.endpointId)?.signature;
+    }
+
     /** True when the device's current exposes would produce a different Matter device type/clusters than the live endpoint. */
     async hasPlanChanged(entry: EndpointRegistryEntry): Promise<boolean> {
         const runtime = this.runtimes.get(entry.endpointId);
@@ -499,12 +504,19 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 const signatures: string[] = [];
                 for (const part of source.composed) signatures.push(`${part.id}:${planSignature(await this.definitionFor(part.source, () => {}))}`);
 
-                return JSON.stringify(signatures) !== runtime.signature;
+                const signature = JSON.stringify(signatures);
+
+                return signature !== runtime.signature || (entry.planSignature !== undefined && entry.planSignature !== signature);
             }
             if (runtime.parts !== undefined) return true; // composed -> single (gangs went away)
             const plan = await this.definitionFor(source, () => {});
+            const signature = planSignature(plan);
+            // The runtime was just rebuilt from the current source at startup, so compare with the persisted signature of the previous build.
+            if (signature !== runtime.signature) return true;
+            if (entry.planSignature !== undefined) return entry.planSignature !== signature;
 
-            return planSignature(plan) !== runtime.signature;
+            // Legacy entry without a persisted signature: only a plain switch that is now exposed as a light needs a one-time rebuild.
+            return source.switchDeviceType === "OnOffLight" && plan.capabilities.switch !== undefined && plan.capabilities.light === undefined;
         } catch {
             return false; // unmappable now; keep the existing endpoint rather than dropping it from all fabrics
         }
@@ -562,13 +574,14 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
         this.stateUpdates.add(guardKey);
         try {
             try {
-                await runtime.instance.set(patch);
+                await withSetTimeout(runtime.instance.set(patch));
             } catch (error) {
                 // 한 cluster 값이 거부돼도 나머지는 반영한다.
                 report(error);
+                if (error instanceof SetTimeoutError) return; // hung SDK write: do not stall the echo guard (and Matter commands) behind more writes
                 for (const [cluster, values] of Object.entries(patch)) {
                     try {
-                        await runtime.instance.set({[cluster]: values});
+                        await withSetTimeout(runtime.instance.set({[cluster]: values}));
                     } catch (clusterError) {
                         report(
                             new Error(
@@ -853,6 +866,29 @@ export class ZigbeeMatterEndpointFactory implements MatterEndpointFactory {
                 command(() => ({[field]: matterSetpointToCelsius(value, plan.setpointRanges[field])})),
             );
         }
+    }
+}
+
+const SET_TIMEOUT_MS = 5000;
+
+class SetTimeoutError extends Error {
+    constructor() {
+        super(`Matter state write did not finish within ${SET_TIMEOUT_MS}ms`);
+    }
+}
+
+/** A never-settling SDK write would keep the per-endpoint echo guard set forever and swallow every later Matter command. */
+async function withSetTimeout<T>(write: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            write,
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new SetTimeoutError()), SET_TIMEOUT_MS);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

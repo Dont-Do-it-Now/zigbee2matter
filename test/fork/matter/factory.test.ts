@@ -1,5 +1,5 @@
 // z2m-fork: ZigbeeMatterEndpointFactory. Fake Endpoint class (records definition/options); real @matter/main device definitions.
-import {describe, expect, it} from "vitest";
+import {describe, expect, it, vi} from "vitest";
 import "../../mocks/data";
 import * as exposes from "zigbee-herdsman-converters/lib/exposes";
 import type {EndpointRegistryEntry} from "../../../lib/matter/endpointRegistry";
@@ -138,6 +138,49 @@ describe("ZigbeeMatterEndpointFactory", () => {
         expect(parts.map((p) => p.sets.length)).toEqual([0, 1, 0]);
         expect(parts[1].sets[0]).toEqual({onOff: {onOff: true}});
         expect(await f.hasPlanChanged(entry())).toBe(false);
+    });
+
+    it("builds a switch as OnOffLight when marked a light switch and detects the type change against the persisted signature", async () => {
+        const plug = factory([e.switch()]);
+        await plug.create(entry());
+        const plugSignature = plug.planSignatureOf(entry());
+
+        const light = factory([e.switch()], {switchDeviceType: "OnOffLight"});
+        await light.create(entry());
+
+        expect(plugSignature).not.toBe(light.planSignatureOf(entry()));
+        // Restart: runtime freshly built as a light, registry still holds the outlet signature -> rebuild needed.
+        expect(await light.hasPlanChanged({...entry(), planSignature: plugSignature})).toBe(true);
+        expect(await light.hasPlanChanged({...entry(), planSignature: light.planSignatureOf(entry())})).toBe(false);
+    });
+
+    it("still forwards a Matter on/off command when an SDK state write never settles", async () => {
+        vi.useFakeTimers();
+        try {
+            const handlers: ((value: boolean) => void)[] = [];
+            class HangingEndpoint extends FakeEndpoint {
+                events = {onOff: {onOff$Changed: {on: (fn: (value: boolean) => void) => handlers.push(fn)}}};
+                override set(): Promise<void> {
+                    return new Promise(() => {});
+                }
+            }
+            const send = vi.fn(() => Promise.resolve());
+            const f = new ZigbeeMatterEndpointFactory({
+                loadSdk: async () => ({Endpoint: HangingEndpoint}) as never,
+                resolve: async () => ({name: "Lamp", available: true, exposes: [e.switch()] as MappingExpose[], send}),
+                onCommandError: () => {},
+            });
+            await f.create(entry());
+
+            const update = f.updateState(entry(), {state: "ON"});
+            handlers[0](false); // controller turns it off while the guarded write is hanging
+            await vi.advanceTimersByTimeAsync(5001);
+            await update;
+
+            expect(send).toHaveBeenCalledWith({state: "OFF"});
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("single-button device has no child parts", async () => {
