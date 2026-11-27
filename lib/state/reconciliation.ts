@@ -49,9 +49,8 @@ export default class StateReconciler {
         // T020: 보고 수신이 offline 기기를 available로 되돌리지 않는다. availability는 availability 이벤트만 바꾼다.
         record.quality = record.availability === false ? "stale" : "confirmed";
 
-        if (record.desiredValue !== undefined && covers(record.observedValue, record.desiredValue)) {
-            delete record.desiredValue;
-        }
+        // A device report always wins: an intent that was not reached (failed/timed-out command) must not mask the real state.
+        delete record.desiredValue;
 
         return this.commit(record);
     }

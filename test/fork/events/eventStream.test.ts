@@ -38,6 +38,17 @@ describe("EventStream", () => {
         expect(b.mock.calls[0][0]).toBe(a.mock.calls[0][0]);
     });
 
+    it("lets a device report override an unreached desired value", () => {
+        const reconciler = new StateReconciler({now: () => 1});
+        reconciler.observe("device/0x01", {state: "OFF"}, 1);
+        reconciler.desire("device/0x01", {state: "OFF"});
+        reconciler.desire("device/0x01", {state: "ON"});
+        reconciler.observe("device/0x01", {state: "OFF"}, 2);
+
+        expect(reconciler.get("device/0x01")).toMatchObject({observedValue: {state: "OFF"}, quality: "confirmed"});
+        expect(reconciler.get("device/0x01")?.desiredValue).toBeUndefined();
+    });
+
     it("keeps rapid button presses as separate transient events", () => {
         const {bus, stream} = setup();
         const msg = {type: "commandOn", device, endpoint: {ID: 1}, linkquality: 1, groupID: 0, cluster: "genOnOff", data: {}, meta: {}};
