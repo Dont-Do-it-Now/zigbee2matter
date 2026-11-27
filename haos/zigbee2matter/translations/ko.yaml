@@ -11,6 +11,9 @@ configuration:
   matter_enabled:
     name: Matter 브리지 활성화
     description: Zigbee 장치를 Matter 네트워크에 노출합니다. 기본값은 켜짐입니다.
+  matter_expose_devices_after_name_change:
+    name: 이름 지정 후 Matter 기기 추가
+    description: 기기의 기본 IEEE 이름이 변경된 후 Matter에 추가합니다.
   matter_passcode:
     name: 커미셔닝 passcode
   matter_discriminator:

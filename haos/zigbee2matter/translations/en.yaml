@@ -11,6 +11,9 @@ configuration:
   matter_enabled:
     name: Enable Matter bridge
     description: Expose Zigbee devices to a Matter network. On by default.
+  matter_expose_devices_after_name_change:
+    name: Add Matter devices after naming
+    description: Wait until a device's default IEEE name is changed before adding it to Matter.
   matter_passcode:
     name: Commissioning passcode
   matter_discriminator:
