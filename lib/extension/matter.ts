@@ -349,12 +349,13 @@ export default class Matter extends Extension {
             if (this.identityReady) void this.rebuildMatterEndpoints(changed.device).then(() => this.syncHaDevice(changed.device));
         });
         this.eventBus.onEntityRenamed(this, (renamed) => {
-            if (!this.identityReady || !renamed.entity.isDevice()) return;
-            this.syncHaDevice(renamed.entity);
-            const firstFriendlyName = renamed.from === renamed.entity.ieeeAddr;
+            const device = renamed.entity;
+            if (!this.identityReady || !device.isDevice()) return;
+            this.syncHaDevice(device);
+            const firstFriendlyName = renamed.from === device.ieeeAddr;
             const updateMatter = firstFriendlyName
-                ? this.syncMatterEndpoints(renamed.entity, true).then(() => this.relabelMatterEndpoints(renamed.entity, renamed.to))
-                : this.relabelMatterEndpoints(renamed.entity, renamed.to);
+                ? this.syncMatterEndpoints(device, true).then(() => this.relabelMatterEndpoints(device, renamed.to))
+                : this.relabelMatterEndpoints(device, renamed.to);
             void updateMatter;
         });
         this.eventBus.onEntityRemoved(this, (removed) => {
@@ -935,8 +936,11 @@ export default class Matter extends Extension {
                 try {
                     // The factory resolves the source lazily, so labels always come from the current friendly name.
                     const restored = await runtime.restore(key);
-                    if (restored === undefined && this.shouldExposeMatterDevice(device)) await runtime.create(key, true);
-                    else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) await runtime.rebuild(key);
+                    if (restored === undefined) {
+                        if (this.shouldExposeMatterDevice(device)) await runtime.create(key, true);
+                    } else if (await this.endpointFactory.hasPlanChanged?.(restored.entry)) {
+                        await runtime.rebuild(key);
+                    }
                 } catch (error) {
                     if (isUnmappable(error)) continue;
                     logger.warning(`Matter endpoint restore failed for ${device.name}: ${errorMessage(error)}`);
