@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026.11.27.5
+- Add correlated Matter-to-Zigbee command logs for diagnosing command dispatch and converter completion.
+
 ## 2026.11.27.3
 - Add a setting to wait for the first friendly-name change before exposing new devices to Matter, enabled by default.
 

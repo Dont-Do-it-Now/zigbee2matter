@@ -1,6 +1,6 @@
 {
     "name": "zigbee2matter",
-  "version": "2026.11.27.4",
+  "version": "2026.11.27.5",
     "description": "Zigbee to Matter bridge using Zigbee-herdsman",
     "main": "index.js",
     "types": "dist/types/api.d.ts",

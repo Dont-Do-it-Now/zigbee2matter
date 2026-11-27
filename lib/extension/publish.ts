@@ -243,12 +243,23 @@ export default class Publish extends Extension {
                         meta.message[keyWithoutEndpoint] = value;
                     }
                 }
+
+                if (parsedTopic.type === "set") {
+                    logger.info(
+                        `Zigbee command received: device=${re.name} endpoint=${endpointName ?? "default"} key=${key} value=${stringify(value)}`,
+                    );
+                }
             }
 
             try {
                 if (parsedTopic.type === "set" && converter.convertSet) {
                     logger.debug(`Publishing '${parsedTopic.type}' '${key}' to '${re.name}'`);
                     const result = await converter.convertSet(localTarget, key, value, meta);
+                    logger.info(
+                        `Zigbee converter completed: device=${re.name} endpoint=${endpointName ?? "default"} key=${key} state=${
+                            result?.state === undefined ? "none" : stringify(result.state)
+                        }`,
+                    );
                     const optimistic = entitySettings.optimistic === undefined || entitySettings.optimistic;
 
                     if (result?.state && optimistic) {

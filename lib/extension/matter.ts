@@ -1046,6 +1046,7 @@ export default class Matter extends Extension {
             lockCommandsAllowed: true,
             // Matter 명령도 공통 CommandRouter 경로(권한/검증/큐/중복/결과 이벤트)를 거친다(T012).
             send: async (payload: Record<string, unknown>): Promise<void> => {
+                logger.info(`Matter command requested: device=${device.name} endpoint=${endpoint.ID} payload=${JSON.stringify(payload)}`);
                 const result = await this.submit({
                     requestId: randomUUID(),
                     correlationId: randomUUID(),
@@ -1056,6 +1057,9 @@ export default class Matter extends Extension {
                     target: {key: entry.key},
                     value: payload,
                 });
+                logger.info(
+                    `Matter command result: device=${device.name} endpoint=${endpoint.ID} status=${result.status} dispatched=${result.dispatched}`,
+                );
                 if (result.status === "failed" || result.status === "timeout") {
                     throw new Error(`${result.errorCode ?? result.status}: ${result.errorMessage ?? "command failed"}`);
                 }
